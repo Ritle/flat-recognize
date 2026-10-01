@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Floorplan Recognition</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        font-family:
+            Inter,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+        background: #0b0d12;
+        color: #f4f6fb;
+        min-height: 100vh;
+    }
+
+    .page {
+        max-width: 1250px;
+        margin: 0 auto;
+        padding: 48px 24px 80px;
+    }
+
+    .hero {
+        margin-bottom: 32px;
+    }
+
+    .hero-badge {
+        display: inline-block;
+        padding: 7px 12px;
+        border-radius: 100px;
+        background: #191d27;
+        border: 1px solid #292e3a;
+        color: #aab1c3;
+        font-size: 13px;
+        margin-bottom: 14px;
+    }
+
+    h1 {
+        margin: 0;
+        max-width: 800px;
+        font-size: clamp(32px, 5vw, 54px);
+        letter-spacing: -2px;
+        line-height: 1.04;
+    }
+
+    .subtitle {
+        max-width: 700px;
+        color: #949bad;
+        line-height: 1.65;
+        margin-top: 18px;
+        font-size: 16px;
+    }
+
+    .panel {
+        background: #11141b;
+        border: 1px solid #232834;
+        border-radius: 20px;
+        padding: 22px;
+        box-shadow:
+            0 20px 80px rgba(0,0,0,.25);
+    }
+
+    .upload {
+        min-height: 250px;
+        border: 1px dashed #3a4150;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        cursor: pointer;
+        transition: .2s;
+        padding: 30px;
+        background: #0d1016;
+    }
+
+    .upload:hover,
+    .upload.drag {
+        border-color: #7d8cff;
+        background: #111522;
+    }
+
+    .upload-icon {
+        font-size: 42px;
+        margin-bottom: 12px;
+    }
+
+    .upload-title {
+        font-size: 19px;
+        font-weight: 650;
+    }
+
+    .upload-help {
+        margin-top: 8px;
+        color: #7d8494;
+        font-size: 14px;
+    }
+
+    input[type=file] {
+        display: none;
+    }
+
+    .processing {
+        display: none;
+        text-align: center;
+        padding: 45px;
+    }
+
+    .spinner {
+        width: 42px;
+        height: 42px;
+        border: 4px solid #252a34;
+        border-top-color: #8793ff;
+        border-radius: 50%;
+        margin: 0 auto 20px;
+        animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    #results {
+        display: none;
+        margin-top: 26px;
+    }
+
+    .result-header {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .result-header h2 {
+        margin: 0;
+        font-size: 24px;
+    }
+
+    .result-meta {
+        color: #858d9e;
+        margin-top: 6px;
+        font-size: 14px;
+    }
+
+    .btn {
+        appearance: none;
+        border: 0;
+        text-decoration: none;
+        cursor: pointer;
+        padding: 12px 18px;
+        border-radius: 11px;
+        font-weight: 650;
+        font-size: 14px;
+        transition: .15s;
+    }
+
+    .btn-primary {
+        background: #eef0ff;
+        color: #151723;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        background: #fff;
+    }
+
+    .btn-secondary {
+        background: #1c202a;
+        color: #e9ebf2;
+        border: 1px solid #2c3240;
+    }
+
+    .stats {
+        display: grid;
+        grid-template-columns:
+            repeat(5, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .stat {
+        background: #11141b;
+        border: 1px solid #232834;
+        border-radius: 15px;
+        padding: 18px;
+    }
+
+    .stat-value {
+        font-size: 31px;
+        font-weight: 750;
+        letter-spacing: -1px;
+    }
+
+    .stat-label {
+        margin-top: 5px;
+        color: #858d9e;
+        font-size: 13px;
+    }
+
+    .viewer {
+        background: #11141b;
+        border: 1px solid #232834;
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+
+    .tabs {
+        padding: 12px;
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid #222733;
+    }
+
+    .tab {
+        padding: 8px 12px;
+        border: 0;
+        border-radius: 9px;
+        color: #8f96a6;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .tab.active {
+        background: #242937;
+        color: white;
+    }
+
+    .image-wrap {
+        background:
+            repeating-conic-gradient(
+                #151820 0% 25%,
+                #11141b 0% 50%
+            )
+            50% / 24px 24px;
+        min-height: 400px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 25px;
+    }
+
+    #preview {
+        display: block;
+        max-width: 100%;
+        max-height: 720px;
+        border-radius: 8px;
+        box-shadow:
+            0 12px 40px rgba(0,0,0,.35);
+    }
+
+    .json-panel {
+        background: #11141b;
+        border: 1px solid #232834;
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+    .json-head {
+        padding: 15px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #232834;
+    }
+
+    .json-title {
+        font-weight: 650;
+    }
+
+    pre {
+        margin: 0;
+        padding: 20px;
+        max-height: 500px;
+        overflow: auto;
+        color: #cdd3df;
+        font-family:
+            "JetBrains Mono",
+            "Cascadia Code",
+            monospace;
+        font-size: 12px;
+        line-height: 1.55;
+        background: #0c0f14;
+    }
+
+    .error {
+        display: none;
+        margin-top: 20px;
+        padding: 16px;
+        border: 1px solid #653239;
+        background: #241316;
+        color: #ffb7bd;
+        border-radius: 12px;
+        white-space: pre-wrap;
+    }
+
+    .new-file {
+        margin-top: 20px;
+    }
+
+    @media (max-width: 850px) {
+        .stats {
+            grid-template-columns:
+                repeat(2, 1fr);
+        }
+
+        .result-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <div class="hero">
+        <div class="hero-badge">
+            Floorplan → Project JSON
+        </div>
+
+        <h1>
+            Распознавание планировки
+        </h1>
+
+        <div class="subtitle">
+            Загрузите чистый архитектурный план.
+            Сервис распознает помещения, стены,
+            двери и окна и сформирует готовый
+            JSON проекта.
+        </div>
+    </div>
+
+    <div class="panel">
+
+        <label
+            class="upload"
+            id="dropZone"
+            for="fileInput"
+        >
+            <div>
+                <div class="upload-icon">
+                    ⬆
+                </div>
+
+                <div class="upload-title">
+                    Перетащите планировку сюда
+                </div>
+
+                <div class="upload-help">
+                    или нажмите для выбора файла
+                    · JPG / PNG / WEBP · до 20 МБ
+                </div>
+            </div>
+        </label>
+
+        <input
+            type="file"
+            id="fileInput"
+            accept=".jpg,.jpeg,.png,.webp"
+        >
+
+        <div
+            class="processing"
+            id="processing"
+        >
+            <div class="spinner"></div>
+
+            <div style="font-size:18px;font-weight:650">
+                Распознаём планировку
+            </div>
+
+            <div style="margin-top:8px;color:#7f8797">
+                Нейросеть анализирует стены,
+                помещения и проёмы
+            </div>
+        </div>
+
+    </div>
+
+    <div
+        class="error"
+        id="error"
+    ></div>
+
+    <section id="results">
+
+        <div class="result-header">
+
+            <div>
+                <h2>
+                    Результат распознавания
+                </h2>
+
+                <div
+                    class="result-meta"
+                    id="resultMeta"
+                ></div>
+            </div>
+
+            <a
+                class="btn btn-primary"
+                id="downloadButton"
+            >
+                Скачать project.json
+            </a>
+
+        </div>
+
+        <div class="stats">
+
+            <div class="stat">
+                <div
+                    class="stat-value"
+                    id="roomsCount"
+                >0</div>
+                <div class="stat-label">
+                    Помещений
+                </div>
+            </div>
+
+            <div class="stat">
+                <div
+                    class="stat-value"
+                    id="wallsCount"
+                >0</div>
+                <div class="stat-label">
+                    Сегментов стен
+                </div>
+            </div>
+
+            <div class="stat">
+                <div
+                    class="stat-value"
+                    id="doorsCount"
+                >0</div>
+                <div class="stat-label">
+                    Дверей
+                </div>
+            </div>
+
+            <div class="stat">
+                <div
+                    class="stat-value"
+                    id="windowsCount"
+                >0</div>
+                <div class="stat-label">
+                    Окон
+                </div>
+            </div>
+
+            <div class="stat">
+                <div
+                    class="stat-value"
+                    id="timeCount"
+                >0</div>
+                <div class="stat-label">
+                    секунд
+                </div>
+            </div>
+
+        </div>
+
+        <div class="viewer">
+
+            <div
+                class="tabs"
+                id="tabs"
+            ></div>
+
+            <div class="image-wrap">
+                <img
+                    id="preview"
+                    alt="Floorplan preview"
+                >
+            </div>
+
+        </div>
+
+        <div class="json-panel">
+
+            <div class="json-head">
+
+                <div class="json-title">
+                    Project JSON
+                </div>
+
+                <button
+                    class="btn btn-secondary"
+                    id="copyJson"
+                >
+                    Копировать JSON
+                </button>
+
+            </div>
+
+            <pre id="jsonPreview"></pre>
+
+        </div>
+
+        <button
+            class="btn btn-secondary new-file"
+            id="newFileButton"
+        >
+            Обработать другую планировку
+        </button>
+
+    </section>
+
+</div>
+
+<script>
+const input = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const processing = document.getElementById('processing');
+const results = document.getElementById('results');
+const errorBox = document.getElementById('error');
+
+let currentJson = null;
+
+input.addEventListener('change', () => {
+    if (input.files.length) {
+        upload(input.files[0]);
+    }
+});
+
+dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('drag');
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drag');
+});
+
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag');
+
+    if (e.dataTransfer.files.length) {
+        upload(e.dataTransfer.files[0]);
+    }
+});
+
+async function upload(file) {
+
+    errorBox.style.display = 'none';
+    results.style.display = 'none';
+    dropZone.style.display = 'none';
+    processing.style.display = 'block';
+
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+
+        const response = await fetch(
+            '/api/recognize',
+            {
+                method: 'POST',
+                body: form
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+
+            let message = 'Ошибка обработки';
+
+            if (typeof data.detail === 'string') {
+                message = data.detail;
+            } else if (data.detail?.message) {
+                message = data.detail.message;
+
+                if (data.detail.log) {
+                    message += '\n\n' + data.detail.log;
+                }
+            }
+
+            throw new Error(message);
+        }
+
+        await showResult(data);
+
+    } catch (error) {
+
+        errorBox.textContent =
+            error.message || String(error);
+
+        errorBox.style.display = 'block';
+
+        dropZone.style.display = 'flex';
+
+    } finally {
+
+        processing.style.display = 'none';
+
+    }
+}
+
+async function showResult(data) {
+
+    document.getElementById(
+        'roomsCount'
+    ).textContent = data.stats.rooms;
+
+    document.getElementById(
+        'wallsCount'
+    ).textContent = data.stats.walls;
+
+    document.getElementById(
+        'doorsCount'
+    ).textContent = data.stats.doors;
+
+    document.getElementById(
+        'windowsCount'
+    ).textContent = data.stats.windows;
+
+    document.getElementById(
+        'timeCount'
+    ).textContent = data.seconds;
+
+    document.getElementById(
+        'resultMeta'
+    ).textContent =
+        data.filename +
+        ' · ID ' +
+        data.job_id.slice(0, 8);
+
+    const download =
+        document.getElementById(
+            'downloadButton'
+        );
+
+    download.href = data.download_url;
+
+    const jsonResponse =
+        await fetch(data.json_url);
+
+    currentJson =
+        await jsonResponse.json();
+
+    const prettyJson =
+        JSON.stringify(
+            currentJson,
+            null,
+            2
+        );
+
+    document.getElementById(
+        'jsonPreview'
+    ).textContent = prettyJson;
+
+    setupImages(data);
+
+    results.style.display = 'block';
+
+    results.scrollIntoView({
+        behavior: 'smooth'
+    });
+}
+
+function setupImages(data) {
+
+    const tabs =
+        document.getElementById('tabs');
+
+    tabs.innerHTML = '';
+
+    const images = [
+        {
+            label: 'Исходник',
+            url: data.original_url
+        },
+        {
+            label: 'Стены',
+            url: data.images.segmentation
+        },
+        {
+            label: 'Двери / окна',
+            url: data.images.classified
+        },
+        {
+            label: 'Комнаты',
+            url: data.images.rooms
+        }
+    ].filter(item => item.url);
+
+    const preview =
+        document.getElementById('preview');
+
+    images.forEach((item, index) => {
+
+        const button =
+            document.createElement('button');
+
+        button.className =
+            'tab' +
+            (index === 0 ? ' active' : '');
+
+        button.textContent =
+            item.label;
+
+        button.onclick = () => {
+
+            document
+                .querySelectorAll('.tab')
+                .forEach(el =>
+                    el.classList.remove('active')
+                );
+
+            button.classList.add('active');
+
+            preview.src =
+                item.url +
+                '?t=' +
+                Date.now();
+        };
+
+        tabs.appendChild(button);
+    });
+
+    if (images.length) {
+        preview.src =
+            images[0].url +
+            '?t=' +
+            Date.now();
+    }
+}
+
+document.getElementById(
+    'copyJson'
+).onclick = async () => {
+
+    if (!currentJson) return;
+
+    await navigator.clipboard.writeText(
+        JSON.stringify(
+            currentJson,
+            null,
+            2
+        )
+    );
+
+    const button =
+        document.getElementById('copyJson');
+
+    const old =
+        button.textContent;
+
+    button.textContent =
+        'Скопировано';
+
+    setTimeout(() => {
+        button.textContent = old;
+    }, 1300);
+};
+
+document.getElementById(
+    'newFileButton'
+).onclick = () => {
+
+    input.value = '';
+
+    results.style.display =
+        'none';
+
+    errorBox.style.display =
+        'none';
+
+    dropZone.style.display =
+        'flex';
+
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+};
+</script>
+
+</body>
+</html>

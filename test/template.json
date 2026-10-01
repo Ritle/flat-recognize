@@ -1,0 +1,2854 @@
+{
+  "levels": [
+    {
+      "levelId": "d6548087-ce69-4d8e-884a-52cb94393d07",
+      "height": 270,
+      "connectors": [
+        {
+          "uuid": "c0",
+          "x": 2482.7500000000014,
+          "y": 360,
+          "z": 0,
+          "adjacency": [
+            "c2",
+            "c3"
+          ]
+        },
+        {
+          "uuid": "c1",
+          "x": 2220.73,
+          "y": 201.78,
+          "z": 0,
+          "adjacency": [
+            "c2",
+            "c5"
+          ]
+        },
+        {
+          "uuid": "c2",
+          "x": 2482.75,
+          "y": 201.78,
+          "z": 0,
+          "adjacency": [
+            "c1",
+            "c0"
+          ]
+        },
+        {
+          "uuid": "c3",
+          "x": 2532.425978962786,
+          "y": 360.00000000000125,
+          "z": 0,
+          "adjacency": [
+            "c0",
+            "c4"
+          ]
+        },
+        {
+          "uuid": "c4",
+          "x": 2532.425978962786,
+          "y": 917.3699999999901,
+          "z": 0,
+          "adjacency": [
+            "c5",
+            "c3"
+          ]
+        },
+        {
+          "uuid": "c5",
+          "x": 2220.73,
+          "y": 917.37,
+          "z": 0,
+          "adjacency": [
+            "c4",
+            "c1"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "uuid": "0d76c334-d55f-48d2-8e6b-4d01e2fe20a2",
+          "start": "c2",
+          "end": "c0",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 2,
+          "right": 0,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "d318c041-3bf8-4214-b216-3e0c84977ada",
+          "start": "c1",
+          "end": "c2",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 1,
+          "right": 2,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "de726d4d-6b15-4e70-9e38-0ed36946b187",
+          "start": "c0",
+          "end": "c3",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 0,
+          "right": 3,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "cb135ec2-11a1-44e5-8214-0e28c78ce81e",
+          "start": "c4",
+          "end": "c5",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 4,
+          "right": 5,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+          "start": "c5",
+          "end": "c1",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 5,
+          "right": 1,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "f5db147d-8b47-402d-98bb-3b5d3d5d4950",
+          "start": "c3",
+          "end": "c4",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 3,
+          "right": 4,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false,
+          "data": ""
+        }
+      ],
+      "areas": [
+        {
+          "uuid": "529950e1-205c-404c-b938-2025a034b588",
+          "name": "",
+          "data": "",
+          "connectors": [
+            "c5",
+            "c1",
+            "c2",
+            "c0",
+            "c3",
+            "c4"
+          ],
+          "materials": {
+            "flooring": {
+              "rotation": 90,
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg"
+            },
+            "ceiling": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "walls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "outsidewalls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 195041.0726152308
+        }
+      ],
+      "elements": [
+        {
+          "uuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af",
+          "type": "doorItem",
+          "name": "wall_item_1",
+          "size": {
+            "x": 85,
+            "y": 202.00322660591135,
+            "z": 20
+          },
+          "wall": {
+            "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+            "position": 59.712642502139715,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.42499,
+                "y": 2.025
+              },
+              {
+                "x": -0.42501,
+                "y": 2.025
+              },
+              {
+                "x": -0.42501,
+                "y": -0.00001
+              },
+              {
+                "x": 0.42499,
+                "y": -0.00001
+              },
+              {
+                "x": 0.42499,
+                "y": 2.025
+              }
+            ]
+          },
+          "position": {
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": true
+          },
+          "recess": 0,
+          "doorOpensOutwards": false,
+          "door": {
+            "panel": true,
+            "reversed": true,
+            "angle": 0,
+            "depth": 0
+          },
+          "materials": [
+            {
+              "uuid": "00dcb7e6-220b-467e-b3b8-d69cb225c33b",
+              "name": "Osnova",
+              "color": "#FFF",
+              "fileName": "Sosna massiv.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            },
+            {
+              "uuid": "248a160c-9580-4524-872a-1c6c7334d571",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Bronza.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            }
+          ],
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/82360e5436debc2837f290c23d4e8da7.zip",
+            "size": {
+              "x": 85,
+              "y": 202.501,
+              "z": 20
+            }
+          },
+          "scale": {
+            "x": 1,
+            "y": 0.9975418719211824,
+            "z": 1
+          },
+          "no_render": false
+        },
+        {
+          "uuid": "dc99450d-9fa3-427d-874f-7fac2a07aac0",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/d140bd11e11e77b943ddee31c5220a77.zip",
+            "size": {
+              "x": 60.00099999999999,
+              "y": 85,
+              "z": 60.00099999999999
+            }
+          },
+          "materials": [
+            {
+              "uuid": "a58d2e8a-bbf9-4040-b59a-8059b4485d7d",
+              "name": "Korpus",
+              "color": "#ffffff",
+              "fileName": "LDSP temno-seryy.jpg",
+              "itemUuid": "dc99450d-9fa3-427d-874f-7fac2a07aac0"
+            },
+            {
+              "uuid": "590da12a-0997-4287-bcd3-f67dc3e67098",
+              "name": "Duhovoy shkaf",
+              "color": "#ffffff",
+              "fileName": "Duhovoy shkaf.jpg",
+              "itemUuid": "dc99450d-9fa3-427d-874f-7fac2a07aac0"
+            },
+            {
+              "uuid": "e3059c42-aeec-48a0-baf5-fd3fba795742",
+              "name": "Stoleshnica",
+              "color": "#FFF",
+              "fileName": "Oreh amerikanskiy (2).jpg",
+              "itemUuid": "dc99450d-9fa3-427d-874f-7fac2a07aac0"
+            },
+            {
+              "uuid": "02800aea-cf2b-4fe1-8ef0-18512d62b596",
+              "name": "Cokol",
+              "color": "#000000",
+              "fileName": null,
+              "itemUuid": "dc99450d-9fa3-427d-874f-7fac2a07aac0"
+            },
+            {
+              "uuid": "7fa87b37-32eb-4bc9-b0ea-0dfabc37af5a",
+              "name": "Fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "dc99450d-9fa3-427d-874f-7fac2a07aac0"
+            }
+          ],
+          "size": {
+            "x": 60.00099999999999,
+            "y": 85,
+            "z": 60.00099999999999
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2260.731,
+            "y": 301.0188943738147,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/d140bd11e11e77b943ddee31c5220a77_top.png?1778152190",
+          "imgDefaultWidth": 60.00099999999999,
+          "imgDefaultHeight": 60.00099999999999
+        },
+        {
+          "uuid": "6db7eca6-d396-43c5-b362-dcf77c744ae4",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/c6fcfa8ab72550471d19eaf8d37f5310.zip",
+            "size": {
+              "x": 43.9,
+              "y": 25.801000000000002,
+              "z": 32.201
+            }
+          },
+          "materials": [
+            {
+              "uuid": "f9b8f8d3-1e3f-4b97-a553-1ef7b8f0d63c",
+              "name": "Korpus",
+              "color": "#ffffff",
+              "fileName": "Chyornyy matovyy metall.jpg",
+              "itemUuid": "6db7eca6-d396-43c5-b362-dcf77c744ae4"
+            },
+            {
+              "uuid": "41fdf651-f321-4cd2-8453-556123907da1",
+              "name": "Ramka",
+              "color": "#ffffff",
+              "fileName": "Chernyy plastik-2.jpg",
+              "itemUuid": "6db7eca6-d396-43c5-b362-dcf77c744ae4"
+            },
+            {
+              "uuid": "a4798f2c-cf52-4615-ae19-e18ea7cf3148",
+              "name": "Steklo",
+              "color": "#ffffff",
+              "fileName": "Dverca mikrovolnovki.jpg",
+              "itemUuid": "6db7eca6-d396-43c5-b362-dcf77c744ae4"
+            },
+            {
+              "uuid": "33d46688-b645-44d7-9c49-9b911128244e",
+              "name": "Panel upravleniya",
+              "color": "#ffffff",
+              "fileName": "Tablo mikrovolnovki.jpg",
+              "itemUuid": "6db7eca6-d396-43c5-b362-dcf77c744ae4"
+            }
+          ],
+          "size": {
+            "x": 60,
+            "y": 35,
+            "z": 42
+          },
+          "scale": {
+            "x": 1.366742596810934,
+            "y": 1.3565365683500639,
+            "z": 1.304307319648458
+          },
+          "position": {
+            "x": 2354.049771243477,
+            "y": 228.2319510408006,
+            "z": 131
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -6.283185307179586,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/c6fcfa8ab72550471d19eaf8d37f5310_top.png?1778152187",
+          "imgDefaultWidth": 43.9,
+          "imgDefaultHeight": 43.9
+        },
+        {
+          "uuid": "2bc630fd-e7ec-46fb-b122-7e970a6f4921",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/2ce41efc279427f1326371a362f6a8b6.zip",
+            "size": {
+              "x": 119.6,
+              "y": 76.00099999999999,
+              "z": 119.75799999999998
+            }
+          },
+          "materials": [
+            {
+              "uuid": "064fb168-1453-4302-b1c2-00723293ece9",
+              "name": "korpus",
+              "color": "#FFF",
+              "fileName": "Oreh 3.jpg",
+              "itemUuid": "2bc630fd-e7ec-46fb-b122-7e970a6f4921"
+            }
+          ],
+          "size": {
+            "x": 90,
+            "y": 76.00099999999999,
+            "z": 90
+          },
+          "scale": {
+            "x": 0.7525083612040134,
+            "y": 1,
+            "z": 0.7515155563720171
+          },
+          "position": {
+            "x": 2433.917222954263,
+            "y": 467.3560241718429,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/2ce41efc279427f1326371a362f6a8b6_top.png?1778152190",
+          "imgDefaultWidth": 119.758,
+          "imgDefaultHeight": 119.758
+        },
+        {
+          "uuid": "cc2d6072-df3b-4e7f-b7b0-b491970c8dc5",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/97e3915a09adf61f8aa684feec657be3.zip",
+            "size": {
+              "x": 56.001,
+              "y": 3.001,
+              "z": 48
+            }
+          },
+          "materials": [
+            {
+              "uuid": "b00fd409-8a33-4fdf-902f-943ec726a385",
+              "name": "Panel",
+              "color": "#ffffff",
+              "fileName": "Varochnaya panel3.jpg",
+              "itemUuid": "cc2d6072-df3b-4e7f-b7b0-b491970c8dc5"
+            },
+            {
+              "uuid": "8141a685-9029-4021-867e-e6c7e6013c15",
+              "name": "Niz",
+              "color": "#ffffff",
+              "fileName": "Seryy.jpg",
+              "itemUuid": "cc2d6072-df3b-4e7f-b7b0-b491970c8dc5"
+            }
+          ],
+          "size": {
+            "x": 56.001,
+            "y": 3.001,
+            "z": 48
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2263.766913395704,
+            "y": 302.8422555845106,
+            "z": 83
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/97e3915a09adf61f8aa684feec657be3_top.png?1778152188",
+          "imgDefaultWidth": 56.001,
+          "imgDefaultHeight": 56.001
+        },
+        {
+          "uuid": "af95efde-1e1b-4165-b2cc-8d40a803ea85",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/51358cf77b13bd25ebb0bdc155eeaa58.zip",
+            "size": {
+              "x": 250,
+              "y": 60.00099999999999,
+              "z": 2
+            }
+          },
+          "materials": [
+            {
+              "uuid": "d385928f-dd14-4c01-844f-596cc48fb68f",
+              "name": "Fartuk",
+              "color": "#ECECE7",
+              "fileName": null,
+              "itemUuid": "af95efde-1e1b-4165-b2cc-8d40a803ea85"
+            }
+          ],
+          "size": {
+            "x": 243.00000000000003,
+            "y": 60.00099999999999,
+            "z": 2
+          },
+          "scale": {
+            "x": 0.9720000000000001,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2351.25,
+            "y": 212.7800000000001,
+            "z": 82
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/51358cf77b13bd25ebb0bdc155eeaa58_top.png?1778152188",
+          "imgDefaultWidth": 250,
+          "imgDefaultHeight": 250,
+          "wall": {
+            "uuid": "d318c041-3bf8-4214-b216-3e0c84977ada",
+            "position": 49.79753739360383,
+            "offset": 0.01,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "f5facf57-f2f9-4657-9f20-344fc6561453",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/bec219ae1cd17cefcb016c2c6b404144.zip",
+            "size": {
+              "x": 86.00099999999999,
+              "y": 126.001,
+              "z": 38.062000000000005
+            }
+          },
+          "materials": [
+            {
+              "uuid": "68f3afc5-03aa-4189-ae68-1a99b219e3e7",
+              "name": "Korpus",
+              "color": "#ffffff",
+              "fileName": "MDF belyy.jpg",
+              "itemUuid": "f5facf57-f2f9-4657-9f20-344fc6561453"
+            },
+            {
+              "uuid": "3722ed6f-c6ef-4da2-96cd-eefd74b7a79c",
+              "name": "Fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "f5facf57-f2f9-4657-9f20-344fc6561453"
+            },
+            {
+              "uuid": "99a438f9-a8df-42a0-b822-b6131f0a9ce1",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Hrom6.jpg",
+              "itemUuid": "f5facf57-f2f9-4657-9f20-344fc6561453"
+            }
+          ],
+          "size": {
+            "x": 93,
+            "y": 92.00000000000001,
+            "z": 38.06200000000001
+          },
+          "scale": {
+            "x": 1.0813827746189,
+            "y": 0.7301529352941644,
+            "z": 1.0000000000000002
+          },
+          "position": {
+            "x": 2279.4079088265853,
+            "y": 230.81100000000018,
+            "z": 130
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/bec219ae1cd17cefcb016c2c6b404144_top.png?1778152186",
+          "imgDefaultWidth": 86.00099999999999,
+          "imgDefaultHeight": 86.00099999999999,
+          "wall": {
+            "uuid": "d318c041-3bf8-4214-b216-3e0c84977ada",
+            "position": 20.113176112133413,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "66b17875-27c7-4c4d-969c-4d0d34daea71",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/bec219ae1cd17cefcb016c2c6b404144.zip",
+            "size": {
+              "x": 86.00099999999999,
+              "y": 126.001,
+              "z": 38.062000000000005
+            }
+          },
+          "materials": [
+            {
+              "uuid": "68f3afc5-03aa-4189-ae68-1a99b219e3e7",
+              "name": "Korpus",
+              "color": "#ffffff",
+              "fileName": "MDF belyy.jpg",
+              "itemUuid": "66b17875-27c7-4c4d-969c-4d0d34daea71"
+            },
+            {
+              "uuid": "3722ed6f-c6ef-4da2-96cd-eefd74b7a79c",
+              "name": "Fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "66b17875-27c7-4c4d-969c-4d0d34daea71"
+            },
+            {
+              "uuid": "99a438f9-a8df-42a0-b822-b6131f0a9ce1",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Hrom6.jpg",
+              "itemUuid": "66b17875-27c7-4c4d-969c-4d0d34daea71"
+            }
+          ],
+          "size": {
+            "x": 90,
+            "y": 92.00000000000001,
+            "z": 38.06200000000001
+          },
+          "scale": {
+            "x": 1.0464994593086128,
+            "y": 0.7301529352941644,
+            "z": 1.0000000000000002
+          },
+          "position": {
+            "x": 2427.7419208447955,
+            "y": 230.81099999999995,
+            "z": 130
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/bec219ae1cd17cefcb016c2c6b404144_top.png?1778152186",
+          "imgDefaultWidth": 86.00099999999999,
+          "imgDefaultHeight": 86.00099999999999,
+          "wall": {
+            "uuid": "d318c041-3bf8-4214-b216-3e0c84977ada",
+            "position": 81.403157112964,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "3056293c-8aa6-4481-a9a4-91cd0b00ad42",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/bec219ae1cd17cefcb016c2c6b404144.zip",
+            "size": {
+              "x": 86.00099999999999,
+              "y": 126.001,
+              "z": 38.062000000000005
+            }
+          },
+          "materials": [
+            {
+              "uuid": "68f3afc5-03aa-4189-ae68-1a99b219e3e7",
+              "name": "Korpus",
+              "color": "#FFF",
+              "fileName": "MDF belyy.jpg",
+              "itemUuid": "3056293c-8aa6-4481-a9a4-91cd0b00ad42"
+            },
+            {
+              "uuid": "3722ed6f-c6ef-4da2-96cd-eefd74b7a79c",
+              "name": "Fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "3056293c-8aa6-4481-a9a4-91cd0b00ad42"
+            },
+            {
+              "uuid": "99a438f9-a8df-42a0-b822-b6131f0a9ce1",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Hrom6.jpg",
+              "itemUuid": "3056293c-8aa6-4481-a9a4-91cd0b00ad42"
+            }
+          ],
+          "size": {
+            "x": 59.99999999999999,
+            "y": 92.00000000000001,
+            "z": 38.06200000000001
+          },
+          "scale": {
+            "x": 0.6976663062057418,
+            "y": 0.7301529352941644,
+            "z": 1.0000000000000002
+          },
+          "position": {
+            "x": 2355.776580208958,
+            "y": 230.81100000000006,
+            "z": 130
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/bec219ae1cd17cefcb016c2c6b404144_top.png?1778152186",
+          "imgDefaultWidth": 86.00099999999999,
+          "imgDefaultHeight": 86.00099999999999,
+          "wall": {
+            "uuid": "d318c041-3bf8-4214-b216-3e0c84977ada",
+            "position": 51.66787051027103,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "941ab1d1-695a-4338-bb22-6f267d5af3dd",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/51358cf77b13bd25ebb0bdc155eeaa58.zip",
+            "size": {
+              "x": 250,
+              "y": 60.00099999999999,
+              "z": 2
+            }
+          },
+          "materials": [
+            {
+              "uuid": "d385928f-dd14-4c01-844f-596cc48fb68f",
+              "name": "Fartuk",
+              "color": "#FFF",
+              "fileName": "Venge seryy.png",
+              "itemUuid": "941ab1d1-695a-4338-bb22-6f267d5af3dd"
+            }
+          ],
+          "size": {
+            "x": 240,
+            "y": 60.00099999999999,
+            "z": 2
+          },
+          "scale": {
+            "x": 0.96,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2352.75,
+            "y": 212.78000000000006,
+            "z": 82
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/51358cf77b13bd25ebb0bdc155eeaa58_top.png?1778152188",
+          "imgDefaultWidth": 250,
+          "imgDefaultHeight": 250,
+          "wall": {
+            "uuid": "d318c041-3bf8-4214-b216-3e0c84977ada",
+            "position": 50.41732088257168,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "8c9d4432-43d4-4328-a039-c7a484e60940",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/05f63423cfe8ce9c45be613af7f7c226.zip",
+            "size": {
+              "x": 120.00299999999999,
+              "y": 89.995,
+              "z": 61.682
+            }
+          },
+          "materials": [
+            {
+              "uuid": "a2b86441-f154-44aa-a29f-6c3a712c4ca9",
+              "name": "korpus",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "8c9d4432-43d4-4328-a039-c7a484e60940"
+            },
+            {
+              "uuid": "7c696615-0139-41db-9484-54e458301c13",
+              "name": "fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "8c9d4432-43d4-4328-a039-c7a484e60940"
+            },
+            {
+              "uuid": "ab474fc8-cb0a-4fda-99ee-9f3ea1c8aab5",
+              "name": "tcokol",
+              "color": "#000000",
+              "fileName": null,
+              "itemUuid": "8c9d4432-43d4-4328-a039-c7a484e60940"
+            },
+            {
+              "uuid": "0cccd66a-b2e7-45d4-b181-08261064b8fa",
+              "name": "ruchka",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "8c9d4432-43d4-4328-a039-c7a484e60940"
+            },
+            {
+              "uuid": "b0cb6deb-6e5d-4edc-bf4a-7fb704921a69",
+              "name": "stolechnica",
+              "color": "#FFF",
+              "fileName": "Oreh amerikanskiy (2).jpg",
+              "itemUuid": "8c9d4432-43d4-4328-a039-c7a484e60940"
+            }
+          ],
+          "size": {
+            "x": 117.99999999999999,
+            "y": 85,
+            "z": 61.682
+          },
+          "scale": {
+            "x": 0.983308750614568,
+            "y": 0.9444969164953608,
+            "z": 1
+          },
+          "position": {
+            "x": 2289.7304916543753,
+            "y": 241.78199999999998,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/05f63423cfe8ce9c45be613af7f7c226_top.png?1778152187",
+          "imgDefaultWidth": 120.00299999999999,
+          "imgDefaultHeight": 120.00299999999999
+        },
+        {
+          "uuid": "030fe56b-3ba6-44e3-8c9a-b2428701221b",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a.zip",
+            "size": {
+              "x": 55.043,
+              "y": 78.99999999999999,
+              "z": 58.00000000000001
+            }
+          },
+          "materials": [
+            {
+              "uuid": "9266bef5-36a2-4d4b-82dd-151fdcdd57ba",
+              "name": "podpyatnic",
+              "color": "#ffffff",
+              "fileName": "Plastik chernyy.jpg",
+              "itemUuid": "030fe56b-3ba6-44e3-8c9a-b2428701221b"
+            },
+            {
+              "uuid": "905e3733-8fad-4826-8432-fd376819dba5",
+              "name": "obivka_ncl1_1",
+              "color": "#ffffff",
+              "fileName": "Rogozhka bezhevaya.jpg",
+              "itemUuid": "030fe56b-3ba6-44e3-8c9a-b2428701221b"
+            },
+            {
+              "uuid": "c1320e3a-542f-49e2-a579-684a6e85811f",
+              "name": "korpus",
+              "color": "#ffffff",
+              "fileName": "Oreh amerikanskiy.jpg",
+              "itemUuid": "030fe56b-3ba6-44e3-8c9a-b2428701221b"
+            }
+          ],
+          "size": {
+            "x": 55.043,
+            "y": 78.99999999999999,
+            "z": 58.00000000000001
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2433.0554980680063,
+            "y": 851.4466549933552,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -2.007128639793479,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a_top.png?1778152186",
+          "imgDefaultWidth": 58.000000000000014,
+          "imgDefaultHeight": 58.000000000000014
+        },
+        {
+          "uuid": "a9591c86-efe4-43f8-b078-332a6aa9b2e8",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/f7fb94a031a83c337e551235db1bfa18.zip",
+            "size": {
+              "x": 239.993,
+              "y": 82.81299999999999,
+              "z": 102.49899999999998
+            }
+          },
+          "materials": [
+            {
+              "uuid": "b6ff3f98-56f7-4a3b-9509-ba6986790391",
+              "name": "Material #73",
+              "color": "#FFF",
+              "fileName": "Velyur t.siniy 1.jpg",
+              "itemUuid": "a9591c86-efe4-43f8-b078-332a6aa9b2e8"
+            },
+            {
+              "uuid": "6797e454-9762-48f7-a7d1-4e77a0b3a350",
+              "name": "Material #112",
+              "color": "#0d0d0d",
+              "fileName": null,
+              "itemUuid": "a9591c86-efe4-43f8-b078-332a6aa9b2e8"
+            }
+          ],
+          "size": {
+            "x": 210,
+            "y": 82.81299999999999,
+            "z": 100
+          },
+          "scale": {
+            "x": 0.8750255215777127,
+            "y": 1,
+            "z": 0.9756192743343839
+          },
+          "position": {
+            "x": 2468.150999229261,
+            "y": 672.2691532185047,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/f7fb94a031a83c337e551235db1bfa18_top.png?1778152186",
+          "imgDefaultWidth": 239.993,
+          "imgDefaultHeight": 239.993
+        },
+        {
+          "uuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/02d7da1a2aef8494577cbbabb03c09d7.zip",
+            "size": {
+              "x": 200,
+              "y": 129.20100000000002,
+              "z": 30.001
+            }
+          },
+          "materials": [
+            {
+              "uuid": "a5d53796-c5e3-4a8e-8987-2d9c0a7b5a97",
+              "name": "Steklo",
+              "color": "#ffffff",
+              "fileName": null,
+              "itemUuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4"
+            },
+            {
+              "uuid": "149a1f42-7ece-4678-88ae-323ed6632aad",
+              "name": "TV",
+              "color": null,
+              "fileName": "TV 4.jpg",
+              "itemUuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4"
+            },
+            {
+              "uuid": "e239632c-07ee-4a80-a9c3-c238802ba378",
+              "name": "TV_backside",
+              "color": "#ffffff",
+              "fileName": "Seryy plastik.jpg",
+              "itemUuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4"
+            },
+            {
+              "uuid": "de3eaf79-ff2f-4056-87f8-e52cc32cc81b",
+              "name": "Ogon",
+              "color": "#ffffff",
+              "fileName": "Ogon 4.jpg",
+              "itemUuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4"
+            },
+            {
+              "uuid": "c42fe580-5675-480b-a43e-92996cc674a4",
+              "name": "FasadKamina",
+              "color": "#ffffff",
+              "fileName": "Chyornyy matovyy metall.jpg",
+              "itemUuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4"
+            },
+            {
+              "uuid": "accd1053-695b-4fc8-9107-f513a4c19a09",
+              "name": "Osnova",
+              "color": "#FFF",
+              "fileName": "Oreh shpon.jpg",
+              "itemUuid": "ad802d08-9761-4505-ad9e-cab3724a9ee4"
+            }
+          ],
+          "size": {
+            "x": 200,
+            "y": 129.20100000000002,
+            "z": 30.001
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2245.7305,
+            "y": 697.274462027977,
+            "z": 35
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/02d7da1a2aef8494577cbbabb03c09d7_top.png?1778152188",
+          "imgDefaultWidth": 200,
+          "imgDefaultHeight": 200,
+          "wall": {
+            "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+            "position": 30.203933059995574,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "83e5ae8c-f915-4391-b3c0-48fea01f609d",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/a53311792e94ccb36ef1b15666ec91cf.zip",
+            "size": {
+              "x": 170,
+              "y": 265.002,
+              "z": 16.201999999999998
+            }
+          },
+          "materials": [
+            {
+              "uuid": "3f5fbe00-e1a2-4184-8f53-a36c36c3d173",
+              "name": "Tul",
+              "color": "#ffffff",
+              "fileName": "Tyul.jpg",
+              "itemUuid": "83e5ae8c-f915-4391-b3c0-48fea01f609d"
+            },
+            {
+              "uuid": "71aa187b-fd6f-46e7-ae66-71eb9a4af741",
+              "name": "Shtora",
+              "color": "#FFF",
+              "fileName": "Velyur tyomno-siniy 3.jpg",
+              "itemUuid": "83e5ae8c-f915-4391-b3c0-48fea01f609d"
+            },
+            {
+              "uuid": "dfde985b-747d-40ee-9b33-f758336c74ac",
+              "name": "Carniz",
+              "color": "#ffffff",
+              "fileName": "Plastik belyy.jpg",
+              "itemUuid": "83e5ae8c-f915-4391-b3c0-48fea01f609d"
+            }
+          ],
+          "size": {
+            "x": 280,
+            "y": 265.002,
+            "z": 16.201999999999998
+          },
+          "scale": {
+            "x": 1.6470588235294117,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2372.858523735786,
+            "y": 889.5571680083785,
+            "z": 5
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -3.141592653589793,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/a53311792e94ccb36ef1b15666ec91cf_top.png?1778152191",
+          "imgDefaultWidth": 170,
+          "imgDefaultHeight": 170
+        },
+        {
+          "uuid": "9b875c57-d40f-4e82-9560-4af61471f2f7",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/92171f08d20ca9623b492bc77e687584.zip",
+            "size": {
+              "x": 100,
+              "y": 3,
+              "z": 24.999
+            }
+          },
+          "materials": [
+            {
+              "uuid": "5407d29b-daa2-4d2e-ba97-b048e9006e12",
+              "name": "fasad",
+              "color": "#FFF",
+              "fileName": "Oreh 3.jpg",
+              "itemUuid": "9b875c57-d40f-4e82-9560-4af61471f2f7"
+            }
+          ],
+          "size": {
+            "x": 120,
+            "y": 3,
+            "z": 25
+          },
+          "scale": {
+            "x": 1.2,
+            "y": 1,
+            "z": 1.0000400016000641
+          },
+          "position": {
+            "x": 2243.23,
+            "y": 847.349954331828,
+            "z": 75
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/92171f08d20ca9623b492bc77e687584_top.png?1778152188",
+          "imgDefaultWidth": 100,
+          "imgDefaultHeight": 100,
+          "wall": {
+            "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+            "position": 8.628652750639343,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "0b061e7d-5ae0-4715-b73e-8f054912b5d6",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/b2d23315d6035b66f6df5c6fdbd1362b.zip",
+            "size": {
+              "x": 200,
+              "y": 2.001,
+              "z": 300
+            }
+          },
+          "materials": [
+            {
+              "uuid": "534e1126-a214-46ac-a22c-6cbb77a47c2c",
+              "name": "Kover",
+              "color": "#ffffff",
+              "fileName": "Material kovra - 1.jpg",
+              "itemUuid": "0b061e7d-5ae0-4715-b73e-8f054912b5d6"
+            }
+          ],
+          "size": {
+            "x": 171,
+            "y": 2.001,
+            "z": 227.99999999999997
+          },
+          "scale": {
+            "x": 0.855,
+            "y": 1,
+            "z": 0.7599999999999999
+          },
+          "position": {
+            "x": 2348.08731132611,
+            "y": 671.7769571701169,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/b2d23315d6035b66f6df5c6fdbd1362b_top.png?1778152186",
+          "imgDefaultWidth": 300,
+          "imgDefaultHeight": 300
+        },
+        {
+          "uuid": "970481b6-c01a-43ee-b60f-4e1bd2e02fd3",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/96c473d2a72f0bb4754783cbdbd22b06.zip",
+            "size": {
+              "x": 66.593,
+              "y": 119.06000000000002,
+              "z": 69.389
+            }
+          },
+          "materials": [
+            {
+              "uuid": "6ebe0dcb-e4b0-4b72-94cb-62533ef46c3e",
+              "name": "Obivka",
+              "color": "#ffffff",
+              "fileName": "leather (12).jpg",
+              "itemUuid": "970481b6-c01a-43ee-b60f-4e1bd2e02fd3"
+            },
+            {
+              "uuid": "6a142cc4-5164-4f5e-9bfc-01f46251cd1b",
+              "name": "Tkan",
+              "color": "#ffffff",
+              "fileName": "Velvet.jpg",
+              "itemUuid": "970481b6-c01a-43ee-b60f-4e1bd2e02fd3"
+            },
+            {
+              "uuid": "191d15d0-ae9f-49ca-89c2-497ec7f2dfd0",
+              "name": "Plastik",
+              "color": "#ffffff",
+              "fileName": "Seryy plastik.jpg",
+              "itemUuid": "970481b6-c01a-43ee-b60f-4e1bd2e02fd3"
+            },
+            {
+              "uuid": "2edc96ec-5810-44b2-a7ba-ea2d4aae92ba",
+              "name": "Xrom",
+              "color": "#ffffff",
+              "fileName": "metal04.jpg",
+              "itemUuid": "970481b6-c01a-43ee-b60f-4e1bd2e02fd3"
+            }
+          ],
+          "size": {
+            "x": 66.593,
+            "y": 119.06000000000002,
+            "z": 69.389
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2287.5132564960572,
+            "y": 853.2844430873105,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -4.5553093477052,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/96c473d2a72f0bb4754783cbdbd22b06_top.png?1778152192",
+          "imgDefaultWidth": 69.389,
+          "imgDefaultHeight": 69.389
+        },
+        {
+          "uuid": "3b667719-34e7-4496-a9ce-e2b493b56cac",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/dfae460d3245207d826bfe1892abc450.zip",
+            "size": {
+              "x": 45.409,
+              "y": 5.04,
+              "z": 34.389
+            }
+          },
+          "materials": [
+            {
+              "uuid": "b2a7d5ca-41c8-4d4e-8f83-e56cfae52cdf",
+              "name": "Salfetka",
+              "color": "#ffffff",
+              "fileName": "Tkan pletenaya.jpeg",
+              "itemUuid": "3b667719-34e7-4496-a9ce-e2b493b56cac"
+            },
+            {
+              "uuid": "da18af68-d38f-46d0-a14d-9a4873e85ea2",
+              "name": "Tarelca2",
+              "color": "#ffffff",
+              "fileName": "Chernoe steklo.jpg",
+              "itemUuid": "3b667719-34e7-4496-a9ce-e2b493b56cac"
+            },
+            {
+              "uuid": "697fe252-71e2-41c6-ba4c-a789db979ba1",
+              "name": "Tarelki",
+              "color": "#ffffff",
+              "fileName": "Steklo10.jpg",
+              "itemUuid": "3b667719-34e7-4496-a9ce-e2b493b56cac"
+            },
+            {
+              "uuid": "2f86bdcd-9adf-4a76-9dac-09d4c88f0e46",
+              "name": "Logki",
+              "color": "#ffffff",
+              "fileName": "metal05.jpg",
+              "itemUuid": "3b667719-34e7-4496-a9ce-e2b493b56cac"
+            }
+          ],
+          "size": {
+            "x": 45.409,
+            "y": 5.04,
+            "z": 34.389
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2435.2121461145534,
+            "y": 453.29792110443157,
+            "z": 78
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -2.652900463031381,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/dfae460d3245207d826bfe1892abc450_top.png?1778152191",
+          "imgDefaultWidth": 45.409,
+          "imgDefaultHeight": 45.409
+        },
+        {
+          "uuid": "71bcec5c-0800-4617-8807-ce56203e354f",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/f32f69b9dad59634021cb24ee6a2958f.zip",
+            "size": {
+              "x": 40,
+              "y": 60.00099999999999,
+              "z": 2
+            }
+          },
+          "materials": [
+            {
+              "uuid": "60986d8c-2173-4aa2-b542-6c5547838854",
+              "name": "Forma_2",
+              "color": "#ffffff",
+              "fileName": "Chyornyy matovyy metall.jpg",
+              "itemUuid": "71bcec5c-0800-4617-8807-ce56203e354f"
+            },
+            {
+              "uuid": "7018fd1c-875d-47d6-be82-67b5bc60263d",
+              "name": "Forma_1",
+              "color": "#ffffff",
+              "fileName": "Metall zheltyy.jpg",
+              "itemUuid": "71bcec5c-0800-4617-8807-ce56203e354f"
+            },
+            {
+              "uuid": "db9f07d5-adfc-4a17-ba19-5c7f7047c6d0",
+              "name": "Karkas",
+              "color": "#ffffff",
+              "fileName": "Chyornyy matovyy metall.jpg",
+              "itemUuid": "71bcec5c-0800-4617-8807-ce56203e354f"
+            }
+          ],
+          "size": {
+            "x": 40,
+            "y": 60.00099999999999,
+            "z": 2
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2497.4059406068654,
+            "y": 370.99999999999994,
+            "z": 165
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/f32f69b9dad59634021cb24ee6a2958f_top.png?1778152187",
+          "imgDefaultWidth": 40,
+          "imgDefaultHeight": 40,
+          "wall": {
+            "uuid": "de726d4d-6b15-4e70-9e38-0ed36946b187",
+            "position": 49.63352735400681,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "6a3e1490-0bd8-4fee-90a7-005963fc8898",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/a7b95570bd730a61d19c40210b54b3a1.zip",
+            "size": {
+              "x": 21.001,
+              "y": 39.201,
+              "z": 43.6
+            }
+          },
+          "materials": [
+            {
+              "uuid": "3d6b5403-d81c-40c7-a228-47d5330e530b",
+              "name": "Nojki",
+              "color": "#ffffff",
+              "fileName": "Hrom4.jpg",
+              "itemUuid": "6a3e1490-0bd8-4fee-90a7-005963fc8898"
+            },
+            {
+              "uuid": "fcd3aab1-acb6-46a6-a25f-bde6a0313690",
+              "name": "Osnova",
+              "color": "#ffffff",
+              "fileName": "Korpus sistemnogo bloka.jpg",
+              "itemUuid": "6a3e1490-0bd8-4fee-90a7-005963fc8898"
+            }
+          ],
+          "size": {
+            "x": 21.001,
+            "y": 39.201,
+            "z": 43.6
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2252.53,
+            "y": 807.6543415448056,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/a7b95570bd730a61d19c40210b54b3a1_top.png?1778152185",
+          "imgDefaultWidth": 43.6,
+          "imgDefaultHeight": 43.6
+        },
+        {
+          "uuid": "23044df3-35c8-49db-825a-339acfe0aa17",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/41ca74b36079f1ebefd1f81ffc140954.zip",
+            "size": {
+              "x": 49.504999999999995,
+              "y": 37.301,
+              "z": 14.589000000000002
+            }
+          },
+          "materials": [
+            {
+              "uuid": "57dbb565-d643-486a-b039-8e9734b98967",
+              "name": "Display",
+              "color": "#ffffff",
+              "fileName": "Ramka TV.jpg",
+              "itemUuid": "23044df3-35c8-49db-825a-339acfe0aa17"
+            },
+            {
+              "uuid": "fd067b56-364d-47e3-bf0f-de2a5990a8e4",
+              "name": "Osnova",
+              "color": "#050505",
+              "fileName": null,
+              "itemUuid": "23044df3-35c8-49db-825a-339acfe0aa17"
+            }
+          ],
+          "size": {
+            "x": 49.504999999999995,
+            "y": 37.301,
+            "z": 14.589000000000002
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2237.739,
+            "y": 847.8249431356808,
+            "z": 78
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/41ca74b36079f1ebefd1f81ffc140954_top.png?1778152189",
+          "imgDefaultWidth": 49.504999999999995,
+          "imgDefaultHeight": 49.504999999999995
+        },
+        {
+          "uuid": "87d8b207-5728-49f4-a789-0c40335596b1",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/1ae681ee523014ecfae263198b43f068.zip",
+            "size": {
+              "x": 56.956999999999994,
+              "y": 3.6160000000000005,
+              "z": 15.949000000000002
+            }
+          },
+          "materials": [
+            {
+              "uuid": "abd0d5f8-cdd6-40c0-bc5e-9d063948b0db",
+              "name": "Klaviatura_klavishi",
+              "color": "#ffffff",
+              "fileName": "Klaviatura.jpg",
+              "itemUuid": "87d8b207-5728-49f4-a789-0c40335596b1"
+            },
+            {
+              "uuid": "e493c076-bd27-49dd-b10e-8ff2df6aa55f",
+              "name": "Mouse_wheel",
+              "color": "#c8c8c8",
+              "fileName": null,
+              "itemUuid": "87d8b207-5728-49f4-a789-0c40335596b1"
+            },
+            {
+              "uuid": "1ade5070-7be4-4f3c-b74b-86f07055dc74",
+              "name": "Mouse_ncl1_1",
+              "color": "#050505",
+              "fileName": null,
+              "itemUuid": "87d8b207-5728-49f4-a789-0c40335596b1"
+            },
+            {
+              "uuid": "9d632fab-a160-4040-8f3f-810c7bf85371",
+              "name": "Klaviatura_osnova",
+              "color": "#050505",
+              "fileName": null,
+              "itemUuid": "87d8b207-5728-49f4-a789-0c40335596b1"
+            }
+          ],
+          "size": {
+            "x": 56.956999999999994,
+            "y": 3.6160000000000005,
+            "z": 15.949000000000002
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2259.264420722191,
+            "y": 845.8684640759329,
+            "z": 78
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/1ae681ee523014ecfae263198b43f068_top.png?1778152185",
+          "imgDefaultWidth": 56.957,
+          "imgDefaultHeight": 56.957
+        },
+        {
+          "uuid": "4ebcdc1a-9aea-4bb1-a61a-0245af4ade3b",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/ef61e379f806f25975a1485fbfa79bc3.zip",
+            "size": {
+              "x": 35.873,
+              "y": 23.784000000000002,
+              "z": 24.229
+            }
+          },
+          "materials": [
+            {
+              "uuid": "80b33a6a-a98d-4ab0-97b3-f236f51c33fd",
+              "name": "NijnyayaPanel",
+              "color": "#ffffff",
+              "fileName": "Nizhnyaya panel noutbuka.jpg",
+              "itemUuid": "4ebcdc1a-9aea-4bb1-a61a-0245af4ade3b"
+            },
+            {
+              "uuid": "f3045e6a-2cf5-440e-b7a9-18985f126ea6",
+              "name": "Display",
+              "color": "#ffffff",
+              "fileName": "Ramka TV.jpg",
+              "itemUuid": "4ebcdc1a-9aea-4bb1-a61a-0245af4ade3b"
+            },
+            {
+              "uuid": "8518287a-9a7e-474a-9e9a-085fde3b79fa",
+              "name": "Ramka",
+              "color": "#ffffff",
+              "fileName": "Chernyy plastik-2.jpg",
+              "itemUuid": "4ebcdc1a-9aea-4bb1-a61a-0245af4ade3b"
+            },
+            {
+              "uuid": "f0d53728-86bc-42c3-bf88-9694faa2812a",
+              "name": "Klaviatura",
+              "color": "#ffffff",
+              "fileName": "Klaviatura noutbuka.jpg",
+              "itemUuid": "4ebcdc1a-9aea-4bb1-a61a-0245af4ade3b"
+            },
+            {
+              "uuid": "ee3013ba-981d-4cbb-9bb9-f0cffe1c540b",
+              "name": "Osnova",
+              "color": "#ffffff",
+              "fileName": "Metall seryy.jpg",
+              "itemUuid": "4ebcdc1a-9aea-4bb1-a61a-0245af4ade3b"
+            }
+          ],
+          "size": {
+            "x": 35.873,
+            "y": 23.784000000000002,
+            "z": 24.229
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2497.9909891815128,
+            "y": 809.6053632539275,
+            "z": 81
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -5.061454830783556,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/ef61e379f806f25975a1485fbfa79bc3_top.png?1778152187",
+          "imgDefaultWidth": 35.873,
+          "imgDefaultHeight": 35.873
+        },
+        {
+          "uuid": "a14de0bb-5b08-49fe-a3c4-12d19afcc09e",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/41ca74b36079f1ebefd1f81ffc140954.zip",
+            "size": {
+              "x": 49.504999999999995,
+              "y": 37.301,
+              "z": 14.589000000000002
+            }
+          },
+          "materials": [
+            {
+              "uuid": "57dbb565-d643-486a-b039-8e9734b98967",
+              "name": "Display",
+              "color": "#ffffff",
+              "fileName": "Ramka TV.jpg",
+              "itemUuid": "a14de0bb-5b08-49fe-a3c4-12d19afcc09e"
+            },
+            {
+              "uuid": "fd067b56-364d-47e3-bf0f-de2a5990a8e4",
+              "name": "Osnova",
+              "color": "#050505",
+              "fileName": null,
+              "itemUuid": "a14de0bb-5b08-49fe-a3c4-12d19afcc09e"
+            }
+          ],
+          "size": {
+            "x": 49.504999999999995,
+            "y": 37.301,
+            "z": 14.589000000000002
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2493.9937763616085,
+            "y": 856.639084914015,
+            "z": 81
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -4.206243497306334,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/41ca74b36079f1ebefd1f81ffc140954_top.png?1778152189",
+          "imgDefaultWidth": 49.504999999999995,
+          "imgDefaultHeight": 49.504999999999995
+        },
+        {
+          "uuid": "f7e3b592-e1b6-43a5-bbff-774817b16a26",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/86c078f67816ac6dd1ad592baa0677cd.zip",
+            "size": {
+              "x": 22.717,
+              "y": 24.277,
+              "z": 17.047
+            }
+          },
+          "materials": [
+            {
+              "uuid": "86d5c320-93e1-422f-80ba-430f4a02f8dc",
+              "name": "Korpus",
+              "color": "#ffffff",
+              "fileName": "Plastik krasnyy.jpg",
+              "itemUuid": "f7e3b592-e1b6-43a5-bbff-774817b16a26"
+            },
+            {
+              "uuid": "4ba79501-de05-45ba-b4ab-d5f44a9359d0",
+              "name": "Metall",
+              "color": "#ffffff",
+              "fileName": "Hrom3.jpg",
+              "itemUuid": "f7e3b592-e1b6-43a5-bbff-774817b16a26"
+            },
+            {
+              "uuid": "1905525d-3ae4-438c-be4c-a80f68dfdded",
+              "name": "Plastik ruchki",
+              "color": "#ffffff",
+              "fileName": "Seryy plastik.jpg",
+              "itemUuid": "f7e3b592-e1b6-43a5-bbff-774817b16a26"
+            },
+            {
+              "uuid": "f63550b0-2eb8-435c-a75f-ada0e6324dd1",
+              "name": "Steklo",
+              "color": "#ffffff",
+              "fileName": "Svetloe steklo-2.jpg",
+              "itemUuid": "f7e3b592-e1b6-43a5-bbff-774817b16a26"
+            },
+            {
+              "uuid": "7b457bad-ca1a-464d-ac37-73669d8685e6",
+              "name": "Plastik",
+              "color": "#ffffff",
+              "fileName": "Plastik temnyy.jpg",
+              "itemUuid": "f7e3b592-e1b6-43a5-bbff-774817b16a26"
+            }
+          ],
+          "size": {
+            "x": 22.717,
+            "y": 24.277,
+            "z": 17.047
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2259.1835855320505,
+            "y": 240.6880889326863,
+            "z": 85
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -5.654866776461628,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/86c078f67816ac6dd1ad592baa0677cd_top.png?1778152191",
+          "imgDefaultWidth": 22.717,
+          "imgDefaultHeight": 22.717
+        },
+        {
+          "uuid": "736a5c72-8c46-42c4-ba93-7d73be740050",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/1b134f4aeaca5dd6f2e96f6ea7eec274.zip",
+            "size": {
+              "x": 60.00099999999999,
+              "y": 85,
+              "z": 60.00099999999999
+            }
+          },
+          "materials": [
+            {
+              "uuid": "06d30b3a-04fd-41d0-a592-53037b888ff2",
+              "name": "Korpus",
+              "color": "#ffffff",
+              "fileName": "LDSP temno-seryy.jpg",
+              "itemUuid": "736a5c72-8c46-42c4-ba93-7d73be740050"
+            },
+            {
+              "uuid": "170bdac6-f802-494f-bb04-512ac64ace3e",
+              "name": "Fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "736a5c72-8c46-42c4-ba93-7d73be740050"
+            },
+            {
+              "uuid": "63b42d4d-9c30-4d9e-99c1-f71fe2052890",
+              "name": "Stoleshnica",
+              "color": "#FFF",
+              "fileName": "Oreh amerikanskiy (2).jpg",
+              "itemUuid": "736a5c72-8c46-42c4-ba93-7d73be740050"
+            },
+            {
+              "uuid": "b8892811-e217-4666-9f67-9965edb4222c",
+              "name": "Cokol",
+              "color": "#000000",
+              "fileName": null,
+              "itemUuid": "736a5c72-8c46-42c4-ba93-7d73be740050"
+            }
+          ],
+          "size": {
+            "x": 45,
+            "y": 85,
+            "z": 60.00099999999999
+          },
+          "scale": {
+            "x": 0.7499875002083299,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2260.731,
+            "y": 352.9120574300355,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/1b134f4aeaca5dd6f2e96f6ea7eec274_top.png?1778152191",
+          "imgDefaultWidth": 60.00099999999999,
+          "imgDefaultHeight": 60.00099999999999
+        },
+        {
+          "uuid": "a2207a41-d066-4c3d-a7f9-2635e5842110",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/51358cf77b13bd25ebb0bdc155eeaa58.zip",
+            "size": {
+              "x": 250,
+              "y": 60.00099999999999,
+              "z": 2
+            }
+          },
+          "materials": [
+            {
+              "uuid": "d385928f-dd14-4c01-844f-596cc48fb68f",
+              "name": "Fartuk",
+              "color": "#ECECE7",
+              "fileName": null,
+              "itemUuid": "a2207a41-d066-4c3d-a7f9-2635e5842110"
+            }
+          ],
+          "size": {
+            "x": 200,
+            "y": 60.00099999999999,
+            "z": 2
+          },
+          "scale": {
+            "x": 0.8,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2231.73,
+            "y": 311.7800000000004,
+            "z": 82
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/51358cf77b13bd25ebb0bdc155eeaa58_top.png?1778152188",
+          "imgDefaultWidth": 250,
+          "imgDefaultHeight": 250,
+          "wall": {
+            "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+            "position": 85.62371511953879,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "6d6d8465-f3f9-47f6-b3b8-1af34d9f3233",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/92171f08d20ca9623b492bc77e687584.zip",
+            "size": {
+              "x": 100,
+              "y": 3,
+              "z": 24.999
+            }
+          },
+          "materials": [
+            {
+              "uuid": "5407d29b-daa2-4d2e-ba97-b048e9006e12",
+              "name": "fasad",
+              "color": "#FFF",
+              "fileName": "Oreh 3.jpg",
+              "itemUuid": "6d6d8465-f3f9-47f6-b3b8-1af34d9f3233"
+            }
+          ],
+          "size": {
+            "x": 120,
+            "y": 3,
+            "z": 20
+          },
+          "scale": {
+            "x": 1.2,
+            "y": 1,
+            "z": 0.8000320012800513
+          },
+          "position": {
+            "x": 2240.73,
+            "y": 847.3500000000001,
+            "z": 75
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/92171f08d20ca9623b492bc77e687584_top.png?1778152188",
+          "imgDefaultWidth": 100,
+          "imgDefaultHeight": 100,
+          "wall": {
+            "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+            "position": 8.628646185252823,
+            "offset": 0.25,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "79f668e3-e489-4510-8b5d-4087fb3669f8",
+          "type": "ceilingItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/196057d0e9d84b457e856c157aa57ee7.zip",
+            "size": {
+              "x": 105.68299999999999,
+              "y": 80.001,
+              "z": 66.979
+            }
+          },
+          "materials": [
+            {
+              "uuid": "917cc6f0-08e3-41bb-82fd-c48166670289",
+              "name": "Podves",
+              "color": "#ffffff",
+              "fileName": "Chernyy plastik-2.jpg",
+              "itemUuid": "79f668e3-e489-4510-8b5d-4087fb3669f8"
+            },
+            {
+              "uuid": "28839dde-db59-4f8e-a214-f0612c2d4979",
+              "name": "osnova",
+              "color": "#ffffff",
+              "fileName": "Hrom4.jpg",
+              "itemUuid": "79f668e3-e489-4510-8b5d-4087fb3669f8"
+            },
+            {
+              "uuid": "c5905f07-68ab-478e-b9ba-7cf4881379be",
+              "name": "Light",
+              "color": "#ffffff",
+              "fileName": null,
+              "itemUuid": "79f668e3-e489-4510-8b5d-4087fb3669f8"
+            }
+          ],
+          "size": {
+            "x": 105.68299999999999,
+            "y": 80.001,
+            "z": 66.979
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2357.4045553068136,
+            "y": 724.800815830576,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/196057d0e9d84b457e856c157aa57ee7_top.png?1778152189",
+          "imgDefaultWidth": 105.68299999999999,
+          "imgDefaultHeight": 105.68299999999999
+        },
+        {
+          "uuid": "efed13ee-1ae6-4093-9fe4-dad4a4f268b0",
+          "type": "ceilingItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/1dbd4cf2bee2c722db3d5b8ca88a5a94.zip",
+            "size": {
+              "x": 31.005,
+              "y": 56.00000000000001,
+              "z": 30.923000000000002
+            }
+          },
+          "materials": [
+            {
+              "uuid": "6172fbac-6bfe-49fd-ba80-276cd419cd7b",
+              "name": "Light",
+              "color": "#ffffff",
+              "fileName": null,
+              "itemUuid": "efed13ee-1ae6-4093-9fe4-dad4a4f268b0"
+            },
+            {
+              "uuid": "2aafeaf8-9e43-4e7a-a7bc-17f673469eb6",
+              "name": "Metal_1",
+              "color": "#ffffff",
+              "fileName": "Seryy.jpg",
+              "itemUuid": "efed13ee-1ae6-4093-9fe4-dad4a4f268b0"
+            },
+            {
+              "uuid": "c71284de-291f-4deb-af54-1d22ff7d8236",
+              "name": "Metal_2",
+              "color": "#ffffff",
+              "fileName": "Metall zheltyy.jpg",
+              "itemUuid": "efed13ee-1ae6-4093-9fe4-dad4a4f268b0"
+            }
+          ],
+          "size": {
+            "x": 31.005,
+            "y": 56.00000000000001,
+            "z": 30.923000000000002
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2372.1825997588194,
+            "y": 389.0638050703295,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/1dbd4cf2bee2c722db3d5b8ca88a5a94_top.png?1778152186",
+          "imgDefaultWidth": 31.005000000000003,
+          "imgDefaultHeight": 31.005000000000003
+        },
+        {
+          "uuid": "4849bf34-428e-4074-bbbe-ebc92e5f8fed",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/f7390d8bcaaeb5bc85d6f9a08ae6a7f3.zip",
+            "size": {
+              "x": 83,
+              "y": 63.001,
+              "z": 3.5000000000000004
+            }
+          },
+          "materials": [
+            {
+              "uuid": "6804533f-0351-48d3-9b19-b361ba6c7fef",
+              "name": "ZadnyayaChast",
+              "color": "#ffffff",
+              "fileName": "DVP.jpg",
+              "itemUuid": "4849bf34-428e-4074-bbbe-ebc92e5f8fed"
+            },
+            {
+              "uuid": "6f59d70c-3925-44bb-b639-9d6c12bc05de",
+              "name": "Kartina",
+              "color": "#FFF",
+              "fileName": "Polotno kartiny-2.jpg",
+              "itemUuid": "4849bf34-428e-4074-bbbe-ebc92e5f8fed"
+            },
+            {
+              "uuid": "5f159b0e-451c-46e9-924d-492e41aae3e6",
+              "name": "Ramka",
+              "color": "#ffffff",
+              "fileName": "Tennesi.jpg",
+              "itemUuid": "4849bf34-428e-4074-bbbe-ebc92e5f8fed"
+            }
+          ],
+          "size": {
+            "x": 83,
+            "y": 63.001,
+            "z": 3.5000000000000004
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2520.675978962786,
+            "y": 649.4925978186013,
+            "z": 127
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/f7390d8bcaaeb5bc85d6f9a08ae6a7f3_top.png?1778152189",
+          "imgDefaultWidth": 83,
+          "imgDefaultHeight": 83,
+          "wall": {
+            "uuid": "f5db147d-8b47-402d-98bb-3b5d3d5d4950",
+            "position": 52.0112023035535,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "a71d5639-8cfc-4ec3-9a19-189490884f98",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/585b69c18768f0515c5a5eb248555d39.zip",
+            "size": {
+              "x": 59.99399999999999,
+              "y": 89.99999999999999,
+              "z": 60.002
+            }
+          },
+          "materials": [
+            {
+              "uuid": "a4641553-0ff0-4e79-a2dd-0abbe910bfb7",
+              "name": "Fasad",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "a71d5639-8cfc-4ec3-9a19-189490884f98"
+            },
+            {
+              "uuid": "67f269cd-5f03-43b3-9611-7ed5a5147534",
+              "name": "Tsokol",
+              "color": "#000000",
+              "fileName": null,
+              "itemUuid": "a71d5639-8cfc-4ec3-9a19-189490884f98"
+            },
+            {
+              "uuid": "026befb5-e37b-479b-8b51-05e89a6931be",
+              "name": "Ruchka",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "a71d5639-8cfc-4ec3-9a19-189490884f98"
+            },
+            {
+              "uuid": "f697d6ed-d349-45e6-b3cd-c6d1479c2114",
+              "name": "Stolechnica",
+              "color": "#FFF",
+              "fileName": "Oreh amerikanskiy (2).jpg",
+              "itemUuid": "a71d5639-8cfc-4ec3-9a19-189490884f98"
+            },
+            {
+              "uuid": "63b8ce43-72af-445c-99b9-4eb29e1e59a1",
+              "name": "Korpus_ncl1_1",
+              "color": "#000000",
+              "fileName": null,
+              "itemUuid": "a71d5639-8cfc-4ec3-9a19-189490884f98"
+            }
+          ],
+          "size": {
+            "x": 65,
+            "y": 85,
+            "z": 60.002
+          },
+          "scale": {
+            "x": 1.0834416775010836,
+            "y": 0.9444444444444446,
+            "z": 1
+          },
+          "position": {
+            "x": 2380.811992811847,
+            "y": 238.141,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/585b69c18768f0515c5a5eb248555d39_top.png?1778152192",
+          "imgDefaultWidth": 60.001999999999995,
+          "imgDefaultHeight": 60.001999999999995
+        },
+        {
+          "uuid": "adc85696-efa2-44d9-b1cb-881ee305f876",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/0aed98fc98b10b6d3700c1d88cdebcf5.zip",
+            "size": {
+              "x": 59.99399999999999,
+              "y": 87.5,
+              "z": 59.985
+            }
+          },
+          "materials": [
+            {
+              "uuid": "20e102ba-229c-41d7-ba22-23504ff9462f",
+              "name": "Tsokol",
+              "color": "#000000",
+              "fileName": null,
+              "itemUuid": "adc85696-efa2-44d9-b1cb-881ee305f876"
+            },
+            {
+              "uuid": "1fdc24e3-100a-4b97-ad4e-61620ecc38f2",
+              "name": "Ruchka",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "adc85696-efa2-44d9-b1cb-881ee305f876"
+            },
+            {
+              "uuid": "88f69af1-ff17-4cab-b055-bcc236539bf2",
+              "name": "Fasad_ncl1_1",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "adc85696-efa2-44d9-b1cb-881ee305f876"
+            },
+            {
+              "uuid": "40ba03b0-3e88-47b4-9dda-e74aabde2dab",
+              "name": "Korpus_ncl1_1",
+              "color": "#FFF",
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "adc85696-efa2-44d9-b1cb-881ee305f876"
+            }
+          ],
+          "size": {
+            "x": 59.99399999999999,
+            "y": 83,
+            "z": 59.985
+          },
+          "scale": {
+            "x": 1,
+            "y": 0.9485714285714286,
+            "z": 1
+          },
+          "position": {
+            "x": 2442.607,
+            "y": 238.14,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/0aed98fc98b10b6d3700c1d88cdebcf5_top.png?1778152186",
+          "imgDefaultWidth": 59.99399999999999,
+          "imgDefaultHeight": 59.99399999999999
+        },
+        {
+          "uuid": "ab8df9e5-9b33-4aa2-b012-33b560b1b802",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/2b5909749404dab69ea24d8539701b41.zip",
+            "size": {
+              "x": 50,
+              "y": 2.391,
+              "z": 57.901
+            }
+          },
+          "materials": [
+            {
+              "uuid": "7ce9b574-90c8-47d8-9c43-7a02d16b0432",
+              "name": "Stoleshnica",
+              "color": "#FFF",
+              "fileName": "Oreh amerikanskiy (2).jpg",
+              "itemUuid": "ab8df9e5-9b33-4aa2-b012-33b560b1b802"
+            }
+          ],
+          "size": {
+            "x": 65,
+            "y": 2.9999999999999996,
+            "z": 59.99999999999999
+          },
+          "scale": {
+            "x": 1.3,
+            "y": 1.2547051442910915,
+            "z": 1.0362515327887254
+          },
+          "position": {
+            "x": 2445.4444749897766,
+            "y": 241.72870554912694,
+            "z": 82
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/2b5909749404dab69ea24d8539701b41_top.png?1778152186",
+          "imgDefaultWidth": 57.901,
+          "imgDefaultHeight": 57.901
+        },
+        {
+          "uuid": "0fd480b7-87e0-463a-b456-69e1e6a76fb2",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/f28d325faf1161f90b1cb10a7f2b9b40.zip",
+            "size": {
+              "x": 42.199,
+              "y": 35.882000000000005,
+              "z": 46.199
+            }
+          },
+          "materials": [
+            {
+              "uuid": "c34d9270-fbbd-45d2-9615-473383f2d5a6",
+              "name": "Moyka",
+              "color": "#FFF",
+              "fileName": "Metall chernyy matovyy3.jpg",
+              "itemUuid": "0fd480b7-87e0-463a-b456-69e1e6a76fb2"
+            },
+            {
+              "uuid": "698bd331-40cd-449c-92c3-9770cb14424e",
+              "name": "Smesitel",
+              "color": "#FFF",
+              "fileName": "Stal sostarennaya.jpg",
+              "itemUuid": "0fd480b7-87e0-463a-b456-69e1e6a76fb2"
+            },
+            {
+              "uuid": "38f594b5-9b95-488d-ae7a-207efd7b81f1",
+              "name": "Sliv",
+              "color": "#ffffff",
+              "fileName": "Sliv moyki.jpg",
+              "itemUuid": "0fd480b7-87e0-463a-b456-69e1e6a76fb2"
+            }
+          ],
+          "size": {
+            "x": 53,
+            "y": 35.882000000000005,
+            "z": 46.199
+          },
+          "scale": {
+            "x": 1.2559539325576436,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2443.329975597009,
+            "y": 244.94768598369097,
+            "z": 72
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/f28d325faf1161f90b1cb10a7f2b9b40_top.png?1778152185",
+          "imgDefaultWidth": 46.199,
+          "imgDefaultHeight": 46.199
+        },
+        {
+          "uuid": "c9adec49-c417-4062-a3c2-50a9c4a8c629",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/bf1c05be8815fbce56d93f22a47f2d38.zip",
+            "size": {
+              "x": 59.587999999999994,
+              "y": 200.67,
+              "z": 70.89
+            }
+          },
+          "materials": [
+            {
+              "uuid": "cdb2118f-090a-4c71-b3b5-430771cc064e",
+              "name": "Ruchki",
+              "color": "#1c1c1c",
+              "fileName": null,
+              "itemUuid": "c9adec49-c417-4062-a3c2-50a9c4a8c629"
+            },
+            {
+              "uuid": "feb4e474-6bf4-4631-ac64-da738038e502",
+              "name": "Displey",
+              "color": "#ffffff",
+              "fileName": "Displey holodilnika 1.jpg",
+              "itemUuid": "c9adec49-c417-4062-a3c2-50a9c4a8c629"
+            },
+            {
+              "uuid": "35b72b1f-cede-40bb-9292-43cd7f086649",
+              "name": "Bezhevyy plastik",
+              "color": null,
+              "fileName": "Plastik bezhevyy.jpg",
+              "itemUuid": "c9adec49-c417-4062-a3c2-50a9c4a8c629"
+            }
+          ],
+          "size": {
+            "x": 59.587999999999994,
+            "y": 200.67,
+            "z": 70.89
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2266.194999944157,
+            "y": 407.85355990884983,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -1.5707963267948966,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/bf1c05be8815fbce56d93f22a47f2d38_top.png?1778152188",
+          "imgDefaultWidth": 70.89,
+          "imgDefaultHeight": 70.89
+        },
+        {
+          "uuid": "da3f784b-faad-4218-8e05-d3a55a38ba7b",
+          "type": "edgeItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/ddb60a9e7815cdee5bb5712226e1dc99.zip",
+            "size": {
+              "x": 90.8,
+              "y": 29.5,
+              "z": 22.501
+            }
+          },
+          "materials": [
+            {
+              "uuid": "0217852b-52f7-4ace-901f-2a2d287e53f7",
+              "name": "Panel",
+              "color": "#ffffff",
+              "fileName": "Metall brashirovannyy.jpg",
+              "itemUuid": "da3f784b-faad-4218-8e05-d3a55a38ba7b"
+            },
+            {
+              "uuid": "c7e3d6da-2496-4067-b7a2-39a6e0ec7db1",
+              "name": "Display",
+              "color": "#ffffff",
+              "fileName": "Displey kondicionera.jpg",
+              "itemUuid": "da3f784b-faad-4218-8e05-d3a55a38ba7b"
+            },
+            {
+              "uuid": "66be89b7-46f3-44be-b9ab-86d471977cd2",
+              "name": "Osnova",
+              "color": "#ffffff",
+              "fileName": "Metall seryy.jpg",
+              "itemUuid": "da3f784b-faad-4218-8e05-d3a55a38ba7b"
+            }
+          ],
+          "size": {
+            "x": 90.8,
+            "y": 29.5,
+            "z": 22.501
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2241.9805,
+            "y": 835.5245391153996,
+            "z": 227
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/ddb60a9e7815cdee5bb5712226e1dc99_top.png?1778152188",
+          "imgDefaultWidth": 90.8,
+          "imgDefaultHeight": 90.8,
+          "wall": {
+            "uuid": "44486d41-bf41-4f5b-a26c-8a1af11d86ba",
+            "position": 10.328708130450494,
+            "offset": 0,
+            "side": "right"
+          }
+        },
+        {
+          "uuid": "9fb38308-c44e-4899-b363-334aa3c4a412",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a.zip",
+            "size": {
+              "x": 55.043,
+              "y": 78.99999999999999,
+              "z": 58.00000000000001
+            }
+          },
+          "materials": [
+            {
+              "uuid": "9266bef5-36a2-4d4b-82dd-151fdcdd57ba",
+              "name": "podpyatnic",
+              "color": "#ffffff",
+              "fileName": "Plastik chernyy.jpg",
+              "itemUuid": "9fb38308-c44e-4899-b363-334aa3c4a412"
+            },
+            {
+              "uuid": "905e3733-8fad-4826-8432-fd376819dba5",
+              "name": "obivka_ncl1_1",
+              "color": "#ffffff",
+              "fileName": "Rogozhka bezhevaya.jpg",
+              "itemUuid": "9fb38308-c44e-4899-b363-334aa3c4a412"
+            },
+            {
+              "uuid": "c1320e3a-542f-49e2-a579-684a6e85811f",
+              "name": "korpus",
+              "color": "#ffffff",
+              "fileName": "Oreh amerikanskiy.jpg",
+              "itemUuid": "9fb38308-c44e-4899-b363-334aa3c4a412"
+            }
+          ],
+          "size": {
+            "x": 55.043,
+            "y": 78.99999999999999,
+            "z": 58.00000000000001
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2476.106230901951,
+            "y": 412.17812058489704,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": 0.6741793142209485,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a_top.png?1778152186",
+          "imgDefaultWidth": 58.000000000000014,
+          "imgDefaultHeight": 58.000000000000014
+        },
+        {
+          "uuid": "641ca118-2999-4672-a135-63ecf62887f5",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a.zip",
+            "size": {
+              "x": 55.043,
+              "y": 78.99999999999999,
+              "z": 58.00000000000001
+            }
+          },
+          "materials": [
+            {
+              "uuid": "9266bef5-36a2-4d4b-82dd-151fdcdd57ba",
+              "name": "podpyatnic",
+              "color": "#ffffff",
+              "fileName": "Plastik chernyy.jpg",
+              "itemUuid": "641ca118-2999-4672-a135-63ecf62887f5"
+            },
+            {
+              "uuid": "905e3733-8fad-4826-8432-fd376819dba5",
+              "name": "obivka_ncl1_1",
+              "color": "#ffffff",
+              "fileName": "Rogozhka bezhevaya.jpg",
+              "itemUuid": "641ca118-2999-4672-a135-63ecf62887f5"
+            },
+            {
+              "uuid": "c1320e3a-542f-49e2-a579-684a6e85811f",
+              "name": "korpus",
+              "color": "#ffffff",
+              "fileName": "Oreh amerikanskiy.jpg",
+              "itemUuid": "641ca118-2999-4672-a135-63ecf62887f5"
+            }
+          ],
+          "size": {
+            "x": 55.043,
+            "y": 78.99999999999999,
+            "z": 58.00000000000001
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2477.3146639092265,
+            "y": 524.1429492014414,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -3.7699111843077517,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a_top.png?1778152186",
+          "imgDefaultWidth": 58.000000000000014,
+          "imgDefaultHeight": 58.000000000000014
+        },
+        {
+          "uuid": "b4a54788-dc30-4228-a8b2-0aebde88db32",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a.zip",
+            "size": {
+              "x": 55.043,
+              "y": 78.99999999999999,
+              "z": 58.00000000000001
+            }
+          },
+          "materials": [
+            {
+              "uuid": "9266bef5-36a2-4d4b-82dd-151fdcdd57ba",
+              "name": "podpyatnic",
+              "color": "#ffffff",
+              "fileName": "Plastik chernyy.jpg",
+              "itemUuid": "b4a54788-dc30-4228-a8b2-0aebde88db32"
+            },
+            {
+              "uuid": "905e3733-8fad-4826-8432-fd376819dba5",
+              "name": "obivka_ncl1_1",
+              "color": "#ffffff",
+              "fileName": "Rogozhka bezhevaya.jpg",
+              "itemUuid": "b4a54788-dc30-4228-a8b2-0aebde88db32"
+            },
+            {
+              "uuid": "c1320e3a-542f-49e2-a579-684a6e85811f",
+              "name": "korpus",
+              "color": "#ffffff",
+              "fileName": "Oreh amerikanskiy.jpg",
+              "itemUuid": "b4a54788-dc30-4228-a8b2-0aebde88db32"
+            }
+          ],
+          "size": {
+            "x": 55.043,
+            "y": 78.99999999999999,
+            "z": 58.00000000000001
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "position": {
+            "x": 2372.7249100330514,
+            "y": 515.4464947293153,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -2.1816615649929116,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/fc78ce38f214a13779c672b6540b2d9a_top.png?1778152186",
+          "imgDefaultWidth": 58.000000000000014,
+          "imgDefaultHeight": 58.000000000000014
+        },
+        {
+          "uuid": "2696906a-a794-4b00-afaf-0e85e7c1a332",
+          "type": "floorItem",
+          "name": null,
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/f5eb2b72b2db71caa48373f900d4f602.zip",
+            "size": {
+              "x": 105,
+              "y": 80.00600000000001,
+              "z": 36
+            }
+          },
+          "materials": [
+            {
+              "uuid": "806498aa-c880-4214-bf20-23ea51d8f17e",
+              "name": "Korpus",
+              "color": null,
+              "fileName": "Oreh temnyy.jpg",
+              "itemUuid": "2696906a-a794-4b00-afaf-0e85e7c1a332"
+            },
+            {
+              "uuid": "3afe5e35-5c42-44d1-be89-735b19f5fc34",
+              "name": "Ruchki",
+              "color": "#ffffff",
+              "fileName": "Stal chernaya.jpg",
+              "itemUuid": "2696906a-a794-4b00-afaf-0e85e7c1a332"
+            },
+            {
+              "uuid": "800eb592-ac32-4004-a693-8607637685f1",
+              "name": "Noshki",
+              "color": null,
+              "fileName": "Oreh temnyy.jpg",
+              "itemUuid": "2696906a-a794-4b00-afaf-0e85e7c1a332"
+            }
+          ],
+          "size": {
+            "x": 100,
+            "y": 80.00600000000001,
+            "z": 58
+          },
+          "scale": {
+            "x": 0.9523809523809523,
+            "y": 1,
+            "z": 1.6111111111111112
+          },
+          "position": {
+            "x": 2486.73,
+            "y": 832.8394144225941,
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "rotation": -4.71238898038469,
+          "previewImg": "https://rp-dev.ams-dev.ru/app/uploads/models/f5eb2b72b2db71caa48373f900d4f602_top.png?1778152189",
+          "imgDefaultWidth": 104.99999999999999,
+          "imgDefaultHeight": 104.99999999999999
+        }
+      ],
+      "tapes": []
+    }
+  ],
+  "project_version": "5.9.5.803",
+  "editable": true,
+  "camera": {
+    "x": -1025,
+    "y": -23,
+    "z": 0.8186488294786255,
+    "w": 0
+  }
+}

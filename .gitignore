@@ -1,56 +1,53 @@
 # Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-
-# Virtualenvs
 .venv/
 venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# IDE
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+# IDE / OS
+.vscode/
 .idea/
 .DS_Store
+Thumbs.db
 
-# Data and model artifacts (large, not source)
-data/*
-!data/README.md
-checkpoints/
-runs/
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Model weights / training artifacts
 weights/
-wandb/
-*.ckpt
+runs/
 *.pt
 *.pth
+*.ckpt
+*.safetensors
 *.onnx
 
-# Notebook outputs (keep notebooks small in git)
-.ipynb_checkpoints/
+# Generated recognition results
+output/
+demo_jobs/
 
-# Scratch notebooks — iteration / learning / scribbling. Never committed.
-# Move a notebook out of here to commit it as a polished narrative artifact.
-notebooks/scratch/
+# Logs
+*.log
 
-# Local env overrides
-.env
-.env.local
+# Uploaded/test images
+test/*.jpg
+test/*.jpeg
+test/*.png
+test/*.webp
+test/*.bmp
 
-# Local-only notes (security advisories, scratch reminders, etc.)
-NOTES.local.md
+# Temporary uploads
+uploads/
+tmp/
+temp/
 
-# Personal Claude Code settings (local-only)
-.claude/settings.local.json
-
-# Cloudflare wrangler cache
-.wrangler/
-
-# Raw screen recordings — source for docs/preview.gif, not for git
-*.mp4
-
-# Personal training infra — not for users
-runpod_setup.sh
+# Build/cache
+build/
+dist/
+*.egg-info/

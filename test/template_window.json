@@ -1,0 +1,1296 @@
+{
+  "levels": [
+    {
+      "levelId": "d6548087-ce69-4d8e-884a-52cb94393d07",
+      "height": 270,
+      "connectors": [
+        {
+          "uuid": "c0",
+          "x": 1953.078,
+          "y": 223.075,
+          "z": 0,
+          "adjacency": [
+            "c1",
+            "c5"
+          ]
+        },
+        {
+          "uuid": "c1",
+          "x": 2179.078,
+          "y": 223.075,
+          "z": 0,
+          "adjacency": [
+            "c0",
+            "c2",
+            "c4"
+          ]
+        },
+        {
+          "uuid": "c2",
+          "x": 2544.078,
+          "y": 223.075,
+          "z": 0,
+          "adjacency": [
+            "c1",
+            "c3",
+            "c8"
+          ]
+        },
+        {
+          "uuid": "c3",
+          "x": 2800.078,
+          "y": 223.075,
+          "z": 0,
+          "adjacency": [
+            "c2",
+            "c9"
+          ]
+        },
+        {
+          "uuid": "c4",
+          "x": 2179.078,
+          "y": 594.075,
+          "z": 0,
+          "adjacency": [
+            "c1",
+            "c6",
+            "c7"
+          ]
+        },
+        {
+          "uuid": "c5",
+          "x": 1953.078,
+          "y": 594.075,
+          "z": 0,
+          "adjacency": [
+            "c6",
+            "c0"
+          ]
+        },
+        {
+          "uuid": "c6",
+          "x": 2053.078,
+          "y": 594.075,
+          "z": 0,
+          "adjacency": [
+            "c5",
+            "c4",
+            "c13"
+          ]
+        },
+        {
+          "uuid": "c7",
+          "x": 2464.078,
+          "y": 594.075,
+          "z": 0,
+          "adjacency": [
+            "c4",
+            "c8",
+            "c11"
+          ]
+        },
+        {
+          "uuid": "c8",
+          "x": 2544.078,
+          "y": 594.075,
+          "z": 0,
+          "adjacency": [
+            "c7",
+            "c9",
+            "c2"
+          ]
+        },
+        {
+          "uuid": "c9",
+          "x": 2800.078,
+          "y": 594.075,
+          "z": 0,
+          "adjacency": [
+            "c8",
+            "c3",
+            "c10"
+          ]
+        },
+        {
+          "uuid": "c10",
+          "x": 2800.078,
+          "y": 896.075,
+          "z": 0,
+          "adjacency": [
+            "c9",
+            "c12"
+          ]
+        },
+        {
+          "uuid": "c11",
+          "x": 2464.078,
+          "y": 840.075,
+          "z": 0,
+          "adjacency": [
+            "c7",
+            "c12",
+            "c13"
+          ]
+        },
+        {
+          "uuid": "c12",
+          "x": 2464.078,
+          "y": 896.075,
+          "z": 0,
+          "adjacency": [
+            "c11",
+            "c10"
+          ]
+        },
+        {
+          "uuid": "c13",
+          "x": 2053.078,
+          "y": 840.075,
+          "z": 0,
+          "adjacency": [
+            "c11",
+            "c6"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "uuid": "7a7e01a8-4303-4227-aa60-b1a1ebccf3b8",
+          "start": "c0",
+          "end": "c1",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 0,
+          "right": 1,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "21690007-4d1e-46e0-afcb-269d8c511c6f",
+          "start": "c1",
+          "end": "c2",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 1,
+          "right": 2,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "7969fff4-dd9c-4df6-b0df-b244b3fab751",
+          "start": "c2",
+          "end": "c3",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 2,
+          "right": 3,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "832b48c8-2a2a-48f3-88fb-8d2de7c43f09",
+          "start": "c1",
+          "end": "c4",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 1,
+          "right": 4,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "93cf69a3-a90f-4dac-9886-dd0177956d53",
+          "start": "c6",
+          "end": "c5",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 6,
+          "right": 5,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "3429bfde-86fa-4322-940b-8f5415589c4f",
+          "start": "c6",
+          "end": "c4",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 6,
+          "right": 4,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "2f49d25b-8331-4559-85b0-52a800a1c441",
+          "start": "c4",
+          "end": "c7",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 4,
+          "right": 7,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "92bdad41-a8cd-41ce-a0ab-71ee33ca30ca",
+          "start": "c7",
+          "end": "c8",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 7,
+          "right": 8,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "cdced5f4-a5d6-4c80-afd2-06ddb3342d6c",
+          "start": "c8",
+          "end": "c9",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 8,
+          "right": 9,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "a2ae0db4-f918-47bf-8e41-88a3bee0a101",
+          "start": "c5",
+          "end": "c0",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 5,
+          "right": 0,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "4d0b6996-702a-4aac-bbd9-f3bdc3607325",
+          "start": "c2",
+          "end": "c8",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 2,
+          "right": 8,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "1f88610f-d0b7-4d2e-a6e8-2b439586196f",
+          "start": "c3",
+          "end": "c9",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 3,
+          "right": 9,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "f1e918c8-f7bc-452c-b846-6a13e5e3dee2",
+          "start": "c9",
+          "end": "c10",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 9,
+          "right": 10,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "5e5c8b91-714f-42a8-beb2-6b624270f254",
+          "start": "c7",
+          "end": "c11",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 7,
+          "right": 11,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "38a89013-9ed8-4019-ad05-dfee15c69400",
+          "start": "c12",
+          "end": "c11",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 12,
+          "right": 11,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "04d0712d-d30e-4660-8a0f-e0b6e8f23569",
+          "start": "c11",
+          "end": "c13",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 11,
+          "right": 13,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "b657da1e-97bb-4f65-8c02-c714b5a4e00a",
+          "start": "c13",
+          "end": "c6",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 13,
+          "right": 6,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        },
+        {
+          "uuid": "fa7d7824-aa24-4470-ae6c-46ec8fbbdce4",
+          "start": "c10",
+          "end": "c12",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 10,
+          "right": 12,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false
+        }
+      ],
+      "areas": [
+        {
+          "uuid": "67081f88-fc05-408e-b026-0bda2b085f51",
+          "name": "Room 2",
+          "data": "",
+          "connectors": [
+            "c8",
+            "c7",
+            "c4",
+            "c1",
+            "c2"
+          ],
+          "materials": {
+            "flooring": {
+              "rotation": 90,
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg"
+            },
+            "ceiling": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "walls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "outsidewalls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 121095.00000000023
+        },
+        {
+          "uuid": "1117faff-2265-4b98-97ff-e62d0df31407",
+          "name": "Room 1",
+          "data": "",
+          "connectors": [
+            "c6",
+            "c5",
+            "c0",
+            "c1",
+            "c4"
+          ],
+          "materials": {
+            "flooring": {
+              "rotation": 90,
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg"
+            },
+            "ceiling": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "walls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "outsidewalls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 72306.00000000012
+        },
+        {
+          "uuid": "d9534bed-4335-4b7d-9811-1d9ded23f0b9",
+          "name": "Room 3",
+          "data": "",
+          "connectors": [
+            "c8",
+            "c2",
+            "c3",
+            "c9"
+          ],
+          "materials": {
+            "flooring": {
+              "rotation": 90,
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg"
+            },
+            "ceiling": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "walls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "outsidewalls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 82836.00000000023
+        },
+        {
+          "uuid": "51188287-eb42-46c6-88a2-05a7c630005a",
+          "name": "Room 5",
+          "data": "",
+          "connectors": [
+            "c11",
+            "c7",
+            "c8",
+            "c9",
+            "c10",
+            "c12"
+          ],
+          "materials": {
+            "flooring": {
+              "rotation": 90,
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg"
+            },
+            "ceiling": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "walls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "outsidewalls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 89112.00000000035
+        },
+        {
+          "uuid": "90144ede-1324-4f07-9d38-23c0994efa2d",
+          "name": "Room 4",
+          "data": "",
+          "connectors": [
+            "c13",
+            "c6",
+            "c4",
+            "c7",
+            "c11"
+          ],
+          "materials": {
+            "flooring": {
+              "rotation": 90,
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/99cbe4da7312d9f23ddac30ccbd4caff.jpg"
+            },
+            "ceiling": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "walls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "outsidewalls": {
+              "url": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "https://rp-dev.ams-dev.ru/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 88366.00000000023
+        }
+      ],
+      "elements": [
+        {
+          "uuid": "10bf153d-7b82-4d67-be1c-f50bb89615d9",
+          "type": "doorItem",
+          "name": "wall_item_door_1",
+          "size": {
+            "x": 50.812,
+            "y": 202.5,
+            "z": 20
+          },
+          "wall": {
+            "uuid": "fa7d7824-aa24-4470-ae6c-46ec8fbbdce4",
+            "position": 54.04393700000001,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.25406,
+                "y": 2.025
+              },
+              {
+                "x": -0.25406,
+                "y": 2.025
+              },
+              {
+                "x": -0.25406,
+                "y": 0
+              },
+              {
+                "x": 0.25406,
+                "y": 0
+              },
+              {
+                "x": 0.25406,
+                "y": 2.025
+              }
+            ]
+          },
+          "position": {
+            "z": 0
+          },
+          "flip": {
+            "x": true,
+            "z": false
+          },
+          "recess": 0,
+          "doorOpensOutwards": true,
+          "door": {
+            "panel": true,
+            "reversed": true,
+            "angle": 0,
+            "depth": 0
+          },
+          "materials": [
+            {
+              "uuid": "00dcb7e6-220b-467e-b3b8-d69cb225c33b",
+              "name": "Osnova",
+              "color": "#FFF",
+              "fileName": "Sosna massiv.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            },
+            {
+              "uuid": "248a160c-9580-4524-872a-1c6c7334d571",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Bronza.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            }
+          ],
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/82360e5436debc2837f290c23d4e8da7.zip",
+            "size": {
+              "x": 85,
+              "y": 202.501,
+              "z": 20
+            }
+          },
+          "scale": {
+            "x": 0.5977882352941176,
+            "y": 0.9999950617527814,
+            "z": 1
+          },
+          "configuration": 0,
+          "no_render": false
+        },
+        {
+          "uuid": "b6ca890e-6f79-46e9-b19c-891ca7e329a3",
+          "type": "doorItem",
+          "name": "wall_item_door_3",
+          "size": {
+            "x": 52.773,
+            "y": 202.5,
+            "z": 20
+          },
+          "wall": {
+            "uuid": "2f49d25b-8331-4559-85b0-52a800a1c441",
+            "position": 37.35882999999998,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.26387,
+                "y": 2.025
+              },
+              {
+                "x": -0.26387,
+                "y": 2.025
+              },
+              {
+                "x": -0.26387,
+                "y": 0
+              },
+              {
+                "x": 0.26387,
+                "y": 0
+              },
+              {
+                "x": 0.26387,
+                "y": 2.025
+              }
+            ]
+          },
+          "position": {
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": true
+          },
+          "recess": 0,
+          "doorOpensOutwards": false,
+          "door": {
+            "panel": true,
+            "reversed": true,
+            "angle": 0,
+            "depth": 0
+          },
+          "materials": [
+            {
+              "uuid": "00dcb7e6-220b-467e-b3b8-d69cb225c33b",
+              "name": "Osnova",
+              "color": "#FFF",
+              "fileName": "Sosna massiv.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            },
+            {
+              "uuid": "248a160c-9580-4524-872a-1c6c7334d571",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Bronza.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            }
+          ],
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/82360e5436debc2837f290c23d4e8da7.zip",
+            "size": {
+              "x": 85,
+              "y": 202.501,
+              "z": 20
+            }
+          },
+          "scale": {
+            "x": 0.6208588235294118,
+            "y": 0.9999950617527814,
+            "z": 1
+          },
+          "no_render": false
+        },
+        {
+          "uuid": "a65984d5-9eab-450f-9f0d-80d4248dbedb",
+          "type": "doorItem",
+          "name": "wall_item_door_4",
+          "size": {
+            "x": 52.772,
+            "y": 202.5,
+            "z": 20
+          },
+          "wall": {
+            "uuid": "4d0b6996-702a-4aac-bbd9-f3bdc3607325",
+            "position": 60.250794000000006,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.26386,
+                "y": 2.025
+              },
+              {
+                "x": -0.26386,
+                "y": 2.025
+              },
+              {
+                "x": -0.26386,
+                "y": 0
+              },
+              {
+                "x": 0.26386,
+                "y": 0
+              },
+              {
+                "x": 0.26386,
+                "y": 2.025
+              }
+            ]
+          },
+          "position": {
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": true
+          },
+          "recess": 0,
+          "doorOpensOutwards": false,
+          "door": {
+            "panel": true,
+            "reversed": true,
+            "angle": 0,
+            "depth": 0
+          },
+          "materials": [
+            {
+              "uuid": "00dcb7e6-220b-467e-b3b8-d69cb225c33b",
+              "name": "Osnova",
+              "color": "#FFF",
+              "fileName": "Sosna massiv.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            },
+            {
+              "uuid": "248a160c-9580-4524-872a-1c6c7334d571",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Bronza.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            }
+          ],
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/82360e5436debc2837f290c23d4e8da7.zip",
+            "size": {
+              "x": 85,
+              "y": 202.501,
+              "z": 20
+            }
+          },
+          "scale": {
+            "x": 0.6208470588235294,
+            "y": 0.9999950617527814,
+            "z": 1
+          },
+          "no_render": false
+        },
+        {
+          "uuid": "28f4d8c2-a375-47d8-9dcf-451973ac97f8",
+          "type": "doorItem",
+          "name": "wall_item_door_5",
+          "size": {
+            "x": 52.772,
+            "y": 202.5,
+            "z": 20
+          },
+          "wall": {
+            "uuid": "832b48c8-2a2a-48f3-88fb-8d2de7c43f09",
+            "position": 60.42613600000001,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.26386,
+                "y": 2.025
+              },
+              {
+                "x": -0.26386,
+                "y": 2.025
+              },
+              {
+                "x": -0.26386,
+                "y": 0
+              },
+              {
+                "x": 0.26386,
+                "y": 0
+              },
+              {
+                "x": 0.26386,
+                "y": 2.025
+              }
+            ]
+          },
+          "position": {
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": true
+          },
+          "recess": 0,
+          "doorOpensOutwards": false,
+          "door": {
+            "panel": true,
+            "reversed": true,
+            "angle": 0,
+            "depth": 0
+          },
+          "materials": [
+            {
+              "uuid": "00dcb7e6-220b-467e-b3b8-d69cb225c33b",
+              "name": "Osnova",
+              "color": "#FFF",
+              "fileName": "Sosna massiv.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            },
+            {
+              "uuid": "248a160c-9580-4524-872a-1c6c7334d571",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Bronza.jpg",
+              "itemUuid": "d2b7b096-07a2-481c-91d4-fcae4bf2b1af"
+            }
+          ],
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/82360e5436debc2837f290c23d4e8da7.zip",
+            "size": {
+              "x": 85,
+              "y": 202.501,
+              "z": 20
+            }
+          },
+          "scale": {
+            "x": 0.6208470588235294,
+            "y": 0.9999950617527814,
+            "z": 1
+          },
+          "no_render": false
+        },
+        {
+          "uuid": "09886e2b-c75b-4851-87d7-472553f37727",
+          "type": "windowItem",
+          "name": "",
+          "size": {
+            "x": 80,
+            "y": 60
+          },
+          "wall": {
+            "uuid": "a2ae0db4-f918-47bf-8e41-88a3bee0a101",
+            "position": 32.37824943847334,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.40099,
+                "y": 0.59899
+              },
+              {
+                "x": 0.39899,
+                "y": 0.60099
+              },
+              {
+                "x": -0.399,
+                "y": 0.60099
+              },
+              {
+                "x": -0.401,
+                "y": 0.59899
+              },
+              {
+                "x": -0.401,
+                "y": 0.002
+              },
+              {
+                "x": -0.399,
+                "y": -0.00001
+              },
+              {
+                "x": 0.39899,
+                "y": -0.00001
+              },
+              {
+                "x": 0.40099,
+                "y": 0.002
+              },
+              {
+                "x": 0.40099,
+                "y": 0.59899
+              }
+            ]
+          },
+          "position": {
+            "z": 170
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "data": null,
+          "recess": 10,
+          "doorOpensOutwards": false,
+          "sill": {
+            "shape": [
+              {
+                "x": -0.40002,
+                "y": 0
+              },
+              {
+                "x": 0.39988,
+                "y": 0
+              }
+            ]
+          },
+          "materials": [
+            {
+              "uuid": "7cc9a42a-5b4a-4512-b91b-9d854f02fdbf",
+              "name": "Osnova",
+              "color": "#f5f5f5",
+              "fileName": null
+            },
+            {
+              "uuid": "b8b5e0e6-55b3-42f2-a2a9-23e576ec652c",
+              "name": "Steklo",
+              "color": "#7ab8ff",
+              "fileName": null
+            }
+          ],
+          "model": {
+            "url": "https://rp-dev.ams-dev.ru/app/uploads/models/ed3f6f1259c063e0d4f45eeff2fdf498.zip",
+            "size": {
+              "x": 80,
+              "y": 60
+            }
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "configuration": 2,
+          "no_render": false
+        }
+      ],
+      "tapes": []
+    }
+  ],
+  "project_version": "5.9.5.916",
+  "editable": true,
+  "camera": {
+    "x": -1025,
+    "y": -23,
+    "z": 0.8186488294786255,
+    "w": 0
+  }
+}
