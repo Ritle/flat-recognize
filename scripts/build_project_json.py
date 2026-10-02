@@ -73,6 +73,7 @@ def main():
     parser.add_argument("--geometry-report", help="Separate export geometry diagnostics JSON")
     parser.add_argument("--source-image", help="Original raster for export overlay")
     parser.add_argument("--overlay", help="Export geometry overlay PNG")
+    parser.add_argument("--internal-walls", action="store_true", help="Add evidenced internal wall centerlines")
 
     args = parser.parse_args()
 
@@ -101,6 +102,9 @@ def main():
         if args.geometry_mode == "polygon" or requires_polygons(rooms):
             try:
                 result, report = build_polygon_project(src, template, args.scale, args.wall_thickness, args.height)
+                if args.internal_walls:
+                    from internal_wall_graph import extend_project_walls
+                    result, report = extend_project_walls(result, src, report, args.wall_thickness, args.height)
                 output_path = Path(args.output)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -728,6 +732,15 @@ def main():
 
     result["editable"] = True
 
+    report = {"adapter": "bbox", "pixel_to_world": {
+        "scale_x": args.scale, "scale_y": args.scale,
+        "origin_x": origin_x - min_px_x * args.scale,
+        "origin_y": origin_y - min_px_y * args.scale,
+    }, "errors": geometry_errors, "warnings": [], "unsupported_segments": []}
+    if args.internal_walls:
+        from internal_wall_graph import extend_project_walls
+        result, report = extend_project_walls(result, src, report, args.wall_thickness, args.height)
+
     output_path = Path(
         args.output
     )
@@ -749,14 +762,9 @@ def main():
             ensure_ascii=False
         )
 
-    if args.geometry_report or args.overlay:
-        report = {"adapter": "bbox", "pixel_to_world": {
-            "scale_x": args.scale, "scale_y": args.scale,
-            "origin_x": origin_x - min_px_x * args.scale,
-            "origin_y": origin_y - min_px_y * args.scale,
-        }, "errors": geometry_errors, "warnings": [], "unsupported_segments": []}
-        if args.geometry_report:
-            report_path = Path(args.geometry_report)
+    if args.geometry_report or args.overlay or args.internal_walls:
+        if args.geometry_report or args.internal_walls:
+            report_path = Path(args.geometry_report) if args.geometry_report else output_path.with_suffix(".geometry.json")
             report_path.parent.mkdir(parents=True, exist_ok=True)
             report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         if args.overlay and args.source_image:
@@ -768,8 +776,8 @@ def main():
     print(f"Output:     {output_path}")
     print()
     print(f"Rooms:      {len(areas)}")
-    print(f"Connectors: {len(connectors)}")
-    print(f"Segments:   {len(segments)}")
+    print(f"Connectors: {len(result['levels'][0]['connectors'])}")
+    print(f"Segments:   {len(result['levels'][0]['segments'])}")
     print()
     print(f"Scale:      {args.scale} cm/px")
     print(f"Wall:       {args.wall_thickness} cm")

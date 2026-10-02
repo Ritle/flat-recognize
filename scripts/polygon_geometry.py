@@ -215,8 +215,10 @@ def render_geometry(project, report, image_path, output_path):
         cycle = [points[c] for c in area["connectors"]]
         if cycle:
             draw.line(cycle + cycle[:1], fill="magenta", width=2)
+    internal = {s["uuid"] for s in report.get("internal_wall_graph", {}).get("added_segments", [])}
     for segment in level["segments"]:
-        draw.line([points[segment["start"]], points[segment["end"]]], fill="blue", width=3)
+        draw.line([points[segment["start"]], points[segment["end"]]],
+                  fill="#00a99d" if segment["uuid"] in internal else "blue", width=3)
     for segment in report.get("unsupported_segments", []):
         draw.line([tuple(segment["start"]), tuple(segment["end"])], fill="orange", width=4)
     image.save(output_path)

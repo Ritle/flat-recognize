@@ -434,6 +434,7 @@ def main():
             "--height",
             str(args.height),
             "--geometry-mode", "auto" if args.pipeline_v2 else "bbox",
+            *(["--internal-walls"] if args.pipeline_v2 else []),
             "--geometry-report", geometry_report,
             "--source-image", image,
             "--overlay", export_overlay,

@@ -9,6 +9,9 @@
 После room extraction V2 запускает `recover_openings_v2.py`: проверяет принятые
 разрывы по стенам, полотну и дуге, сохраняет отдельные результаты для адаптера.
 Детали: [OPENING_RECOVERY.md](OPENING_RECOVERY.md).
+В V2 адаптер дополнительно запускает `internal_wall_graph.py`: переносит
+подтверждённые маской внутренние перегородки, создаёт общие T/X-узлы и
+обновляет cycles комнат. Детали: [INTERNAL_WALL_GRAPH.md](INTERNAL_WALL_GRAPH.md).
 
 ## End-to-end flow
 
@@ -79,6 +82,7 @@ flat-recognize/
 │   ├── preprocess_v2.py
 │   ├── extract_rooms_v2.py
 │   ├── recover_openings_v2.py
+│   ├── internal_wall_graph.py
 │   ├── run_recognition_regression.py
 │   └── auto_crop_plan.py
 │
