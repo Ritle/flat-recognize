@@ -311,6 +311,23 @@
         margin-top: 20px;
     }
 
+    .pipeline-option {
+        display: block;
+        margin-top: 16px;
+        color: #aeb6c7;
+    }
+
+    .recognition-warnings {
+        display: none;
+        margin-bottom: 20px;
+        padding: 16px;
+        border: 1px solid #826424;
+        background: #302714;
+        color: #ffe2a1;
+        border-radius: 12px;
+        white-space: pre-wrap;
+    }
+
     @media (max-width: 850px) {
         .stats {
             grid-template-columns:
@@ -375,6 +392,11 @@
             accept=".jpg,.jpeg,.png,.webp"
         >
 
+        <label class="pipeline-option">
+            <input type="checkbox" id="pipelineV2">
+            Улучшенное распознавание (экспериментальное)
+        </label>
+
         <div
             class="processing"
             id="processing"
@@ -399,6 +421,8 @@
     ></div>
 
     <section id="results">
+
+        <div class="recognition-warnings" id="recognitionWarnings" role="status"></div>
 
         <div class="result-header">
 
@@ -566,6 +590,7 @@ async function upload(file) {
 
     const form = new FormData();
     form.append('file', file);
+    form.append('pipeline_v2', String(document.getElementById('pipelineV2').checked));
 
     try {
 
@@ -615,6 +640,10 @@ async function upload(file) {
 }
 
 async function showResult(data) {
+
+    const warnings = document.getElementById('recognitionWarnings');
+    warnings.textContent = (data.warnings || []).join('\n');
+    warnings.style.display = data.warnings?.length ? 'block' : 'none';
 
     document.getElementById(
         'roomsCount'
@@ -699,6 +728,18 @@ function setupImages(data) {
         {
             label: 'Комнаты',
             url: data.images.rooms
+        },
+        {
+            label: 'Область плана',
+            url: data.images.preprocessing
+        },
+        {
+            label: 'Нормализованный план',
+            url: data.images.normalized
+        },
+        {
+            label: 'Восстановленные границы',
+            url: data.images.closures
         }
     ].filter(item => item.url);
 

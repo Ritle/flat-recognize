@@ -121,6 +121,11 @@ def main():
     )
 
     parser.add_argument(
+        "--pipeline-v2", action="store_true",
+        help="Experimental structural ROI, normalization and room topology repair"
+    )
+
+    parser.add_argument(
         "--template",
         default="test/template.json",
         help=(
@@ -325,18 +330,24 @@ def main():
 
     total_started = time.time()
 
+    prediction_command = [python, SCRIPTS / "predict_raster.py", image]
+    if args.pipeline_v2:
+        run_command(
+            "V2 - Input preprocessing",
+            [python, SCRIPTS / "preprocess_v2.py", image]
+        )
+        preprocessing_meta = require_file(
+            OUTPUT / f"{stem}_preprocess.json", "Preprocessing transform metadata"
+        )
+        prediction_command.extend(["--preprocess-meta", preprocessing_meta])
+
     # =================================================
     # 1. Neural network inference
     # =================================================
 
     run_command(
         "1/6 - Floorplan segmentation",
-        [
-            python,
-            SCRIPTS /
-            "predict_raster.py",
-            image,
-        ]
+        prediction_command
     )
 
     require_file(
@@ -373,7 +384,7 @@ def main():
         [
             python,
             SCRIPTS /
-            "extract_rooms.py",
+            ("extract_rooms_v2.py" if args.pipeline_v2 else "extract_rooms.py"),
             image,
             classified_json,
         ]
@@ -383,6 +394,11 @@ def main():
         rooms_json,
         "Rooms JSON"
     )
+
+    if args.pipeline_v2:
+        room_data = json.loads(rooms_json.read_text(encoding="utf-8"))
+        for warning in room_data.get("diagnostics", {}).get("warnings", []):
+            print(f"WARNING: {warning}")
 
     # =================================================
     # 4. Project geometry
@@ -554,6 +570,8 @@ def main():
         classified_overlay,
         rooms_overlay,
         barrier_image,
+        *([OUTPUT / f"{stem}_preprocess_preview.png", OUTPUT / f"{stem}_closures.png"]
+          if args.pipeline_v2 else []),
     ):
         if diagnostic.exists():
             print(

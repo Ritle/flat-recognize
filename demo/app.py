@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 
@@ -96,6 +96,7 @@ def load_stats(project_path: Path):
 def run_pipeline(
     image_path: Path,
     project_path: Path,
+    pipeline_v2: bool = False,
 ):
     command = [
         sys.executable,
@@ -109,11 +110,14 @@ def run_pipeline(
         str(project_path),
     ]
 
+    if pipeline_v2:
+        command.append("--pipeline-v2")
+
     return subprocess.run(
         command,
         cwd=ROOT,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
     )
 
 
@@ -136,7 +140,8 @@ async def index():
 
 @app.post("/api/recognize")
 async def recognize(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    pipeline_v2: bool = Form(False),
 ):
     original_name = (
         file.filename or "floorplan.jpg"
@@ -208,6 +213,7 @@ async def recognize(
         run_pipeline,
         image_path,
         project_path,
+        pipeline_v2,
     )
 
     elapsed = (
@@ -275,6 +281,20 @@ async def recognize(
             f"{job_id}_barrier.png",
     }
 
+    warnings = []
+    if pipeline_v2:
+        generated_images.update({
+            "preprocessing": OUTPUT_DIR / f"{job_id}_preprocess_preview.png",
+            "normalized": OUTPUT_DIR / f"{job_id}_preprocessed.png",
+            "closures": OUTPUT_DIR / f"{job_id}_closures.png",
+        })
+        room_data = json.loads((OUTPUT_DIR / f"{job_id}_rooms.json").read_text(encoding="utf-8"))
+        warnings = room_data.get("diagnostics", {}).get("warnings", [])
+        if not room_data.get("windows"):
+            warnings.append("Окна не распознаны; проверьте проёмы на исходном изображении.")
+        for suffix in ("_preprocess.json", "_rooms.json"):
+            shutil.copy2(OUTPUT_DIR / f"{job_id}{suffix}", job_dir / suffix[1:])
+
     images = {}
 
     for kind, source in generated_images.items():
@@ -304,6 +324,8 @@ async def recognize(
         ),
         "stats": stats,
         "images": images,
+        "pipeline": "v2" if pipeline_v2 else "v1",
+        "warnings": warnings,
     }
 
     (
@@ -412,6 +434,7 @@ async def job_image(
             p for p in job_dir.iterdir()
             if p.suffix.lower()
             in ALLOWED_EXTENSIONS
+            and p.stem == job_id
         ]
 
         if not matches:
@@ -429,6 +452,9 @@ async def job_image(
         "classified",
         "rooms",
         "barrier",
+        "preprocessing",
+        "normalized",
+        "closures",
     }
 
     if kind not in allowed:

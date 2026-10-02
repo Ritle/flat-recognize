@@ -1,3 +1,4 @@
+import argparse
 import json
 import math
 import sys
@@ -13,6 +14,7 @@ from shapely.ops import unary_union
 from buildingcv.data import IMAGENET_MEAN, IMAGENET_STD
 from buildingcv.extract_polygons import PolygonExtractor, mask_to_polygons
 from buildingcv.labels import FLOOR_ID
+from preprocess_v2 import model_point_to_source
 
 
 def prepare_image(path, extractor):
@@ -120,13 +122,18 @@ def rotated_dimensions(shape):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(
-            "Usage: python scripts/predict_raster.py image.png"
-        )
-        sys.exit(1)
-
-    image_path = Path(sys.argv[1])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("image", type=Path)
+    parser.add_argument("--preprocess-meta", type=Path)
+    args = parser.parse_args()
+    image_path = args.image
+    preprocessing = None
+    input_path = image_path
+    if args.preprocess_meta:
+        preprocessing = json.loads(args.preprocess_meta.read_text(encoding="utf-8"))
+        if Path(preprocessing["source"]).resolve() != image_path.resolve():
+            parser.error("Preprocessing metadata belongs to another source image")
+        input_path = Path(preprocessing["normalized_image"])
 
     if not image_path.exists():
         print(f"Image not found: {image_path}")
@@ -139,12 +146,24 @@ def main():
     )
 
     tensor, image_size, rect, scale = prepare_image(
-        image_path,
+        input_path,
         extractor
     )
 
     orig_w, orig_h = image_size
     left, top, inner_w, inner_h = rect
+    crop_w, crop_h = image_size
+    if preprocessing:
+        orig_w, orig_h = preprocessing["source_size"]
+        x1, y1, x2, y2 = preprocessing["roi"]
+        if image_size != (x2 - x1, y2 - y1):
+            parser.error("Preprocessed image size does not match ROI metadata")
+
+    def source_point(point):
+        if not preprocessing:
+            return convert_point(point, left, top, scale, orig_w, orig_h)
+        # Use each actual rounded resize dimension to avoid letterbox drift.
+        return model_point_to_source(point, rect, preprocessing)
 
     with torch.no_grad():
         logits = extractor.model(
@@ -181,26 +200,12 @@ def main():
     for polygon in polygons.get("wall", []):
         wall = {
             "outer": [
-                convert_point(
-                    p,
-                    left,
-                    top,
-                    scale,
-                    orig_w,
-                    orig_h,
-                )
+                source_point(p)
                 for p in polygon["outer"]
             ],
             "holes": [
                 [
-                    convert_point(
-                        p,
-                        left,
-                        top,
-                        scale,
-                        orig_w,
-                        orig_h,
-                    )
+                    source_point(p)
                     for p in hole
                 ]
                 for hole in polygon["holes"]
@@ -234,14 +239,7 @@ def main():
 
             opening = {
                 "outer": [
-                    convert_point(
-                        p,
-                        left,
-                        top,
-                        scale,
-                        orig_w,
-                        orig_h,
-                    )
+                    source_point(p)
                     for p in polygon["outer"]
                 ],
                 "holes": [],
@@ -253,7 +251,7 @@ def main():
     valid_openings = []
     rejected_openings = []
 
-    min_dimension = min(orig_w, orig_h)
+    min_dimension = min(image_size) if preprocessing else min(orig_w, orig_h)
 
     # Допуск расстояния до стены.
     wall_tolerance = max(
@@ -377,6 +375,11 @@ def main():
             "rejected": rejected_openings,
         },
     }
+
+    if preprocessing:
+        result["meta"]["preprocessing"] = preprocessing
+        result["meta"]["coordinate_space"] = "source_raster"
+        result["meta"]["pipeline"] = "v2"
 
     # --------------------------------------------------
     # SAVE JSON

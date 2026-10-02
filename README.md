@@ -1,5 +1,12 @@
 # Floorplan to 3D
 
+Raster recognition MVP: PNG/JPG/WEBP → editable `project.json`, with a local
+FastAPI demo in `demo/`. CPU setup, measured regression results and agreed
+requirements are documented in [docs/REGRESSION_BASELINE.md](docs/REGRESSION_BASELINE.md).
+Run all local examples with `python scripts/run_recognition_regression.py`.
+Experimental preprocessing and room repair are available with `--pipeline-v2`
+in both the CLI and regression runner; see [docs/PIPELINE_V2.md](docs/PIPELINE_V2.md).
+
 ![preview](docs/preview.gif)
 
 Floor-plan structure extraction. A ResNet-UNet trained on [CubiCasa5K](https://github.com/CubiCasa/CubiCasa5k) segments each pixel of an architectural drawing into wall / door / window / floor; a small browser viewer extrudes those predictions into 3D walls, doors, and windows you can orbit around.
