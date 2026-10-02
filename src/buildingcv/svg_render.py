@@ -17,8 +17,6 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import cairosvg
-
 # Default-prefix the SVG namespace on serialization so the round-tripped
 # document is plain `<svg xmlns="...">` rather than `<ns0:svg xmlns:ns0="...">`.
 # cairosvg accepts both, but the default-namespace form is what the original
@@ -84,6 +82,9 @@ def render_input_png(svg_path: str | Path, out_size: tuple[int, int]) -> bytes:
     Output is pixel-aligned with `svg_to_mask.svg_to_mask` at the same size,
     so the (image, mask) pair stays consistent.
     """
+    # Native Cairo is needed for SVG rendering, not for raster inference.
+    import cairosvg
+
     W, H = out_size
     return cairosvg.svg2png(
         bytestring=filtered_svg_bytes(svg_path),

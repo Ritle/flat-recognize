@@ -51,3 +51,7 @@ temp/
 build/
 dist/
 *.egg-info/
+
+# Local tools and private regression images
+.tools/
+exmpls/

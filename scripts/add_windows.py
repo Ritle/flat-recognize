@@ -113,15 +113,11 @@ def main():
             "No windowItem found in template JSON"
         )
 
-    bindings = bindings_data.get(
-        "windows",
-        []
-    )
-
+    bindings = bindings_data.get("windows")
+    if not isinstance(bindings, list):
+        raise RuntimeError("window_bindings.json must contain a windows array")
     if not bindings:
-        raise RuntimeError(
-            "No windows found in window_bindings.json"
-        )
+        print("WARNING: No windows recognized; preserving project without window additions")
 
     # --------------------------------------------------
     # Existing wall UUIDs
@@ -226,6 +222,10 @@ def main():
         window["uuid"] = (
             window_uuid
         )
+
+        # The clone's materials must reference this window, not the template.
+        for material in window.get("materials", []):
+            material["itemUuid"] = window_uuid
 
         window["type"] = (
             "windowItem"

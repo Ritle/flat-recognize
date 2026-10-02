@@ -42,6 +42,7 @@ serve = [
     "uvicorn>=0.27",
     "python-multipart>=0.0.9",
     "opencv-python-headless>=4.10",
+    "shapely>=2.0",
 ]
 
 [tool.setuptools.packages.find]

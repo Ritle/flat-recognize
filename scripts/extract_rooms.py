@@ -344,12 +344,9 @@ def main():
     # 7. DEBUG MASK
     # --------------------------------------------------
 
-    cv2.imwrite(
-        str(
-            output_dir /
-            f"{image_path.stem}_barrier.png"
-        ),
-        barrier
+    # Pillow supports Unicode paths on Windows; cv2.imwrite can silently fail.
+    Image.fromarray(barrier).save(
+        output_dir / f"{image_path.stem}_barrier.png"
     )
 
     # --------------------------------------------------
