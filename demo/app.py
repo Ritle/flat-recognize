@@ -262,14 +262,20 @@ async def recognize(
         "rooms": metrics.get("exported_rooms", len(room_data.get("rooms", []))),
         "walls": metrics.get("exported_segments", 0),
         "connectors": metrics.get("exported_connectors", 0),
-        "doors": metrics.get("exported_doors", len(room_data.get("doors", []))),
-        "windows": metrics.get("exported_windows", len(room_data.get("windows", []))),
+        "doors": len(room_data.get("doors", [])),
+        "windows": len(room_data.get("windows", [])),
     }
     shutil.copy2(quality_path, job_dir / "quality.json")
     shutil.copy2(room_path, job_dir / "rooms.json")
     binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
+    geometry_path = OUTPUT_DIR / f"{job_id}_geometry.json"
+    if geometry_path.exists():
+        shutil.copy2(geometry_path, job_dir / "geometry.json")
+    candidate_path = OUTPUT_DIR / f"{job_id}_project.json"
+    if candidate_path.exists():
+        shutil.copy2(candidate_path, job_dir / "geometry_candidate.json")
 
     # ------------------------------------------------
     # Забираем diagnostic images,
@@ -292,6 +298,7 @@ async def recognize(
         "barrier":
             OUTPUT_DIR /
             f"{job_id}_barrier.png",
+        "export": OUTPUT_DIR / f"{job_id}_export_overlay.png",
     }
 
     warnings = quality["warnings"]
@@ -490,6 +497,7 @@ async def job_image(
         "preprocessing",
         "normalized",
         "closures",
+        "export",
     }
 
     if kind not in allowed:

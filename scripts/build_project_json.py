@@ -69,6 +69,10 @@ def main():
         default=8.0,
         help="coordinate snapping tolerance in px"
     )
+    parser.add_argument("--geometry-mode", choices=("bbox", "auto", "polygon"), default="bbox")
+    parser.add_argument("--geometry-report", help="Separate export geometry diagnostics JSON")
+    parser.add_argument("--source-image", help="Original raster for export overlay")
+    parser.add_argument("--overlay", help="Export geometry overlay PNG")
 
     args = parser.parse_args()
 
@@ -90,6 +94,26 @@ def main():
         raise RuntimeError("Template has no levels")
 
     template_level = template["levels"][0]
+    geometry_errors = []
+    if args.geometry_mode != "bbox":
+        from polygon_geometry import build_polygon_project, requires_polygons, render_geometry
+        from shapely.errors import GEOSException
+        if args.geometry_mode == "polygon" or requires_polygons(rooms):
+            try:
+                result, report = build_polygon_project(src, template, args.scale, args.wall_thickness, args.height)
+                output_path = Path(args.output)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+                report_path = Path(args.geometry_report) if args.geometry_report else output_path.with_suffix(".geometry.json")
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+                if args.overlay and args.source_image:
+                    render_geometry(result, report, args.source_image, args.overlay)
+                print(f"Polygon geometry created: {output_path}; unsupported boundaries: {len(report['unsupported_segments'])}")
+                return
+            except (ValueError, GEOSException) as exc:
+                # Preserve a diagnostic candidate, but explicitly block its export.
+                geometry_errors.append(f"Полигональная геометрия не построена: {exc}")
 
     # -------------------------------------------------
     # Сохраняем дефолтные настройки сегмента/помещения
@@ -724,6 +748,20 @@ def main():
             indent=2,
             ensure_ascii=False
         )
+
+    if args.geometry_report or args.overlay:
+        report = {"adapter": "bbox", "pixel_to_world": {
+            "scale_x": args.scale, "scale_y": args.scale,
+            "origin_x": origin_x - min_px_x * args.scale,
+            "origin_y": origin_y - min_px_y * args.scale,
+        }, "errors": geometry_errors, "warnings": [], "unsupported_segments": []}
+        if args.geometry_report:
+            report_path = Path(args.geometry_report)
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        if args.overlay and args.source_image:
+            from polygon_geometry import render_geometry
+            render_geometry(result, report, args.source_image, args.overlay)
 
     print()
     print("Project JSON created")

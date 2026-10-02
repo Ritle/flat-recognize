@@ -224,6 +224,7 @@
         flex-wrap: wrap;
         border-bottom: 1px solid #222733;
     }
+    .image-caption { padding: 12px 18px; color: #aeb6c7; font-size: 13px; }
 
     .tab {
         padding: 8px 12px;
@@ -518,6 +519,7 @@
                     alt="Floorplan preview"
                 >
             </div>
+            <div class="image-caption" id="imageCaption" style="display:none"></div>
 
         </div>
 
@@ -753,6 +755,11 @@ function setupImages(data) {
             url: data.images.rooms
         },
         {
+            label: 'Геометрия экспорта',
+            url: data.images.export,
+            caption: 'Синий — предложенные стены, оранжевый — неподтверждённые участки границ.'
+        },
+        {
             label: 'Область плана',
             url: data.images.preprocessing
         },
@@ -768,6 +775,7 @@ function setupImages(data) {
 
     const preview =
         document.getElementById('preview');
+    const caption = document.getElementById('imageCaption');
 
     images.forEach((item, index) => {
 
@@ -795,6 +803,8 @@ function setupImages(data) {
                 item.url +
                 '?t=' +
                 Date.now();
+            caption.textContent = item.caption || '';
+            caption.style.display = item.caption ? 'block' : 'none';
         };
 
         tabs.appendChild(button);
@@ -805,6 +815,8 @@ function setupImages(data) {
             images[0].url +
             '?t=' +
             Date.now();
+        caption.textContent = images[0].caption || '';
+        caption.style.display = images[0].caption ? 'block' : 'none';
     }
 }
 

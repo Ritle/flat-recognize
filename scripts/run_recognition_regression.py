@@ -31,6 +31,7 @@ SUFFIXES = (
     "_preprocess.json", "_preprocessed.png", "_grayscale.png", "_preprocess_preview.png",
     "_closures.png",
     "_opening_bindings.json",
+    "_geometry.json", "_export_overlay.png",
 )
 
 
@@ -145,6 +146,9 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     if preprocessing:
         row["preprocessing"] = load_json(preprocessing)
     final = case_dir / "project.json"
+    geometry_path = changed.get(image.stem + "_geometry.json")
+    if geometry_path:
+        row["geometry"] = load_json(geometry_path)
     quality_path = final.with_suffix(".quality.json")
     if quality_path.exists():
         row["quality"] = load_json(quality_path)

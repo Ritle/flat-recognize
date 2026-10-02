@@ -9,6 +9,10 @@ Preprocessing V2 и room extraction V2 реализованы под `--pipeline
 Quality gate реализован для V1/V2: 2 good / 1 review / 7 invalid на V2-наборе.
 Подробности — [QUALITY_GATE.md](QUALITY_GATE.md). Выявлены массивные наложения
 при bbox-экспорте; V2 остаётся экспериментальным.
+Первый полигональный адаптер добавлен: на четырёх сложных примерах наложения
+устранены, диагональная граница сохранена. Допустимость по-прежнему 2 good /
+1 review / 7 invalid: остаются неподтверждённые границы и отверстия в форме.
+Детали и ограничения — [POLYGON_GEOMETRY.md](POLYGON_GEOMETRY.md).
 
 ## Цель
 
@@ -331,6 +335,7 @@ P1:
 ```text
 [ ] dual-pass inference
 [ ] better wall graph
+[ ] internal wall graph (polygon room boundary graph implemented)
 [ ] scale calibration
 ```
 
@@ -364,8 +369,8 @@ windows
 
 ## Рекомендуемый следующий implementation task
 
-Preprocessing, room extraction V2 и quality gate реализованы. Следующий этап
-исходного плана — dual-pass inference. Однако gate выявил отдельную проблему
-адаптера: bbox создают наложения areas на 5 сложных примерах. Исправление
-требует general wall graph (Phase 9), независимо от улучшения сегментации.
-V1 остаётся режимом по умолчанию.
+Preprocessing, room extraction V2, quality gate и первый граф полигональных
+границ реализованы. Для допуска сложных результатов нужны пропущенные проёмы
+и внутренние участки стен, а не обход gate. Далее — улучшение opening recall
+(включая dual-pass inference из исходного плана), отдельный граф внутренних
+стен и упрощение коротких сегментов. V1 остаётся режимом по умолчанию.

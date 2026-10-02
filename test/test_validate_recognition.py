@@ -101,6 +101,11 @@ class QualityGateTest(unittest.TestCase):
         project["levels"][0]["areas"][0]["connectors"].append("0")
         self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "good")
 
+    def test_geometry_failure_cannot_pass_with_valid_bbox(self):
+        rooms, project, bindings = fixture()
+        report = {"adapter": "bbox", "warnings": [], "errors": ["Polygon export failed"]}
+        self.assertFalse(validate_recognition(rooms, project, bindings, geometry=report)["export_allowed"])
+
 
 if __name__ == "__main__":
     unittest.main()

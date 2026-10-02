@@ -21,7 +21,7 @@ from test.test_validate_recognition import fixture
 
 class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
     async def test_result_and_export_routes_for_each_status(self):
-        for status in ("good", "review", "invalid", "no_rooms"):
+        for status in ("good", "review", "invalid", "no_rooms", "geometry_invalid"):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as temp:
                 jobs = Path(temp) / "jobs"
                 output = Path(temp) / "output"
@@ -33,13 +33,16 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                     project["levels"][0]["elements"][0]["wall"]["uuid"] = "missing"
                 elif status == "no_rooms":
                     rooms["rooms"] = []
+                elif status == "geometry_invalid":
+                    project["levels"][0]["elements"] = []
+                    project["levels"][0]["segments"][0]["start"] = "missing"
                 quality = validate_recognition(rooms, project if status != "no_rooms" else None, bindings)
 
                 def pipeline(image_path, project_path, pipeline_v2):
                     stem = image_path.stem
                     (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
                     project_path.with_suffix(".quality.json").write_text(json.dumps(quality), encoding="utf-8")
-                    if status != "no_rooms":
+                    if status not in ("no_rooms", "geometry_invalid"):
                         project_path.write_text(json.dumps(project), encoding="utf-8")
                     Image.new("RGB", (20, 20), "white").save(output / f"{stem}_rooms_overlay.png")
                     return subprocess.CompletedProcess([], 0 if quality["export_allowed"] else 2,
@@ -48,7 +51,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 with patch.object(api, "JOBS_DIR", jobs), patch.object(api, "OUTPUT_DIR", output), \
                         patch.object(api, "run_pipeline", side_effect=pipeline):
                     response = await api.recognize(UploadFile(filename="test.png", file=io.BytesIO(b"source")), False)
-                    self.assertEqual(response["quality"]["status"], "invalid" if status == "no_rooms" else status)
+                    self.assertEqual(response["quality"]["status"], "invalid" if status in ("no_rooms", "geometry_invalid") else status)
+                    if status == "geometry_invalid":
+                        self.assertEqual(response["stats"]["doors"], len(rooms["doors"]))
                     self.assertEqual(await api.job_quality(response["job_id"]), quality)
                     image = await api.job_image(response["job_id"], "rooms")
                     self.assertTrue(Path(image.path).exists())

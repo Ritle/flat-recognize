@@ -296,6 +296,8 @@ def main():
         f"{stem}_window_bindings.json"
     )
     opening_bindings_json = OUTPUT / f"{stem}_opening_bindings.json"
+    geometry_report = OUTPUT / f"{stem}_geometry.json"
+    export_overlay = OUTPUT / f"{stem}_export_overlay.png"
 
     if args.output:
         final_json = Path(
@@ -427,6 +429,10 @@ def main():
             str(args.wall_thickness),
             "--height",
             str(args.height),
+            "--geometry-mode", "auto" if args.pipeline_v2 else "bbox",
+            "--geometry-report", geometry_report,
+            "--source-image", image,
+            "--overlay", export_overlay,
         ]
     )
 
@@ -434,6 +440,8 @@ def main():
         project_json,
         "Project geometry JSON"
     )
+    validation_command.extend(["--geometry", geometry_report])
+    run_command("Quality gate - Export geometry", validation_command + ["--project", project_json])
 
     # =================================================
     # 5. Doors + window bindings
@@ -457,6 +465,8 @@ def main():
             str(args.door_height),
             "--bindings-output",
             opening_bindings_json,
+            "--geometry-report",
+            geometry_report,
         ]
     )
 
@@ -582,6 +592,7 @@ def main():
         classified_overlay,
         rooms_overlay,
         barrier_image,
+        export_overlay,
         *([OUTPUT / f"{stem}_preprocess_preview.png", OUTPUT / f"{stem}_closures.png"]
           if args.pipeline_v2 else []),
     ):

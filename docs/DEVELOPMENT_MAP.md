@@ -1,5 +1,9 @@
 # Development Map
 
+`polygon_geometry.py` добавляет общий граф границ сложных комнат. V2 выбирает
+его автоматически; неподтверждённые границы блокируют экспорт до переноса
+проёмов. Детали: [POLYGON_GEOMETRY.md](POLYGON_GEOMETRY.md).
+
 Для V1/V2 добавлены `validate_recognition.py`, отчёт качества и блокировка
 некорректного экспорта в demo. Контракт и проверки: [QUALITY_GATE.md](QUALITY_GATE.md).
 

@@ -8,6 +8,8 @@ Experimental preprocessing and room repair are available with `--pipeline-v2`
 in both the CLI and regression runner; see [docs/PIPELINE_V2.md](docs/PIPELINE_V2.md).
 Both pipelines now validate export geometry and opening bindings. The demo
 blocks structurally invalid projects; see [docs/QUALITY_GATE.md](docs/QUALITY_GATE.md).
+V2 now exports complex room polygons with shared boundaries and exact opening
+transforms; see [docs/POLYGON_GEOMETRY.md](docs/POLYGON_GEOMETRY.md).
 
 ![preview](docs/preview.gif)
 

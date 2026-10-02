@@ -201,6 +201,7 @@ def main():
     )
 
     parser.add_argument("--bindings-output", help="Optional door/window binding diagnostics JSON")
+    parser.add_argument("--geometry-report", help="Exact transform from polygon geometry export")
 
     args = parser.parse_args()
 
@@ -353,6 +354,15 @@ def main():
         (project_max_y - project_min_y) /
         max(source_height, 1.0)
     )
+    geometry_transform = None
+    if args.geometry_report:
+        geometry_report = json.loads(Path(args.geometry_report).read_text(encoding="utf-8"))
+        if geometry_report.get("adapter") == "polygon":
+            geometry_transform = geometry_report["pixel_to_world"]
+            scale_x = float(geometry_transform["scale_x"])
+            scale_y = float(geometry_transform["scale_y"])
+            if not all(math.isfinite(float(v)) for v in geometry_transform.values()) or min(scale_x, scale_y) <= 0:
+                raise ValueError("Invalid polygon geometry coordinate transform")
 
     print()
     print("Coordinate transform")
@@ -364,6 +374,9 @@ def main():
     )
 
     def pixel_to_world(px, py):
+        if geometry_transform is not None:
+            return (float(geometry_transform["origin_x"]) + px * scale_x,
+                    float(geometry_transform["origin_y"]) + py * scale_y)
         wx = (
             project_min_x +
             (px - raw_min_x) * scale_x

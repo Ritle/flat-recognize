@@ -15,12 +15,22 @@ def finite(value):
         return False
 
 
-def validate_recognition(rooms, project=None, bindings=None, scale=1.0):
+def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry=None):
     issues = []
     metrics = {}
 
     def issue(code, severity, message, **context):
         issues.append(dict(code=code, severity=severity, message=message, **context))
+
+    if geometry is not None:
+        if not isinstance(geometry, dict):
+            issue("invalid_geometry_report", "error", "Некорректный отчёт геометрии экспорта.")
+            geometry = {}
+        metrics["geometry_adapter"] = geometry.get("adapter")
+        for message in geometry.get("errors", []):
+            issue("unsupported_geometry", "error", message)
+        for message in geometry.get("warnings", []):
+            issue("geometry_warning", "warning", message)
 
     def objects(data, key, location):
         value = data.get(key)
@@ -75,6 +85,8 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0):
         diagnostics = {}
     diagnostic_warnings = diagnostics.get("warnings", [])
     for warning in diagnostic_warnings if isinstance(diagnostic_warnings, list) else []:
+        if geometry and geometry.get("adapter") == "polygon" and warning == "Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.":
+            continue
         if isinstance(warning, str):
             issue("room_diagnostic", "warning", warning)
     outside = diagnostics.get("outside_fraction_in_structure")
@@ -245,6 +257,7 @@ def main():
     parser.add_argument("--rooms", type=Path, required=True)
     parser.add_argument("--project", type=Path)
     parser.add_argument("--bindings", type=Path)
+    parser.add_argument("--geometry", type=Path)
     parser.add_argument("--scale", type=float, default=1.0)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -253,7 +266,7 @@ def main():
         return json.loads(path.read_text(encoding="utf-8")) if path else None
 
     try:
-        result = validate_recognition(load(args.rooms), load(args.project), load(args.bindings), args.scale)
+        result = validate_recognition(load(args.rooms), load(args.project), load(args.bindings), args.scale, load(args.geometry))
     except (OSError, ValueError) as exc:
         result = dict(version=1, status="invalid", quality=0.0, export_allowed=False,
                       warnings=[], errors=[f"Не удалось прочитать диагностические JSON: {exc}"], issues=[], metrics={})
