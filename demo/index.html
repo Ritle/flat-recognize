@@ -770,6 +770,11 @@ function setupImages(data) {
         {
             label: 'Восстановленные границы',
             url: data.images.closures
+        },
+        {
+            label: 'Восстановленные двери',
+            url: data.images.recovery,
+            caption: 'Зелёный — восстановленный проём, синий — найденное полотно, оранжевый — отклонённый кандидат. Проверьте двери по исходнику.'
         }
     ].filter(item => item.url);
 

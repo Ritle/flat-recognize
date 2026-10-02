@@ -400,6 +400,10 @@ def main():
     )
 
     if args.pipeline_v2:
+        run_command("V2 - Recover missed doors", [python, SCRIPTS / "recover_openings_v2.py",
+                                                image, classified_json, rooms_json])
+        classified_json = require_file(OUTPUT / f"{stem}_recovered_classified.json", "Recovered openings")
+        rooms_json = require_file(OUTPUT / f"{stem}_rooms_recovered.json", "Rooms with recovered openings")
         room_data = json.loads(rooms_json.read_text(encoding="utf-8"))
         for warning in room_data.get("diagnostics", {}).get("warnings", []):
             print(f"WARNING: {warning}")
@@ -593,7 +597,8 @@ def main():
         rooms_overlay,
         barrier_image,
         export_overlay,
-        *([OUTPUT / f"{stem}_preprocess_preview.png", OUTPUT / f"{stem}_closures.png"]
+        *([OUTPUT / f"{stem}_preprocess_preview.png", OUTPUT / f"{stem}_closures.png",
+           OUTPUT / f"{stem}_opening_recovery_overlay.png"]
           if args.pipeline_v2 else []),
     ):
         if diagnostic.exists():

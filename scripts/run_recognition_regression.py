@@ -32,6 +32,8 @@ SUFFIXES = (
     "_closures.png",
     "_opening_bindings.json",
     "_geometry.json", "_export_overlay.png",
+    "_recovered_classified.json", "_rooms_recovered.json", "_opening_recovery.json",
+    "_opening_recovery_overlay.png",
 )
 
 
@@ -130,6 +132,12 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     prediction = changed.get(image.stem + ".json")
     classified = changed.get(image.stem + "_classified.json")
     rooms = changed.get(image.stem + "_rooms.json")
+    recovered_rooms = changed.get(image.stem + "_rooms_recovered.json")
+    recovery = changed.get(image.stem + "_opening_recovery.json")
+    if recovery:
+        row["opening_recovery"] = load_json(recovery)
+    if recovered_rooms:
+        rooms = recovered_rooms
     if prediction:
         data = load_json(prediction)
         row["segmentation"] = {"wall_polygons": len(data.get("walls", [])),

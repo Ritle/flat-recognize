@@ -7,8 +7,8 @@ const html = fs.readFileSync(path.join(__dirname, '../demo/index.html'), 'utf8')
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const nodes = new Map();
 function node() {
-    return {style: {}, textContent: '', classList: {toggle() {}, add() {}, remove() {}},
-        addEventListener() {}, appendChild() {}, scrollIntoView() {},
+    return {style: {}, textContent: '', children: [], classList: {toggle() {}, add() {}, remove() {}},
+        addEventListener() {}, appendChild(child) { this.children.push(child); }, scrollIntoView() {},
         removeAttribute(name) { delete this[name]; }};
 }
 let fetches = 0;
@@ -49,5 +49,15 @@ async function show(status) {
     await show('review'); // Review restores export controls.
     assert.equal(fetches, 2);
     assert.match(nodes.get('recognitionWarnings').textContent, /ручной проверки/);
-    console.log('UI good → invalid → review: passed');
+    nodes.get('tabs').children = [];
+    context.setupImages({images: {recovery: '/recovery'}});
+    const tab = nodes.get('tabs').children[0];
+    assert.equal(tab.textContent, 'Восстановленные двери');
+    tab.onclick();
+    assert.match(nodes.get('preview').src, /^\/recovery\?t=/);
+    assert.match(nodes.get('imageCaption').textContent, /найденное полотно/);
+    assert.equal(nodes.get('imageCaption').style.display, 'block');
+    context.setupImages({images: {}, original_url: '/original'});
+    assert.equal(nodes.get('imageCaption').style.display, 'none');
+    console.log('UI good → invalid → review and recovery diagnostics: passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });
