@@ -295,6 +295,7 @@ def main():
         OUTPUT /
         f"{stem}_window_bindings.json"
     )
+    opening_bindings_json = OUTPUT / f"{stem}_opening_bindings.json"
 
     if args.output:
         final_json = Path(
@@ -316,6 +317,7 @@ def main():
         parents=True,
         exist_ok=True
     )
+    quality_json = final_json.with_suffix(".quality.json")
 
     print()
     print("Floorplan processing pipeline")
@@ -400,6 +402,11 @@ def main():
         for warning in room_data.get("diagnostics", {}).get("warnings", []):
             print(f"WARNING: {warning}")
 
+    validation_command = [python, SCRIPTS / "validate_recognition.py",
+                          "--rooms", rooms_json, "--scale", str(args.scale),
+                          "--output", quality_json]
+    run_command("Quality gate - Room geometry", validation_command)
+
     # =================================================
     # 4. Project geometry
     # =================================================
@@ -448,6 +455,8 @@ def main():
             window_bindings_json,
             "--door-height",
             str(args.door_height),
+            "--bindings-output",
+            opening_bindings_json,
         ]
     )
 
@@ -497,6 +506,8 @@ def main():
         final_json,
         "Final project JSON"
     )
+    run_command("Quality gate - Final project", validation_command +
+                ["--project", final_json, "--bindings", opening_bindings_json])
 
     # =================================================
     # Final validation
@@ -561,6 +572,7 @@ def main():
     print()
     print("FINAL JSON:")
     print(final_json)
+    print(f"Quality report: {quality_json}")
 
     print()
     print("Diagnostics:")

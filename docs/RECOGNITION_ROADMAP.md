@@ -6,7 +6,9 @@ CPU-запуск подготовлен, эталон `201535.png` воспро�
 Все 10 примеров прогнаны: 5 сформировали JSON, 5 вернули 0 rooms и остановились при построении проекта.
 Это техническая успешность, не accuracy. Требования, окружение, диагностика и команды повторного запуска — [REGRESSION_BASELINE.md](REGRESSION_BASELINE.md).
 Preprocessing V2 и room extraction V2 реализованы под `--pipeline-v2`: эталон сохранён, техническая успешность составила 8/10, V1 не изменился. Ограничения и проверки — [PIPELINE_V2.md](PIPELINE_V2.md).
-Следующая итерация — quality gate; V2 остаётся экспериментальным.
+Quality gate реализован для V1/V2: 2 good / 1 review / 7 invalid на V2-наборе.
+Подробности — [QUALITY_GATE.md](QUALITY_GATE.md). Выявлены массивные наложения
+при bbox-экспорте; V2 остаётся экспериментальным.
 
 ## Цель
 
@@ -321,7 +323,7 @@ P0:
 ```text
 [x] preprocess_v2.py (experimental, --pipeline-v2)
 [x] extract_rooms_v2.py (experimental, --pipeline-v2)
-[ ] quality gate
+[x] quality gate (source/final geometry, API export guard)
 [x] regression cases (10 images, confirmed expectations for clean baseline)
 ```
 
@@ -362,17 +364,8 @@ windows
 
 ## Рекомендуемый следующий implementation task
 
-Реализовать:
-
-```text
-scripts/preprocess_v2.py
-scripts/extract_rooms_v2.py
-```
-
-и встроить feature flag:
-
-```bash
-python scripts/process_floorplan.py input.jpg --pipeline-v2
-```
-
-Пока V2 не пройдёт regression set, V1 оставить рабочим. После стабилизации V2 переключить на default.
+Preprocessing, room extraction V2 и quality gate реализованы. Следующий этап
+исходного плана — dual-pass inference. Однако gate выявил отдельную проблему
+адаптера: bbox создают наложения areas на 5 сложных примерах. Исправление
+требует general wall graph (Phase 9), независимо от улучшения сегментации.
+V1 остаётся режимом по умолчанию.

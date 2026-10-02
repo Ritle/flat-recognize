@@ -200,6 +200,8 @@ def main():
         help="Maximum distance from opening center to segment, cm"
     )
 
+    parser.add_argument("--bindings-output", help="Optional door/window binding diagnostics JSON")
+
     args = parser.parse_args()
 
     with open(args.project_json, "r", encoding="utf-8") as f:
@@ -755,6 +757,12 @@ def main():
             indent=2,
             ensure_ascii=False
         )
+
+    if args.bindings_output:
+        bindings_path = Path(args.bindings_output)
+        bindings_path.parent.mkdir(parents=True, exist_ok=True)
+        bindings_path.write_text(json.dumps({"doors": door_bindings, "windows": window_bindings},
+                                            indent=2, ensure_ascii=False), encoding="utf-8")
 
     print()
     print("DONE")

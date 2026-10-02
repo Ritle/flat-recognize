@@ -327,6 +327,11 @@
         border-radius: 12px;
         white-space: pre-wrap;
     }
+    .recognition-warnings.invalid {
+        border-color: #653239;
+        background: #241316;
+        color: #ffb7bd;
+    }
 
     @media (max-width: 850px) {
         .stats {
@@ -516,7 +521,7 @@
 
         </div>
 
-        <div class="json-panel">
+        <div class="json-panel" id="jsonPanel">
 
             <div class="json-head">
 
@@ -642,8 +647,16 @@ async function upload(file) {
 async function showResult(data) {
 
     const warnings = document.getElementById('recognitionWarnings');
-    warnings.textContent = (data.warnings || []).join('\n');
-    warnings.style.display = data.warnings?.length ? 'block' : 'none';
+    const quality = data.quality;
+    const titles = {
+        good: 'Проверки пройдены',
+        review: 'Результат требует ручной проверки',
+        invalid: 'Экспорт заблокирован: проект структурно некорректен'
+    };
+    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []),
+        ...(data.warnings || [])].filter(Boolean).join('\n');
+    warnings.classList.toggle('invalid', quality?.status === 'invalid');
+    warnings.style.display = warnings.textContent ? 'block' : 'none';
 
     document.getElementById(
         'roomsCount'
@@ -677,10 +690,19 @@ async function showResult(data) {
             'downloadButton'
         );
 
-    download.href = data.download_url;
+    download.hidden = !data.download_url;
+    download.style.display = data.download_url ? '' : 'none';
+    download.removeAttribute('href');
+    if (data.download_url) download.href = data.download_url;
+    document.getElementById('jsonPanel').style.display = data.json_url ? '' : 'none';
+    document.getElementById('copyJson').disabled = !data.json_url;
+    currentJson = null;
+    document.getElementById('jsonPreview').textContent = '';
 
+    if (data.json_url) {
     const jsonResponse =
         await fetch(data.json_url);
+    if (!jsonResponse.ok) throw new Error('Экспорт JSON недоступен');
 
     currentJson =
         await jsonResponse.json();
@@ -695,6 +717,7 @@ async function showResult(data) {
     document.getElementById(
         'jsonPreview'
     ).textContent = prettyJson;
+    }
 
     setupImages(data);
 

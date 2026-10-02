@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -118,6 +119,7 @@ def run_pipeline(
         cwd=ROOT,
         capture_output=True,
         encoding="utf-8",
+        env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
     )
 
 
@@ -221,6 +223,9 @@ async def recognize(
         started
     )
 
+    quality_path = project_path.with_suffix(".quality.json")
+    quality = json.loads(quality_path.read_text(encoding="utf-8")) if quality_path.exists() else None
+    rejected = quality is not None and quality.get("status") == "invalid"
     if result.returncode != 0:
         error_text = (
             result.stderr
@@ -238,25 +243,33 @@ async def recognize(
             encoding="utf-8"
         )
 
+        if not rejected:
+            raise HTTPException(
+                status_code=500,
+                detail={"message": "Ошибка обработки планировки", "log": error_text[-4000:]},
+            )
+
+    if not rejected and (not project_path.exists() or quality is None):
         raise HTTPException(
             status_code=500,
-            detail={
-                "message": (
-                    "Ошибка обработки планировки"
-                ),
-                "log": error_text[-4000:],
-            }
+            detail="Pipeline did not create project.json and quality report"
         )
 
-    if not project_path.exists():
-        raise HTTPException(
-            status_code=500,
-            detail="Pipeline did not create project.json"
-        )
-
-    stats = load_stats(
-        project_path
-    )
+    room_path = OUTPUT_DIR / f"{job_id}_rooms.json"
+    room_data = json.loads(room_path.read_text(encoding="utf-8"))
+    metrics = quality.get("metrics", {})
+    stats = load_stats(project_path) if not rejected else {
+        "rooms": metrics.get("exported_rooms", len(room_data.get("rooms", []))),
+        "walls": metrics.get("exported_segments", 0),
+        "connectors": metrics.get("exported_connectors", 0),
+        "doors": metrics.get("exported_doors", len(room_data.get("doors", []))),
+        "windows": metrics.get("exported_windows", len(room_data.get("windows", []))),
+    }
+    shutil.copy2(quality_path, job_dir / "quality.json")
+    shutil.copy2(room_path, job_dir / "rooms.json")
+    binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
+    if binding_path.exists():
+        shutil.copy2(binding_path, job_dir / "opening_bindings.json")
 
     # ------------------------------------------------
     # Забираем diagnostic images,
@@ -281,18 +294,14 @@ async def recognize(
             f"{job_id}_barrier.png",
     }
 
-    warnings = []
+    warnings = quality["warnings"]
     if pipeline_v2:
         generated_images.update({
             "preprocessing": OUTPUT_DIR / f"{job_id}_preprocess_preview.png",
             "normalized": OUTPUT_DIR / f"{job_id}_preprocessed.png",
             "closures": OUTPUT_DIR / f"{job_id}_closures.png",
         })
-        room_data = json.loads((OUTPUT_DIR / f"{job_id}_rooms.json").read_text(encoding="utf-8"))
-        warnings = room_data.get("diagnostics", {}).get("warnings", [])
-        if not room_data.get("windows"):
-            warnings.append("Окна не распознаны; проверьте проёмы на исходном изображении.")
-        for suffix in ("_preprocess.json", "_rooms.json"):
+        for suffix in ("_preprocess.json",):
             shutil.copy2(OUTPUT_DIR / f"{job_id}{suffix}", job_dir / suffix[1:])
 
     images = {}
@@ -326,6 +335,7 @@ async def recognize(
         "images": images,
         "pipeline": "v2" if pipeline_v2 else "v1",
         "warnings": warnings,
+        "quality": quality,
     }
 
     (
@@ -341,18 +351,41 @@ async def recognize(
     )
 
     return {
-        "ok": True,
+        "ok": quality["export_allowed"],
         **metadata,
         "original_url": (
             f"/api/jobs/{job_id}/image/original"
         ),
+        "quality_url": f"/api/jobs/{job_id}/quality",
         "download_url": (
             f"/api/jobs/{job_id}/download"
-        ),
+        ) if quality["export_allowed"] else None,
         "json_url": (
             f"/api/jobs/{job_id}/json"
-        ),
+        ) if quality["export_allowed"] else None,
     }
+
+
+def require_export_allowed(job_id: str):
+    if not (JOBS_DIR / job_id).is_dir():
+        raise HTTPException(status_code=404, detail="Job not found")
+    path = JOBS_DIR / job_id / "quality.json"
+    if not path.exists():
+        raise HTTPException(status_code=409, detail="Нет отчёта проверки качества; обработайте изображение повторно.")
+    quality = json.loads(path.read_text(encoding="utf-8"))
+    if quality.get("export_allowed") is not True or quality.get("status") not in ("good", "review"):
+        raise HTTPException(status_code=409, detail={
+            "message": "Проект структурно некорректен; экспорт заблокирован.", "quality": quality,
+        })
+
+
+@app.get("/api/jobs/{job_id}/quality")
+async def job_quality(job_id: str):
+    validate_job_id(job_id)
+    path = JOBS_DIR / job_id / "quality.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Quality report not found")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @app.get(
@@ -364,6 +397,7 @@ async def download_project(
     validate_job_id(
         job_id
     )
+    require_export_allowed(job_id)
 
     path = (
         JOBS_DIR /
@@ -393,6 +427,7 @@ async def project_json(
     validate_job_id(
         job_id
     )
+    require_export_allowed(job_id)
 
     path = (
         JOBS_DIR /

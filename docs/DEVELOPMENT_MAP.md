@@ -1,5 +1,8 @@
 # Development Map
 
+Для V1/V2 добавлены `validate_recognition.py`, отчёт качества и блокировка
+некорректного экспорта в demo. Контракт и проверки: [QUALITY_GATE.md](QUALITY_GATE.md).
+
 ## End-to-end flow
 
 ```text

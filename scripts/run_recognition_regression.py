@@ -30,6 +30,7 @@ SUFFIXES = (
     "_project_doors.json", "_window_bindings.json",
     "_preprocess.json", "_preprocessed.png", "_grayscale.png", "_preprocess_preview.png",
     "_closures.png",
+    "_opening_bindings.json",
 )
 
 
@@ -144,14 +145,21 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     if preprocessing:
         row["preprocessing"] = load_json(preprocessing)
     final = case_dir / "project.json"
+    quality_path = final.with_suffix(".quality.json")
+    if quality_path.exists():
+        row["quality"] = load_json(quality_path)
+        row["artifacts"].append(quality_path.name)
+    if final.exists():
+        row["artifacts"].append("project.json")
+        row["final"] = count_results(final)
     row["status"] = "pipeline_failed"
     if result.returncode != 0:
         stage = re.search(r"ERROR: stage failed: (.+)", result.stdout)
         row["failed_stage"] = stage.group(1) if stage else "unknown"
         row["error_tail"] = result.stdout[-3000:]
+        if row.get("quality", {}).get("status") == "invalid":
+            row["status"] = "quality_invalid"
     elif final.exists():
-        row["artifacts"].append("project.json")
-        row["final"] = count_results(final)
         row["integration_errors"] = audit_project(final)
         row["expectation_match"] = (
             all(row["final"].get(k) == v for k, v in row["expected"].items())
@@ -171,8 +179,8 @@ def write_report(report, run_dir):
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     lines = [f"# {report['pipeline'].upper()} recognition regression", "",
              "Counts are observations. Only clean-baseline has confirmed expectations.", "",
-             "| Case | Rooms | Classified D/W | Final D/W | Status | Seconds |",
-             "|---|---:|---:|---:|---|---:|"]
+             "| Case | Rooms | Classified D/W | Final D/W | Status | Quality | Seconds |",
+             "|---|---:|---:|---:|---|---|---:|"]
     for row in report["cases"]:
         classified, final = row.get("classified", {}), row.get("final", {})
         stage = row.get("failed_stage", row["status"])
@@ -180,7 +188,7 @@ def write_report(report, run_dir):
                      f"{row.get('rooms_found', '—')} | "
                      f"{classified.get('doors', '—')}/{classified.get('windows', '—')} | "
                      f"{final.get('doors', '—')}/{final.get('windows', '—')} | "
-                     f"{stage} | {row['seconds']} |")
+                     f"{stage} | {row.get('quality', {}).get('status', '—')} | {row['seconds']} |")
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

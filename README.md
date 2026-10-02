@@ -6,6 +6,8 @@ requirements are documented in [docs/REGRESSION_BASELINE.md](docs/REGRESSION_BAS
 Run all local examples with `python scripts/run_recognition_regression.py`.
 Experimental preprocessing and room repair are available with `--pipeline-v2`
 in both the CLI and regression runner; see [docs/PIPELINE_V2.md](docs/PIPELINE_V2.md).
+Both pipelines now validate export geometry and opening bindings. The demo
+blocks structurally invalid projects; see [docs/QUALITY_GATE.md](docs/QUALITY_GATE.md).
 
 ![preview](docs/preview.gif)
 
