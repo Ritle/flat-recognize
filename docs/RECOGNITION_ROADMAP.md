@@ -25,6 +25,12 @@ gate сохранился. Детали — [OPENING_RECOVERY.md](OPENING_RECOVE
 Повторный CPU-прогон 2026-10-05 восстановил 5 дверей на трёх сложных планах и перевёл
 `complex-hatched` из `invalid` в `review`: общий результат стал 2 good / 2 review /
 6 invalid при неизменном чистом эталоне. Детали — [OPENING_RECOVERY.md](OPENING_RECOVERY.md).
+Добавлены частичный ground truth и отдельный accuracy evaluator для комнат, стен,
+дверей, окон и T/X junctions. Классификация существующих проёмов теперь требует
+полотно, привязанное к косяку, и согласованную дугу. Clean baseline сохранил
+5 rooms / 5 doors / 6 windows; число ложных дверей на сложных примерах заметно
+снизилось без изменения quality gate. Детали — [GROUND_TRUTH.md](GROUND_TRUTH.md)
+и [OPENING_CLASSIFICATION.md](OPENING_CLASSIFICATION.md).
 
 ## Цель
 

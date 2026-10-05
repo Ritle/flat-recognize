@@ -1,11 +1,15 @@
-import sys
+import copy
 import json
 import math
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
+from door_leaf_evidence import leaf_and_arc
 from PIL import Image, ImageDraw
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 
 def opening_geometry(opening):
@@ -24,6 +28,24 @@ def opening_geometry(opening):
     thickness = min(width, height)
 
     return minx, miny, maxx, maxy, length, thickness, orientation
+
+
+def opening_axis(opening):
+    minx, miny, maxx, maxy, _, thickness, orientation = opening_geometry(opening)
+    if orientation == "horizontal":
+        return np.array([minx, (miny + maxy) / 2]), np.array([maxx, (miny + maxy) / 2]), thickness
+    return np.array([(minx + maxx) / 2, miny]), np.array([(minx + maxx) / 2, maxy]), thickness
+
+
+def structural_union(items):
+    shapes = []
+    for item in items:
+        shape = Polygon(item.get("outer", []), item.get("holes", []))
+        if not shape.is_valid:
+            shape = shape.buffer(0)
+        if not shape.is_empty:
+            shapes.append(shape)
+    return unary_union(shapes)
 
 
 def classify_opening(gray, opening):
@@ -131,6 +153,51 @@ def classify_opening(gray, opening):
     return opening_type, candidates
 
 
+def classify_opening_with_leaf(gray, opening, walls):
+    """Require a jamb-anchored leaf and matching swing arc for a door."""
+    start, end, width = opening_axis(opening)
+    evidence = leaf_and_arc(gray, start, end, width, walls)
+    return ("door", evidence) if evidence is not None else ("window", None)
+
+
+def classify_openings(data, rgb):
+    height, width = rgb.shape[:2]
+    meta = data.get("meta", {})
+    if (meta.get("width"), meta.get("height")) != (width, height):
+        raise ValueError("Opening coordinates must refer to the original raster dimensions")
+    source = data.get("openings")
+    if source is None:
+        source = data.get("doors", []) + data.get("windows", [])
+    openings = copy.deepcopy(source)
+    # The darkest RGB channel preserves colored architectural ink better than
+    # luminance conversion and matches topology/recovery door evidence.
+    gray = rgb.min(axis=2)
+    walls = structural_union(data.get("walls", []))
+    doors, windows = [], []
+    for index, opening in enumerate(openings):
+        opening_type, evidence = classify_opening_with_leaf(gray, opening, walls)
+        opening["id"] = index
+        opening["type"] = opening_type
+        _, _, _, _, length, thickness, orientation = opening_geometry(opening)
+        opening["orientation"] = orientation
+        opening["length"] = round(length, 2)
+        opening["thickness"] = round(thickness, 2)
+        opening["classification"] = {
+            "method": "jamb_leaf_and_arc",
+            "confirmed": evidence is not None,
+            "evidence": evidence,
+            "source_class": opening.get("source_class"),
+        }
+        (doors if opening_type == "door" else windows).append(opening)
+    return {
+        "meta": copy.deepcopy(meta),
+        "walls": copy.deepcopy(data.get("walls", [])),
+        "doors": doors,
+        "windows": windows,
+        "openings": openings,
+    }
+
+
 def main():
     if len(sys.argv) != 3:
         print(
@@ -153,59 +220,10 @@ def main():
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Новый формат
-    openings = data.get("openings")
-
-    # Поддержка старого JSON
-    if openings is None:
-        openings = (
-            data.get("doors", []) +
-            data.get("windows", [])
-        )
-
     image = Image.open(image_path).convert("RGB")
-    gray = cv2.cvtColor(
-        np.array(image),
-        cv2.COLOR_RGB2GRAY
-    )
-
-    doors = []
-    windows = []
-
-    for index, opening in enumerate(openings):
-        opening_type, evidence = classify_opening(
-            gray,
-            opening
-        )
-
-        opening["id"] = index
-        opening["type"] = opening_type
-
-        _, _, _, _, length, thickness, orientation = \
-            opening_geometry(opening)
-
-        opening["orientation"] = orientation
-        opening["length"] = round(length, 2)
-        opening["thickness"] = round(thickness, 2)
-
-        opening["classification"] = {
-            "method": "perpendicular_line_detection",
-            "perpendicular_lines": len(evidence),
-            "evidence": evidence,
-        }
-
-        if opening_type == "door":
-            doors.append(opening)
-        else:
-            windows.append(opening)
-
-    result = {
-        "meta": data.get("meta", {}),
-        "walls": data.get("walls", []),
-        "doors": doors,
-        "windows": windows,
-        "openings": openings,
-    }
+    result = classify_openings(data, np.asarray(image))
+    doors, windows = result["doors"], result["windows"]
+    openings = result["openings"]
 
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
