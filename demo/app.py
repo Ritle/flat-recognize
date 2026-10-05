@@ -306,15 +306,20 @@ async def recognize(
     }
 
     warnings = quality["warnings"]
+    inference = None
     if pipeline_v2:
         generated_images.update({
             "preprocessing": OUTPUT_DIR / f"{job_id}_preprocess_preview.png",
             "normalized": OUTPUT_DIR / f"{job_id}_preprocessed.png",
+            "segmentation_original": OUTPUT_DIR / f"{job_id}_segmentation_original.png",
+            "segmentation_normalized": OUTPUT_DIR / f"{job_id}_segmentation_normalized.png",
+            "segmentation_fused": OUTPUT_DIR / f"{job_id}_segmentation_fused.png",
             "closures": OUTPUT_DIR / f"{job_id}_closures.png",
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
         })
-        for suffix in ("_preprocess.json",):
+        for suffix in ("_preprocess.json", "_inference.json"):
             shutil.copy2(OUTPUT_DIR / f"{job_id}{suffix}", job_dir / suffix[1:])
+        inference = json.loads((job_dir / "inference.json").read_text(encoding="utf-8"))
         for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json"):
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
@@ -352,6 +357,7 @@ async def recognize(
         "pipeline": "v2" if pipeline_v2 else "v1",
         "warnings": warnings,
         "quality": quality,
+        "inference": inference,
     }
 
     (
@@ -505,6 +511,9 @@ async def job_image(
         "barrier",
         "preprocessing",
         "normalized",
+        "segmentation_original",
+        "segmentation_normalized",
+        "segmentation_fused",
         "closures",
         "export",
         "recovery",

@@ -6,6 +6,9 @@
 
 Для V1/V2 добавлены `validate_recognition.py`, отчёт качества и блокировка
 некорректного экспорта в demo. Контракт и проверки: [QUALITY_GATE.md](QUALITY_GATE.md).
+V2 запускает выровненные исходный и нормализованный проходы модели;
+`dual_pass_inference.py` консервативно объединяет вероятности и сохраняет три
+диагностические маски. Детали: [PIPELINE_V2.md](PIPELINE_V2.md).
 После room extraction V2 запускает `recover_openings_v2.py`: проверяет принятые
 разрывы по стенам, полотну и дуге, сохраняет отдельные результаты для адаптера.
 Детали: [OPENING_RECOVERY.md](OPENING_RECOVERY.md).
@@ -75,6 +78,7 @@ flat-recognize/
 │
 ├── scripts/
 │   ├── predict_raster.py
+│   ├── dual_pass_inference.py
 │   ├── classify_openings.py
 │   ├── extract_rooms.py
 │   ├── build_project_json.py

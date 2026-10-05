@@ -29,6 +29,8 @@ SUFFIXES = (
     "_rooms.json", "_rooms_overlay.png", "_barrier.png", "_project.json",
     "_project_doors.json", "_window_bindings.json",
     "_preprocess.json", "_preprocessed.png", "_grayscale.png", "_preprocess_preview.png",
+    "_inference.json", "_segmentation_original.png", "_segmentation_normalized.png",
+    "_segmentation_fused.png",
     "_closures.png",
     "_opening_bindings.json",
     "_geometry.json", "_export_overlay.png",

@@ -343,7 +343,7 @@ def main():
         preprocessing_meta = require_file(
             OUTPUT / f"{stem}_preprocess.json", "Preprocessing transform metadata"
         )
-        prediction_command.extend(["--preprocess-meta", preprocessing_meta])
+        prediction_command.extend(["--preprocess-meta", preprocessing_meta, "--dual-pass"])
 
     # =================================================
     # 1. Neural network inference
@@ -599,7 +599,10 @@ def main():
         barrier_image,
         export_overlay,
         *([OUTPUT / f"{stem}_preprocess_preview.png", OUTPUT / f"{stem}_closures.png",
-           OUTPUT / f"{stem}_opening_recovery_overlay.png"]
+           OUTPUT / f"{stem}_opening_recovery_overlay.png",
+           OUTPUT / f"{stem}_segmentation_original.png",
+           OUTPUT / f"{stem}_segmentation_normalized.png",
+           OUTPUT / f"{stem}_segmentation_fused.png"]
           if args.pipeline_v2 else []),
     ):
         if diagnostic.exists():

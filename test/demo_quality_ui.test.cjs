@@ -57,6 +57,11 @@ async function show(status) {
     assert.match(nodes.get('preview').src, /^\/recovery\?t=/);
     assert.match(nodes.get('imageCaption').textContent, /найденное полотно/);
     assert.equal(nodes.get('imageCaption').style.display, 'block');
+    nodes.get('tabs').children = [];
+    context.setupImages({images: {segmentation_original: '/original-pass',
+        segmentation_normalized: '/normalized-pass', segmentation_fused: '/fused-pass'}});
+    assert.deepEqual(nodes.get('tabs').children.map(tab => tab.textContent),
+        ['Сегментация: исходник', 'Сегментация: нормализация', 'Сегментация: fusion']);
     context.setupImages({images: {}, original_url: '/original'});
     assert.equal(nodes.get('imageCaption').style.display, 'none');
     console.log('UI good → invalid → review and recovery diagnostics: passed');

@@ -13,12 +13,13 @@ from shapely.ops import unary_union
 
 from buildingcv.data import IMAGENET_MEAN, IMAGENET_STD
 from buildingcv.extract_polygons import PolygonExtractor, mask_to_polygons
-from buildingcv.labels import FLOOR_ID
+from buildingcv.labels import CLASS_COLORS, FLOOR_ID
+from dual_pass_inference import fuse_probabilities, inference_diagnostics
 from preprocess_v2 import model_point_to_source
 
 
-def prepare_image(path, extractor):
-    image = Image.open(path).convert("RGB")
+def prepare_pil_image(image, extractor):
+    image = image.convert("RGB")
     orig_w, orig_h = image.size
 
     model_h, model_w = extractor.image_size
@@ -57,6 +58,41 @@ def prepare_image(path, extractor):
         (left, top, inner_w, inner_h),
         scale,
     )
+
+
+def prepare_image(path, extractor):
+    with Image.open(path) as image:
+        return prepare_pil_image(image, extractor)
+
+
+def predict_probabilities(extractor, tensor):
+    with torch.no_grad():
+        logits = extractor.model(tensor.unsqueeze(0).to(extractor.device))
+        return logits.softmax(dim=1).squeeze(0).cpu()
+
+
+def source_mask(mask, rect, preprocessing, source_size):
+    """Restore a model-space mask to source raster coordinates for diagnostics."""
+    left, top, inner_w, inner_h = rect
+    content = Image.fromarray(mask[top:top + inner_h, left:left + inner_w])
+    if preprocessing:
+        x1, y1, x2, y2 = preprocessing["roi"]
+    else:
+        x1, y1, x2, y2 = 0, 0, source_size[0], source_size[1]
+    content = content.resize((x2 - x1, y2 - y1), Image.Resampling.NEAREST)
+    restored = np.full((source_size[1], source_size[0]), FLOOR_ID, dtype=np.uint8)
+    restored[y1:y2, x1:x2] = np.asarray(content)
+    return restored
+
+
+def save_mask_overlay(image_path, mask, path):
+    original = np.asarray(Image.open(image_path).convert("RGB"), dtype=np.float32)
+    colors = np.asarray([CLASS_COLORS[name] for name in ("floor", "wall", "door", "window")])
+    color_mask = colors[mask].astype(np.float32)
+    structural = mask != FLOOR_ID
+    blended = original.copy()
+    blended[structural] = original[structural] * .4 + color_mask[structural] * .6
+    Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8)).save(path)
 
 
 def convert_point(point, left, top, scale, orig_w, orig_h):
@@ -125,6 +161,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("image", type=Path)
     parser.add_argument("--preprocess-meta", type=Path)
+    parser.add_argument("--dual-pass", action="store_true")
     args = parser.parse_args()
     image_path = args.image
     preprocessing = None
@@ -165,19 +202,35 @@ def main():
         # Use each actual rounded resize dimension to avoid letterbox drift.
         return model_point_to_source(point, rect, preprocessing)
 
-    with torch.no_grad():
-        logits = extractor.model(
-            tensor.unsqueeze(0).to(extractor.device)
-        )
-
-        mask = (
-            logits
-            .argmax(dim=1)
-            .squeeze(0)
-            .cpu()
-            .to(torch.uint8)
-            .numpy()
-        )
+    probabilities = predict_probabilities(extractor, tensor)
+    inference = None
+    pass_masks = None
+    if args.dual_pass:
+        if not preprocessing:
+            parser.error("--dual-pass requires --preprocess-meta for aligned coordinates")
+        with Image.open(image_path) as source:
+            x1, y1, x2, y2 = preprocessing["roi"]
+            original_crop = source.convert("RGB").crop((x1, y1, x2, y2))
+        original_tensor, original_size, original_rect, _ = prepare_pil_image(original_crop, extractor)
+        if original_size != image_size or original_rect != rect:
+            parser.error("Dual-pass inputs do not share the same letterbox transform")
+        if torch.equal(original_tensor, tensor):
+            original_probabilities = probabilities
+            inputs_identical = True
+        else:
+            original_probabilities = predict_probabilities(extractor, original_tensor)
+            inputs_identical = False
+        fused = fuse_probabilities(original_probabilities, probabilities)
+        inference = inference_diagnostics(original_probabilities, probabilities, fused, rect)
+        inference["inputs_identical"] = inputs_identical
+        pass_masks = {
+            "original": original_probabilities.argmax(dim=0).to(torch.uint8).numpy(),
+            "normalized": probabilities.argmax(dim=0).to(torch.uint8).numpy(),
+            "fused": fused.argmax(dim=0).to(torch.uint8).numpy(),
+        }
+        mask = pass_masks["fused"]
+    else:
+        mask = probabilities.argmax(dim=0).to(torch.uint8).numpy()
 
     cleaned = np.full_like(mask, FLOOR_ID)
 
@@ -376,6 +429,9 @@ def main():
         },
     }
 
+    if inference:
+        result["diagnostics"]["inference"] = inference
+
     if preprocessing:
         result["meta"]["preprocessing"] = preprocessing
         result["meta"]["coordinate_space"] = "source_raster"
@@ -479,6 +535,13 @@ def main():
     )
 
     original.save(overlay_path)
+
+    if pass_masks:
+        for pass_name, pass_mask in pass_masks.items():
+            restored = source_mask(pass_mask, rect, preprocessing, (orig_w, orig_h))
+            save_mask_overlay(image_path, restored, output_dir / f"{image_path.stem}_segmentation_{pass_name}.png")
+        (output_dir / f"{image_path.stem}_inference.json").write_text(
+            json.dumps(inference, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # --------------------------------------------------
     # CONSOLE

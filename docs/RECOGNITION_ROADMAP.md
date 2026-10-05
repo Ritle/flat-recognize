@@ -189,11 +189,17 @@ Pass B:
 grayscale + contrast normalization
 ```
 
-Начальная fusion-стратегия:
-- wall probability — больший вес normalized pass;
-- door/window probability — больший вес original pass.
+Реализованная fusion-стратегия сохраняет normalized pass как безопасную базу. Исходный
+проход может восстановить только высокоуверенные пиксели, если сам распознал достаточно
+стен и normalized pass показывает локальную структурную поддержку. Это предотвращает
+перенос мебели и текста с исходного изображения в маску цветных планов.
 
 Любой fusion должен проходить clean regression baseline.
+
+Проверка 2026-10-05 сохранила результат gate **2 good / 2 review / 6 invalid** и эталон
+5 комнат / 5 дверей / 6 окон. На `dimensions-png/jpeg` проходы расходятся на 7,8% пикселей,
+но безопасный fusion не замыкает комнаты: дальнейшее исправление требует восстановления
+структурных линий или новой модели, а не ослабления порогов fusion.
 
 ## Phase 5 — Regression dataset
 
@@ -345,7 +351,7 @@ P0:
 
 P1:
 ```text
-[ ] dual-pass inference
+[x] dual-pass inference
 [ ] better wall graph
 [ ] internal wall graph (polygon room boundary graph implemented)
 [ ] scale calibration
