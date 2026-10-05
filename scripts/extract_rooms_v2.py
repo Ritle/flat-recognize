@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Polygon
 
 from classify_openings import classify_opening
+from door_leaf_evidence import leaf_candidates
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 
 
@@ -109,6 +110,7 @@ def axis_pairs(barrier, thickness):
 def gap_candidates(barrier, gray, relaxed=False):
     endpoints, thickness = wall_endpoints(barrier)
     candidates = []
+    rejected_leaves = []
     pairs = [(i, j, a, endpoints[j], "skeleton") for i, a in enumerate(endpoints)
              for j in range(i + 1, len(endpoints))]
     axes = axis_pairs(barrier, thickness)
@@ -140,7 +142,21 @@ def gap_candidates(barrier, gray, relaxed=False):
             opening = {"outer": [list(p) for p in polygon.exterior.coords[:-1]]}
             opening_type, lines = classify_opening(gray, opening)
             if opening_type == "door" and lines:
-                evidence = "door_leaf"
+                anchored, _, _ = leaf_candidates(gray, a["point"], b["point"], local_width)
+                usable = []
+                for leaf in anchored:
+                    hinge, tip = np.array(leaf["hinge"]), np.array(leaf["tip"])
+                    samples = hinge + np.linspace(.25, .9, 20)[:, None] * (tip - hinge)
+                    xx = np.clip(np.rint(samples[:, 0]).astype(int), 0, barrier.shape[1] - 1)
+                    yy = np.clip(np.rint(samples[:, 1]).astype(int), 0, barrier.shape[0] - 1)
+                    if np.mean(barrier[yy, xx] > 0) <= .55:
+                        usable.append(leaf)
+                if usable:
+                    evidence = "door_leaf"
+                else:
+                    rejected_leaves.append({"start": a["point"].tolist(), "end": b["point"].tolist(),
+                                            "width": local_width,
+                                            "reason": "leaf_overlaps_barrier" if anchored else "no_jamb_anchored_leaf"})
         # A broad passage without supporting evidence remains open.
         if evidence is None:
             continue
@@ -161,6 +177,7 @@ def gap_candidates(barrier, gray, relaxed=False):
         used.update(candidate.pop("indices"))
         closures.append(candidate)
     return closures, {"wall_endpoints": len(endpoints), "candidate_gaps": len(candidates),
+                      "rejected_leaf_gaps": rejected_leaves,
                       "axis_cap_pairs": len(axes),
                       "estimated_wall_thickness": round(thickness, 2)}
 

@@ -49,6 +49,22 @@ class RoomsTests(unittest.TestCase):
         self.assertFalse(np.any(inferred))
         self.assertFalse(result["rooms"][0]["uncertain"])
 
+    def test_furniture_line_away_from_jamb_does_not_close_passage(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),
+                 rectangle(190, 270, 380, 280)]
+        data, rgb = source(walls)
+        image = Image.fromarray(rgb)
+        draw = ImageDraw.Draw(image)
+        draw.line((170, 250, 170, 210), fill="black", width=2)
+        result, _, inferred = extract_rooms(data, np.asarray(image))
+        self.assertEqual(result["rooms"], [])
+        self.assertFalse(np.any(inferred))
+        rejected = [candidate for pass_result in result["diagnostics"]["passes"]
+                    for candidate in pass_result.get("rejected_leaf_gaps", [])]
+        self.assertTrue(rejected)
+        self.assertTrue(all(candidate["reason"] == "no_jamb_anchored_leaf" for candidate in rejected))
+
     def test_large_exterior_gap_without_leaf_remains_uncertain(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
                  rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),

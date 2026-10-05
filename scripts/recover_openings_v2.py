@@ -10,7 +10,7 @@ import json
 import math
 from pathlib import Path
 
-import cv2
+from door_leaf_evidence import leaf_and_arc
 import numpy as np
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
@@ -30,73 +30,6 @@ def structural_union(items):
 
 def gap_polygon(start, end, width):
     return LineString([start, end]).buffer(width / 2, cap_style=2)
-
-
-def leaf_and_arc(gray, start, end, width, walls):
-    """Return reproducible source-coordinate evidence, without altering V1 classifier."""
-    start, end = np.asarray(start, float), np.asarray(end, float)
-    length = float(np.linalg.norm(end - start))
-    axis = (end - start) / length
-    normal = np.array([-axis[1], axis[0]])
-    corners = [(p + sign * normal * width / 2, direction)
-               for p, direction in ((start, axis), (end, -axis)) for sign in (-1, 1)]
-    margin = length * 1.5 + width
-    x0, y0 = np.maximum(0, np.floor(np.minimum(start, end) - margin)).astype(int)
-    x1, y1 = np.minimum(gray.shape[::-1], np.ceil(np.maximum(start, end) + margin)).astype(int)
-    edges = cv2.Canny(gray[y0:y1, x0:x1], 50, 150)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=max(10, int(length * .22)),
-                            minLineLength=max(10, int(length * .6)), maxLineGap=3)
-    if lines is None:
-        return None
-    evidence = []
-    for raw in lines.reshape(-1, 4):
-        a, b = raw.reshape(2, 2).astype(float) + [x0, y0]
-        line_length = float(np.linalg.norm(b - a))
-        if not .6 * length <= line_length <= 1.35 * length:
-            continue
-        for near, tip in ((a, b), (b, a)):
-            hinge, closed = min(corners, key=lambda c: np.linalg.norm(c[0] - near))
-            hinge_distance = float(np.linalg.norm(near - hinge))
-            # Hough can truncate a leaf at its junction with the jamb. Its supporting
-            # line must still pass through the hinge, with only a short missing end.
-            line_axis = (tip - near) / line_length
-            hinge_offset = hinge - near
-            perpendicular_distance = abs(float(hinge_offset[0] * line_axis[1]
-                                               - hinge_offset[1] * line_axis[0]))
-            if (hinge_distance > max(3, width * .5, length * .18)
-                    or perpendicular_distance > max(3, width * .4, length * .04)):
-                continue
-            radius = float(np.linalg.norm(tip - hinge))
-            if not .65 * length <= radius <= 1.35 * length:
-                continue
-            leaf = (tip - hinge) / radius
-            angle = math.atan2(float(closed[0] * leaf[1] - closed[1] * leaf[0]), float(closed @ leaf))
-            if not math.radians(35) <= abs(angle) <= math.radians(145):
-                continue
-            # A perpendicular wall edge is not a leaf. Ignore its attached first quarter.
-            free_leaf = LineString([hinge + (tip - hinge) * .25, tip])
-            if free_leaf.intersection(walls.buffer(1)).length > free_leaf.length * .2:
-                continue
-            theta = math.atan2(closed[1], closed[0])
-            hits = []
-            tolerance = max(2, min(4, width * .18))
-            for fraction in np.linspace(.18, .82, 9):
-                t = theta + angle * fraction
-                p = hinge + radius * np.array([math.cos(t), math.sin(t)])
-                px, py = np.rint(p - [x0, y0]).astype(int)
-                r = int(math.ceil(tolerance))
-                patch = edges[max(0, py-r):min(edges.shape[0], py+r+1),
-                              max(0, px-r):min(edges.shape[1], px+r+1)]
-                # Known wall ink cannot count as a swing arc.
-                hits.append(bool(patch.size and patch.any() and not walls.buffer(1).covers(Point(p))))
-            if sum(hits) < 7 or not all(any(hits[i:i+3]) for i in (0, 3, 6)):
-                continue
-            evidence.append({"hinge": hinge.tolist(), "tip": tip.tolist(),
-                             "leaf_length": round(line_length, 3),
-                             "hinge_distance": round(hinge_distance, 3),
-                             "swing_angle_degrees": round(math.degrees(angle), 3),
-                             "arc_hits": sum(hits), "arc_samples": len(hits)})
-    return max(evidence, key=lambda e: (e["arc_hits"], -e["hinge_distance"])) if evidence else None
 
 
 def recover_openings(classified, rooms, rgb):

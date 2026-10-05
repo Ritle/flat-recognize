@@ -44,6 +44,16 @@ def fixture(arc=True, leaf=True, vertical=False):
 
 
 class RecoveryTest(unittest.TestCase):
+    def test_shifted_hinge_within_wall_width_is_recovered(self):
+        classified, rooms, rgb = fixture(arc=False, leaf=False)
+        image = Image.fromarray(rgb)
+        draw = ImageDraw.Draw(image)
+        draw.line((104, 96, 104, 40), fill="black", width=2)
+        draw.arc((48, 40, 160, 152), 270, 360, fill="black", width=2)
+        output, _, report = recover_openings(classified, rooms, np.asarray(image))
+        self.assertEqual(report["recovered_doors"], 1)
+        self.assertAlmostEqual(output["doors"][0]["classification"]["evidence"]["hinge"][0], 104, delta=2)
+
     def test_leaf_arc_jambs_recover_both_orientations_without_mutating_sources(self):
         for vertical in (False, True):
             with self.subTest(vertical=vertical):

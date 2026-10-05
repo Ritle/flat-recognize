@@ -117,10 +117,13 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     known = unary_union([p if p.is_valid else p.buffer(0) for p in openings]) if openings else GeometryCollection()
     support = unary_union([walls, known]).buffer(half_wall + 3)
     unknown = []
+    known_tolerance = known.buffer(3) if not known.is_empty else known
     for closure in source.get("diagnostics", {}).get("temporary_closures", []):
         strip = LineString([closure["start"], closure["end"]]).buffer(closure["width"] / 2 + 3)
         # A topology-only closure may never silently become a physical wall.
-        unknown.append(strip.difference(unary_union([walls, known])))
+        # Opening polygons and room contours are derived by different raster
+        # operations, so a small tolerance prevents sub-pixel cap remnants.
+        unknown.append(strip.difference(unary_union([walls, known_tolerance])))
     unknown = unary_union(unknown) if unknown else GeometryCollection()
     boundary = unary_union([p.boundary for p in shapes])
     network = unary_union([boundary, unknown.boundary]) if not unknown.is_empty else boundary
