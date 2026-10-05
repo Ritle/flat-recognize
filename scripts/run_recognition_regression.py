@@ -18,9 +18,10 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
+from evaluate_recognition import evaluate_files
 from process_floorplan import count_results
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -120,7 +121,8 @@ def run_case(case, run_dir, env, pipeline_v2=False):
         command.append("--pipeline-v2")
     started = time.perf_counter()
     result = subprocess.run(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT, encoding="utf-8", errors="replace")
+                            stderr=subprocess.STDOUT, encoding="utf-8", errors="replace",
+                            check=False)
     row["seconds"] = round(time.perf_counter() - started, 2)
     row["exit_code"] = result.returncode
     (case_dir / "pipeline.log").write_text(result.stdout, encoding="utf-8")
@@ -152,6 +154,15 @@ def run_case(case, run_dir, env, pipeline_v2=False):
         row["rooms_found"] = len(data.get("rooms", []))
         row["room_diagnostics"] = data.get("diagnostics", {})
         row["recognition_warnings"] = row["room_diagnostics"].get("warnings", [])
+        ground_truth = case.get("ground_truth")
+        if ground_truth:
+            ground_truth_path = ROOT / ground_truth
+            accuracy = evaluate_files(ground_truth_path, rooms, image)
+            accuracy_path = case_dir / "accuracy.json"
+            accuracy_path.write_text(
+                json.dumps(accuracy, indent=2, ensure_ascii=False), encoding="utf-8")
+            row["accuracy"] = accuracy
+            row["artifacts"].append(accuracy_path.name)
     preprocessing = changed.get(image.stem + "_preprocess.json")
     if preprocessing:
         row["preprocessing"] = load_json(preprocessing)
@@ -192,16 +203,22 @@ def write_report(report, run_dir):
     (run_dir / "report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     lines = [f"# {report['pipeline'].upper()} recognition regression", "",
-             "Counts are observations. Only clean-baseline has confirmed expectations.", "",
-             "| Case | Rooms | Classified D/W | Final D/W | Status | Quality | Seconds |",
-             "|---|---:|---:|---:|---|---|---:|"]
+             "Counts without ground truth are observations, not recognition accuracy.", "",
+             "| Case | Rooms | Classified D/W | Accuracy | Status | Quality | Seconds |",
+             "|---|---:|---:|---|---|---|---:|"]
     for row in report["cases"]:
-        classified, final = row.get("classified", {}), row.get("final", {})
+        classified = row.get("classified", {})
         stage = row.get("failed_stage", row["status"])
+        accuracy = row.get("accuracy")
+        accuracy_text = "—"
+        if accuracy:
+            annotated = accuracy.get("metrics", {})
+            exact = sum(metric.get("exact") is True for metric in annotated.values())
+            accuracy_text = f"{exact}/{len(annotated)} exact"
         lines.append(f"| [{row['id']}]({row['id']}/pipeline.log) | "
                      f"{row.get('rooms_found', '—')} | "
                      f"{classified.get('doors', '—')}/{classified.get('windows', '—')} | "
-                     f"{final.get('doors', '—')}/{final.get('windows', '—')} | "
+                     f"{accuracy_text} | "
                      f"{stage} | {row.get('quality', {}).get('status', '—')} | {row['seconds']} |")
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -228,7 +245,7 @@ def main():
     required = [ROOT / "weights/best.safetensors", ROOT / "weights/config.yaml"]
     if any(not path.is_file() for path in required):
         parser.error("Download weights/best.safetensors and weights/config.yaml first")
-    run_dir = args.output or ROOT / "output/regression" / datetime.now(timezone.utc).strftime(
+    run_dir = args.output or ROOT / "output/regression" / datetime.now(UTC).strftime(
         "%Y%m%dT%H%M%S%fZ")
     run_dir = run_dir.resolve()
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -237,9 +254,9 @@ def main():
            "MKL_NUM_THREADS": str(args.threads), "BUILDINGCV_DEVICE": "cpu"}
     packages = {dist.metadata["Name"]: dist.version for dist in importlib.metadata.distributions()}
     revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
-                              capture_output=True, text=True).stdout.strip()
+                              capture_output=True, text=True, check=False).stdout.strip()
     report = {"pipeline": "v2" if args.pipeline_v2 else "v1",
-              "started_utc": datetime.now(timezone.utc).isoformat(), "revision": revision,
+              "started_utc": datetime.now(UTC).isoformat(), "revision": revision,
               "python": platform.python_version(), "platform": platform.platform(),
               "cpu": platform.processor(), "cpu_threads": args.threads, "packages": packages,
               "manifest_sha256": sha256(args.manifest),

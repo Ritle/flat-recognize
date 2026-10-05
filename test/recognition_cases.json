@@ -4,6 +4,7 @@
     {
       "id": "clean-baseline",
       "image": "exmpls/Снимок экрана 2026-09-23 201535.png",
+      "ground_truth": "test/ground_truth/clean-baseline.json",
       "expected": {"rooms": 5, "doors": 5, "windows": 6},
       "tags": ["clean", "orthogonal", "baseline"],
       "notes": "User-confirmed regression baseline. Counts alone do not prove geometric accuracy."

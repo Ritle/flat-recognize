@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/Снимок экрана 2026-09-23 201535.png",
+    "width": 681,
+    "height": 544,
+    "sha256": "f45b70ae05e58f96982c6e5fd345842868a0e3f9f027036510d0573071be0d13"
+  },
+  "coverage": {
+    "rooms": "count",
+    "doors": "count",
+    "windows": "count"
+  },
+  "expected_counts": {
+    "rooms": 5,
+    "doors": 5,
+    "windows": 6
+  },
+  "notes": "User-confirmed counts. Spatial geometry and junctions are intentionally unannotated."
+}
