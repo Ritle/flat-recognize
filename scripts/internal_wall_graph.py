@@ -10,11 +10,10 @@ import uuid
 
 import cv2
 import numpy as np
-from shapely.geometry import GeometryCollection, LineString, Point, Polygon
-from shapely.ops import nearest_points, unary_union
-
 from extract_rooms_v2 import skeletonize
 from polygon_geometry import parts
+from shapely.geometry import GeometryCollection, LineString, Point, Polygon
+from shapely.ops import nearest_points, unary_union
 
 
 def skeleton_paths(mask):
@@ -124,6 +123,7 @@ def internal_lines(source, room_shapes, existing, half_wall):
         unknown.append(strip.difference(raw_support))
     unknown = unary_union(unknown) if unknown else GeometryCollection()
     accepted = []
+    accepted_entries = []
     for path in paths:
         coordinates = np.asarray(path) * step + origin
         if len(np.unique(coordinates, axis=0)) < 2:
@@ -179,8 +179,53 @@ def internal_lines(source, room_shapes, existing, half_wall):
                 report["rejected"].append({**entry, "reason": reason})
             else:
                 accepted.append(candidate)
-                report["lines"].append(entry)
-    return accepted, report
+                accepted_entries.append(entry)
+
+    # A physical partition must join the room-boundary graph, directly or via
+    # another accepted centerline. Isolated wall-like components are commonly
+    # furniture rectangles (beds, cabinets and sanitary fixtures).
+    remaining = set(range(len(accepted)))
+    components = []
+    connection_tolerance = max(step * 2, wall_width * .15)
+    while remaining:
+        pending, component = [remaining.pop()], []
+        while pending:
+            index = pending.pop()
+            component.append(index)
+            attached = {other for other in remaining
+                        if accepted[index].distance(accepted[other]) <= connection_tolerance}
+            remaining.difference_update(attached)
+            pending.extend(attached)
+        components.append(component)
+    filtered = []
+    attachment_tolerance = max(step * 3, half_wall + wall_width * 1.5 + 4)
+    for component in components:
+        shape = unary_union([accepted[index] for index in component])
+        distance = float(shape.distance(existing))
+        lengths = []
+        orthogonal_lengths = []
+        for index in component:
+            for a, b in zip(accepted[index].coords, list(accepted[index].coords)[1:]):
+                delta = np.asarray(b) - np.asarray(a)
+                length = float(np.linalg.norm(delta))
+                if length <= 1e-6:
+                    continue
+                lengths.append(length)
+                if max(abs(delta / length)) >= math.cos(math.radians(12)):
+                    orthogonal_lengths.append(length)
+        orthogonal = sum(orthogonal_lengths) >= sum(lengths) * .85
+        if orthogonal and distance > attachment_tolerance:
+            for index in component:
+                report["rejected"].append({
+                    **accepted_entries[index],
+                    "reason": "isolated_wall_component",
+                    "boundary_distance_px": round(distance, 3),
+                })
+            continue
+        for index in component:
+            filtered.append(accepted[index])
+            report["lines"].append(accepted_entries[index])
+    return filtered, report
 
 
 def extend_project_walls(project, source, geometry, thickness=20, height=270):
@@ -213,8 +258,9 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
             while uid in by_id:
                 uid = f"c{int(uid[1:]) + 1}"
             by_point[key] = uid
-            node = dict(uuid=uid, x=round(transform["origin_x"] + key[0] * sx, 4),
-                        y=round(transform["origin_y"] + key[1] * sy, 4), z=0, adjacency=[])
+            node = {"uuid": uid, "x": round(transform["origin_x"] + key[0] * sx, 4),
+                    "y": round(transform["origin_y"] + key[1] * sy, 4),
+                    "z": 0, "adjacency": []}
             nodes.append(node)
             by_id[uid], coords[uid] = node, key
         return by_point[key]

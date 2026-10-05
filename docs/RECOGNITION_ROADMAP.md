@@ -31,6 +31,9 @@ gate сохранился. Детали — [OPENING_RECOVERY.md](OPENING_RECOVE
 5 rooms / 5 doors / 6 windows; число ложных дверей на сложных примерах заметно
 снизилось без изменения quality gate. Детали — [GROUND_TRUTH.md](GROUND_TRUTH.md)
 и [OPENING_CLASSIFICATION.md](OPENING_CLASSIFICATION.md).
+`internal_wall_graph` дополнительно отбрасывает удалённые от графа комнат
+изолированные ортогональные компоненты. На `open-zones` это удалило два
+сегмента по контуру кровати, не меняя status gate и room topology.
 
 ## Цель
 

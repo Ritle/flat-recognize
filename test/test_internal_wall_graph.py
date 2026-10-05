@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from shapely.geometry import LineString, Polygon, box
+from shapely.geometry import LineString, box
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from internal_wall_graph import extend_project_walls
 from polygon_geometry import build_polygon_project, parts
 from validate_recognition import validate_recognition
+
 from test.test_polygon_geometry import source, template
 
 
@@ -68,6 +69,16 @@ class InternalWallsTest(unittest.TestCase):
         self.assertEqual(quality["status"], "review")
         self.assertTrue(any(len(c["adjacency"]) == 3 for c in project["levels"][0]["connectors"]))
 
+    def test_isolated_orthogonal_furniture_edge_is_not_exported_as_wall(self):
+        data = fixture([box(40, 90, 160, 110)])
+        _, report, _ = self.build(data)
+        graph = report["internal_wall_graph"]
+        self.assertEqual(graph["added_segments"], [])
+        rejected = [item for item in graph["rejected"]
+                    if item.get("reason") == "isolated_wall_component"]
+        self.assertTrue(rejected)
+        self.assertGreater(rejected[0]["boundary_distance_px"], 20)
+
     def test_t_and_x_junctions_are_noded_without_duplicate_segments(self):
         for shape, degree in ((unary_union([box(90, -10, 110, 105), box(20, 90, 180, 110)]), 3),
                               (unary_union([box(90, 20, 110, 180), box(20, 90, 180, 110)]), 4)):
@@ -90,7 +101,7 @@ class InternalWallsTest(unittest.TestCase):
     def test_thin_leaf_near_a_door_never_becomes_a_wall(self):
         data = fixture([box(0, 96, 45, 100)])
         data["doors"] = [{"outer": [[-20, 100], [0, 100], [0, 145], [-20, 145]]}]
-        project, report, _ = self.build(data)
+        _project, report, _ = self.build(data)
         self.assertEqual(report["internal_wall_graph"]["added_segments"], [])
         self.assertTrue(report["internal_wall_graph"]["rejected"])
 
@@ -120,7 +131,7 @@ class InternalWallsTest(unittest.TestCase):
                 str(ROOT / "test/template.json"), "--output", str(directory / "final.json"),
                 "--windows-output", str(directory / "windows.json"), "--bindings-output", str(directory / "bindings.json"),
                 "--geometry-report", str(directory / "geometry.json")], capture_output=True, encoding="utf8",
-                env={**os.environ, "PYTHONUTF8": "1"})
+                env={**os.environ, "PYTHONUTF8": "1"}, check=False)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             final = json.loads((directory / "final.json").read_text(encoding="utf8"))
             bindings = json.loads((directory / "bindings.json").read_text(encoding="utf8"))
