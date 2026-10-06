@@ -48,6 +48,12 @@ Topology fallback от 2026-10-06 для сильно фрагментирова
 На `open-zones` это удалило ложную дверь на плите и нашло две реальные двери; clean
 baseline сохранил 5 дверей / 6 окон. Подробности — [OPENING_CLASSIFICATION.md](OPENING_CLASSIFICATION.md).
 
+Recovery для принятых topology gaps получил тот же ограниченный fallback без
+дуги: два косяка, диагональное полотно, свободный конец и обязательный
+`requires_review`. На выборочном прогоне он добавил одну дверь в
+`colored-walls` и одну в `small-furnished`, не изменил clean baseline и не
+перевёл геометрически ошибочные результаты из `invalid`.
+
 ## Цель
 
 Сделать `flat-recognize` устойчивым к реальным пользовательским изображениям:

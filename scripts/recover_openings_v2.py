@@ -1,6 +1,7 @@
 """Conservative recovery from accepted topology gaps; never invent unmarked passages.
 
-Only a jamb-anchored leaf AND a matching swing arc can promote a gap to a door.
+An arc-less diagonal leaf can only promote an accepted topology gap when both
+wall jambs and a clear leaf tip are present; every recovered door requires review.
 Original segmentation, classification and room extraction artifacts remain intact.
 """
 
@@ -10,8 +11,8 @@ import json
 import math
 from pathlib import Path
 
-from door_leaf_evidence import leaf_and_arc
 import numpy as np
+from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
@@ -70,23 +71,30 @@ def recover_openings(classified, rooms, rgb):
             decision["reason"] = "gap_contains_wall"
             continue
         evidence = leaf_and_arc(gray, a, b, width, walls)
+        method = "recovered_leaf_and_arc"
         if evidence is None:
-            decision["reason"] = "leaf_and_arc_not_confirmed"
-            continue
+            evidence = diagonal_leaf_with_jambs(gray, a, b, width, walls)
+            method = "recovered_two_jamb_diagonal_leaf"
+            if evidence is None:
+                decision["reason"] = "leaf_and_arc_not_confirmed"
+                continue
         opening = {"id": next_id, "type": "door", "outer": [list(p) for p in shape.exterior.coords[:-1]],
                    "holes": [], "orientation": "horizontal" if abs(axis[0]) >= abs(axis[1]) else "vertical",
                    "length": round(length, 3), "thickness": width,
-                   "classification": {"method": "recovered_leaf_and_arc", "evidence": evidence},
+                   "classification": {"method": method, "requires_review": True,
+                                      "evidence": evidence},
                    "recovery": {"closure_index": index, "requires_review": True}}
         next_id += 1
         recovered_classified.setdefault("doors", []).append(opening)
         recovered_classified.setdefault("openings", []).append(copy.deepcopy(opening))
         recovered_rooms.setdefault("doors", []).append(copy.deepcopy(opening))
         known = known.union(shape)
-        decision.update(status="recovered", reason="leaf_and_arc_confirmed", opening_id=opening["id"],
+        reason = ("leaf_and_arc_confirmed" if method == "recovered_leaf_and_arc" else
+                  "two_jamb_diagonal_leaf_confirmed")
+        decision.update(status="recovered", reason=reason, method=method, opening_id=opening["id"],
                         outer=opening["outer"], evidence=evidence)
     count = sum(d["status"] == "recovered" for d in decisions)
-    report = {"version": 1, "method": "jamb_leaf_and_arc", "recovered_doors": count,
+    report = {"version": 2, "method": "jamb_leaf_arc_or_reviewed_diagonal", "recovered_doors": count,
               "candidates": decisions, "requires_review": bool(count)}
     recovered_rooms.setdefault("diagnostics", {})["opening_recovery"] = report
     if count:

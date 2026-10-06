@@ -11,10 +11,10 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from recover_openings_v2 import recover_openings
-from validate_recognition import validate_recognition
 from polygon_geometry import build_polygon_project
+from recover_openings_v2 import recover_openings
 from shapely.geometry import box
+from validate_recognition import validate_recognition
 
 
 def fixture(arc=True, leaf=True, vertical=False):
@@ -76,6 +76,21 @@ class RecoveryTest(unittest.TestCase):
                 classified, rooms, rgb = fixture(arc=arc, leaf=leaf)
                 self.assertEqual(recover_openings(classified, rooms, rgb)[2]["recovered_doors"], 0)
 
+    def test_topology_gap_accepts_reviewed_diagonal_leaf_without_arc(self):
+        classified, rooms, rgb = fixture(arc=False, leaf=False)
+        image = Image.fromarray(rgb)
+        ImageDraw.Draw(image).line((100, 96, 142, 54), fill="black", width=2)
+        output, final_rooms, report = recover_openings(
+            classified, rooms, np.asarray(image))
+        self.assertEqual(report["recovered_doors"], 1)
+        self.assertEqual(report["candidates"][0]["reason"],
+                         "two_jamb_diagonal_leaf_confirmed")
+        door = output["doors"][0]
+        self.assertEqual(door["classification"]["method"],
+                         "recovered_two_jamb_diagonal_leaf")
+        self.assertTrue(door["classification"]["requires_review"])
+        self.assertEqual(door, final_rooms["doors"][0])
+
     def test_missing_jamb_and_unmarked_passage_stay_rejected(self):
         for mode in ("missing_jamb", "small_gap", "raster_line"):
             classified, rooms, rgb = fixture()
@@ -136,7 +151,8 @@ class RecoveryTest(unittest.TestCase):
                 "--output", str(directory / "doors.json"), "--windows-output", str(directory / "windows.json"),
                 "--bindings-output", str(directory / "bindings.json"),
                 "--geometry-report", str(directory / "geometry.json")],
-                capture_output=True, encoding="utf8", env={**os.environ, "PYTHONUTF8": "1"})
+                capture_output=True, encoding="utf8", env={**os.environ, "PYTHONUTF8": "1"},
+                check=False)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             final = json.loads((directory / "doors.json").read_text(encoding="utf8"))
             bindings = json.loads((directory / "bindings.json").read_text(encoding="utf8"))
