@@ -8,12 +8,11 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw
-from shapely.geometry import LineString, Polygon
-
 from classify_openings import classify_opening
 from door_leaf_evidence import leaf_candidates
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
+from PIL import Image, ImageDraw
+from shapely.geometry import LineString, Polygon
 
 
 def skeletonize(mask):
@@ -77,12 +76,12 @@ def wall_endpoints(barrier):
     return points, thickness
 
 
-def axis_pairs(barrier, thickness):
+def axis_pairs(barrier, thickness, extended=False):
     """Recover wall caps obscured by short skeleton branches in noisy masks."""
     pairs = []
     distance = cv2.distanceTransform((barrier > 0).astype(np.uint8), cv2.DIST_L2, 5)
-    length = max(7, round(thickness * 2))
-    stride = max(2, round(thickness * 0.65))
+    length = max(7, round(thickness * (1.5 if extended else 2)))
+    stride = max(2, round(thickness * (0.25 if extended else 0.65)))
     for vertical in (False, True):
         mask = barrier.T if vertical else barrier
         radii = distance.T if vertical else distance
@@ -91,12 +90,12 @@ def axis_pairs(barrier, thickness):
             changes = np.diff(np.pad((long_runs[y] > 0).astype(np.int8), 1))
             starts, ends = np.where(changes == 1)[0], np.where(changes == -1)[0]
             for end, start in zip(ends[:-1], starts[1:]):
-                if start - end > thickness * 6 or start - end < 3:
+                if start - end > thickness * (8 if extended else 6) or start - end < 3:
                     continue
                 left = max(0, int(end) - round(thickness))
                 right = min(mask.shape[1] - 1, int(start) + round(thickness))
                 width = float(min(radii[y, left], radii[y, right])) * 2
-                if width < thickness * 0.6:
+                if width < thickness * (0.35 if extended else 0.6):
                     continue
                 a, b = np.array([end - 1, y], dtype=float), np.array([start, y], dtype=float)
                 direction = np.array([1., 0.])
@@ -107,13 +106,13 @@ def axis_pairs(barrier, thickness):
     return pairs
 
 
-def gap_candidates(barrier, gray, relaxed=False):
+def gap_candidates(barrier, gray, relaxed=False, extended=False):
     endpoints, thickness = wall_endpoints(barrier)
     candidates = []
     rejected_leaves = []
     pairs = [(i, j, a, endpoints[j], "skeleton") for i, a in enumerate(endpoints)
              for j in range(i + 1, len(endpoints))]
-    axes = axis_pairs(barrier, thickness)
+    axes = axis_pairs(barrier, thickness, extended=extended)
     for index, (a, b) in enumerate(axes):
         offset = len(endpoints) + index * 2
         pairs.append((offset, offset + 1, a, b, "axis_caps"))
@@ -121,7 +120,8 @@ def gap_candidates(barrier, gray, relaxed=False):
         delta = b["point"] - a["point"]
         gap = float(np.linalg.norm(delta))
         local_width = (a["width"] + b["width"]) / 2
-        if gap < 3 or gap > min(local_width * (6 if relaxed else 4.5),
+        gap_ratio = 8 if extended else 6 if relaxed else 4.5
+        if gap < 3 or gap > min(local_width * gap_ratio,
                                min(barrier.shape) * 0.16 + local_width):
             continue
         direction = delta / gap
@@ -167,12 +167,19 @@ def gap_candidates(barrier, gray, relaxed=False):
     candidates.sort(key=lambda c: (c["length"] / c["width"], -c["alignment"]))
     used = set()
     closures = []
+
+    def same_gap(a, b):
+        tolerance = max(a["width"], b["width"])
+        direct = (np.linalg.norm(np.array(a["start"]) - b["start"]) < tolerance
+                  and np.linalg.norm(np.array(a["end"]) - b["end"]) < tolerance)
+        reversed_order = (np.linalg.norm(np.array(a["start"]) - b["end"]) < tolerance
+                          and np.linalg.norm(np.array(a["end"]) - b["start"]) < tolerance)
+        return direct or reversed_order
+
     for candidate in candidates:
         if used.intersection(candidate["indices"]):
             continue
-        if any(np.linalg.norm(np.array(candidate["start"]) - c["start"]) < max(candidate["width"], c["width"])
-               and np.linalg.norm(np.array(candidate["end"]) - c["end"]) < max(candidate["width"], c["width"])
-               for c in closures):
+        if any(same_gap(candidate, closure) for closure in closures):
             continue
         used.update(candidate.pop("indices"))
         closures.append(candidate)
@@ -186,10 +193,50 @@ def apply_closures(barrier, closures):
     result = barrier.copy()
     additions = np.zeros_like(barrier)
     for closure in closures:
-        a, b = [tuple(int(round(v)) for v in closure[k]) for k in ("start", "end")]
+        a, b = [tuple(round(v) for v in closure[k]) for k in ("start", "end")]
         cv2.line(additions, a, b, 255, max(2, round(closure["width"])))
     additions[barrier > 0] = 0
     return cv2.bitwise_or(result, additions), additions
+
+
+def exterior_envelope_candidate(barrier, walls):
+    """Close a heavily fragmented rectangular exterior only for topology."""
+    ys, xs = np.where(walls > 0)
+    if not len(xs):
+        return barrier, np.zeros_like(barrier), {"accepted": False, "reason": "no_walls"}
+    x1, y1, x2, y2 = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+    distance = cv2.distanceTransform((walls > 0).astype(np.uint8), cv2.DIST_L2, 5)
+    positive = distance[distance > 1]
+    thickness = max(2.0, float(np.percentile(positive, 75)) * 2) if positive.size else 2.0
+    band = max(4, round(thickness * 2))
+
+    def horizontal(y):
+        strip = barrier[max(0, y - band):min(barrier.shape[0], y + band + 1), x1:x2 + 1]
+        return float(np.mean(np.max(strip, axis=0) > 0)) if strip.size else 0.0
+
+    def vertical(x):
+        strip = barrier[y1:y2 + 1, max(0, x - band):min(barrier.shape[1], x + band + 1)]
+        return float(np.mean(np.max(strip, axis=1) > 0)) if strip.size else 0.0
+
+    support = {"top": horizontal(y1), "right": vertical(x2),
+               "bottom": horizontal(y2), "left": vertical(x1)}
+    minimum, average = min(support.values()), float(np.mean(list(support.values())))
+    diagnostics = {
+        "bbox": [x1, y1, x2, y2],
+        "estimated_wall_thickness": round(thickness, 2),
+        "side_support": {key: round(value, 4) for key, value in support.items()},
+        "accepted": False,
+    }
+    # A nearly complete envelope with one unmarked opening is intentionally
+    # left open. This fallback is only for widespread segmentation loss.
+    if minimum < 0.5 or minimum >= 0.8 or average < 0.7:
+        diagnostics["reason"] = "insufficient_or_local_gap_evidence"
+        return barrier, np.zeros_like(barrier), diagnostics
+    additions = np.zeros_like(barrier)
+    cv2.rectangle(additions, (x1, y1), (x2, y2), 255, max(2, round(thickness * .2)))
+    additions[barrier > 0] = 0
+    diagnostics.update(accepted=True, reason="fragmented_exterior_envelope")
+    return cv2.bitwise_or(barrier, additions), additions, diagnostics
 
 
 def room_candidates(barrier, walls, inferred):
@@ -265,10 +312,26 @@ def extract_rooms(data, rgb):
     passes = [{"name": "known_openings", "rooms": len(rooms), **diagnostics}]
     gray = rgb.min(axis=2)
     closures = []
+    envelope = None
+    envelope_applied = False
+    if not rooms and diagnostics["outside_fraction_in_structure"] >= 0.9:
+        trial, additions, envelope = exterior_envelope_candidate(barrier, walls)
+        trial_inferred = inferred | additions
+        trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
+        accepted = (envelope["accepted"] and bool(trial_rooms)
+                    and trial_diagnostics["outside_fraction_in_structure"] < 0.25)
+        envelope["accepted"] = accepted
+        passes.append({"name": "exterior_envelope", "rooms": len(trial_rooms),
+                       **envelope, **trial_diagnostics})
+        if accepted:
+            barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
+            envelope_applied = True
     for relaxed in (False, True):
-        if relaxed and rooms and diagnostics["outside_fraction_in_structure"] < 0.25:
+        if (relaxed and rooms and diagnostics["outside_fraction_in_structure"] < 0.25
+                and not envelope_applied):
             break
-        candidates, info = gap_candidates(barrier, gray, relaxed=relaxed)
+        candidates, info = gap_candidates(
+            barrier, gray, relaxed=relaxed, extended=envelope_applied and relaxed)
         trial, additions = apply_closures(barrier, candidates)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
@@ -284,6 +347,8 @@ def extract_rooms(data, rgb):
             barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
             closures.extend(candidates)
     warnings = []
+    if envelope_applied:
+        warnings.append("Наружный контур восстановлен предположительно только для topology; проверьте границы.")
     if closures:
         warnings.append("Границы некоторых помещений восстановлены предположительно; проверьте результат.")
     if diagnostics["outside_fraction_in_structure"] >= 0.25:
@@ -297,6 +362,7 @@ def extract_rooms(data, rgb):
     result = {"meta": data.get("meta", {}), "walls": data.get("walls", []),
               "doors": data.get("doors", []), "windows": data.get("windows", []), "rooms": rooms,
               "diagnostics": {"version": 2, "passes": passes, "temporary_closures": closures,
+                              "exterior_envelope": envelope,
                               "rooms_found": len(rooms), "uncertain_rooms": sum(r["uncertain"] for r in rooms),
                               "non_rectangular_rooms": non_rectangular,
                               "warnings": warnings, **diagnostics}}

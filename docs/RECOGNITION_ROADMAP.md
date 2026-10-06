@@ -34,6 +34,11 @@ gate сохранился. Детали — [OPENING_RECOVERY.md](OPENING_RECOVE
 `internal_wall_graph` дополнительно отбрасывает удалённые от графа комнат
 изолированные ортогональные компоненты. На `open-zones` это удалило два
 сегмента по контуру кровати, не меняя status gate и room topology.
+Topology fallback от 2026-10-06 для сильно фрагментированного наружного контура перевёл
+`dimensions-png/jpeg` с 0 до 3 room candidates. PNG и JPEG дают одинаковый
+результат; clean baseline и `open-zones` не изменились. Экспорт остаётся
+`invalid` из-за объединённой большой области, отверстий и bbox-overlap —
+переход `invalid → review` не использовался как критерий успеха.
 
 ## Цель
 

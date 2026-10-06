@@ -73,7 +73,23 @@ class RoomsTests(unittest.TestCase):
         result, _, inferred = extract_rooms(data, rgb)
         self.assertEqual(result["rooms"], [])
         self.assertFalse(np.any(inferred))
+        self.assertFalse(result["diagnostics"]["exterior_envelope"]["accepted"])
         self.assertTrue(result["diagnostics"]["warnings"])
+
+    def test_fragmented_exterior_envelope_is_closed_only_for_topology(self):
+        walls = [rectangle(20, 20, 145, 30), rectangle(255, 20, 380, 30),
+                 rectangle(20, 270, 145, 280), rectangle(255, 270, 380, 280),
+                 rectangle(20, 20, 30, 115), rectangle(20, 185, 30, 280),
+                 rectangle(370, 20, 380, 115), rectangle(370, 185, 380, 280)]
+        data, rgb = source(walls)
+        result, _, inferred = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertTrue(np.any(inferred))
+        self.assertEqual(result["walls"], walls)
+        envelope = result["diagnostics"]["exterior_envelope"]
+        self.assertTrue(envelope["accepted"])
+        self.assertEqual(envelope["reason"], "fragmented_exterior_envelope")
+        self.assertTrue(result["rooms"][0]["uncertain"])
 
     def test_l_shaped_polygon_and_missing_walls(self):
         wall = {"outer": [[20, 20], [380, 20], [380, 170], [220, 170], [220, 280], [20, 280]],
