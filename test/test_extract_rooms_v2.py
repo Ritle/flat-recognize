@@ -111,6 +111,17 @@ class RoomsTests(unittest.TestCase):
         self.assertTrue(all(candidate["reason"] == "leaf_tip_touches_barrier"
                             for candidate in diagnostics["rejected_leaf_gaps"]))
 
+    def test_arc_less_door_marks_room_result_for_review(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280)]
+        data, rgb = source(walls)
+        data["doors"] = [{"outer": [[150, 270], [190, 270], [190, 280], [150, 280]],
+                          "classification": {"requires_review": True}}]
+        result, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(result["diagnostics"]["review_doors"], 1)
+        self.assertTrue(any("без подтверждённой дуги" in warning
+                            for warning in result["diagnostics"]["warnings"]))
+
     def test_l_shaped_polygon_and_missing_walls(self):
         wall = {"outer": [[20, 20], [380, 20], [380, 170], [220, 170], [220, 280], [20, 280]],
                 "holes": [[[30, 30], [370, 30], [370, 160], [210, 160], [210, 270], [30, 270]]]}

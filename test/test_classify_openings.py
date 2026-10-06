@@ -42,6 +42,10 @@ class ClassifyOpeningsTests(unittest.TestCase):
         self.assertGreaterEqual(result["doors"][0]["classification"]["evidence"]["arc_hits"], 7)
         self.assertEqual(data, before)
 
+        data["walls"] = data["walls"][:1]
+        result = classify_openings(data, rgb)
+        self.assertEqual(result["doors"], [])
+
     def test_leaf_or_arc_alone_remains_window(self):
         for arc, leaf in ((False, True), (True, False), (False, False)):
             with self.subTest(arc=arc, leaf=leaf):
@@ -50,6 +54,33 @@ class ClassifyOpeningsTests(unittest.TestCase):
                 self.assertEqual(result["doors"], [])
                 self.assertEqual(len(result["windows"]), 1)
                 self.assertFalse(result["windows"][0]["classification"]["confirmed"])
+
+    def test_source_door_with_two_jambs_accepts_diagonal_leaf_without_arc(self):
+        data, rgb = fixture(arc=False, leaf=False)
+        image = Image.fromarray(rgb)
+        ImageDraw.Draw(image).line((100, 96, 142, 54), fill="black", width=2)
+        result = classify_openings(data, np.asarray(image))
+        self.assertEqual(len(result["doors"]), 1)
+        classification = result["doors"][0]["classification"]
+        self.assertEqual(classification["method"], "source_door_two_jamb_diagonal_leaf")
+        self.assertTrue(classification["requires_review"])
+        self.assertEqual(classification["evidence"]["jamb_support"], [3, 3])
+
+        data["walls"] = data["walls"][:1]
+        result = classify_openings(data, np.asarray(image))
+        self.assertEqual(result["doors"], [])
+
+    def test_source_window_needs_two_wall_jambs_to_override_semantics(self):
+        data, rgb = fixture()
+        data["openings"][0]["source_class"] = "window"
+        result = classify_openings(data, rgb)
+        self.assertEqual(len(result["doors"]), 1)
+        self.assertEqual(result["doors"][0]["classification"]["evidence"]["jamb_support"],
+                         [3, 3])
+
+        data["walls"] = data["walls"][:1]
+        result = classify_openings(data, rgb)
+        self.assertEqual(result["doors"], [])
 
     def test_legacy_gap_classifier_keeps_perpendicular_line_signal(self):
         data, rgb = fixture(arc=False, leaf=True)

@@ -4,7 +4,7 @@ import math
 
 import cv2
 import numpy as np
-from shapely.geometry import Point
+from shapely.geometry import LineString, Point
 
 
 def extend_ink_line(a, b, edges, origin, maximum):
@@ -103,7 +103,7 @@ def leaf_and_arc(gray, start, end, width, walls):
     candidates, edges, origin = leaf_candidates(gray, start, end, width)
     evidence = []
     wall_ink = walls.buffer(1)
-    tolerance = int(math.ceil(max(2, min(4, width * .18))))
+    tolerance = math.ceil(max(2, min(4, width * .18)))
     for candidate in candidates:
         angle = math.radians(candidate["swing_angle_degrees"])
         if abs(angle) < math.radians(35):
@@ -124,3 +124,45 @@ def leaf_and_arc(gray, start, end, width, walls):
             evidence.append({k: v for k, v in candidate.items() if k not in ("radius", "closed_direction")}
                             | {"arc_hits": sum(hits), "arc_samples": len(hits)})
     return max(evidence, key=lambda e: (e["arc_hits"], -e["hinge_distance"])) if evidence else None
+
+
+def wall_jamb_support(start, end, width, walls):
+    start, end = np.asarray(start, float), np.asarray(end, float)
+    length = float(np.linalg.norm(end - start))
+    if length <= 0:
+        return [0, 0]
+    axis = (end - start) / length
+    jambs = walls.buffer(3)
+    return [sum(jambs.covers(Point(point + direction * width * step))
+                for step in (.25, .75, 1.25))
+            for point, direction in ((start, -axis), (end, axis))]
+
+
+def diagonal_leaf_with_jambs(gray, start, end, width, walls):
+    """Accept a missing arc only with two wall jambs and a clear diagonal leaf."""
+    start, end = np.asarray(start, float), np.asarray(end, float)
+    length = float(np.linalg.norm(end - start))
+    if length < max(15, width * 1.5):
+        return None
+    axis = (end - start) / length
+    if max(abs(axis)) < math.cos(math.radians(12)):
+        return None
+    support = wall_jamb_support(start, end, width, walls)
+    if min(support) < 2:
+        return None
+    opening = LineString([start, end]).buffer(width / 2, cap_style=2)
+    if walls.intersection(opening).area > opening.area * .25:
+        return None
+    evidence = []
+    for candidate in leaf_candidates(gray, start, end, width)[0]:
+        angle = abs(candidate["swing_angle_degrees"])
+        if not (25 <= angle <= 75 or 105 <= angle <= 145):
+            continue
+        clearance = float(walls.distance(Point(candidate["tip"])))
+        if clearance < max(3, width * .35):
+            continue
+        evidence.append({k: v for k, v in candidate.items() if k not in ("radius", "closed_direction")}
+                        | {"jamb_support": support, "tip_clearance": round(clearance, 3),
+                           "arc_confirmed": False})
+    return max(evidence, key=lambda e: (e["tip_clearance"], -e["hinge_distance"])) \
+        if evidence else None
