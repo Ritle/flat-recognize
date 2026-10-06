@@ -2,11 +2,12 @@ import sys
 import unittest
 from pathlib import Path
 
+import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from extract_rooms_v2 import extract_rooms
+from extract_rooms_v2 import extract_rooms, gap_candidates
 
 
 def rectangle(x1, y1, x2, y2):
@@ -90,6 +91,25 @@ class RoomsTests(unittest.TestCase):
         self.assertTrue(envelope["accepted"])
         self.assertEqual(envelope["reason"], "fragmented_exterior_envelope")
         self.assertTrue(result["rooms"][0]["uncertain"])
+
+    def test_extended_leaf_requires_free_space_at_its_tip(self):
+        barrier = np.zeros((300, 300), dtype=np.uint8)
+        cv2.rectangle(barrier, (95, 20), (105, 120), 255, -1)
+        cv2.rectangle(barrier, (95, 170), (105, 280), 255, -1)
+        gray = np.full_like(barrier, 255)
+        gray[barrier > 0] = 0
+        cv2.line(gray, (100, 170), (150, 170), 0, 2)
+
+        closures, _ = gap_candidates(barrier, gray, relaxed=True, extended=True)
+        self.assertEqual(len(closures), 1)
+        self.assertEqual(closures[0]["evidence"], "door_leaf")
+
+        cv2.rectangle(barrier, (146, 166), (154, 174), 255, -1)
+        closures, diagnostics = gap_candidates(barrier, gray, relaxed=True, extended=True)
+        self.assertEqual(closures, [])
+        self.assertTrue(diagnostics["rejected_leaf_gaps"])
+        self.assertTrue(all(candidate["reason"] == "leaf_tip_touches_barrier"
+                            for candidate in diagnostics["rejected_leaf_gaps"]))
 
     def test_l_shaped_polygon_and_missing_walls(self):
         wall = {"outer": [[20, 20], [380, 20], [380, 170], [220, 170], [220, 280], [20, 280]],

@@ -97,6 +97,8 @@ def axis_pairs(barrier, thickness, extended=False):
                 width = float(min(radii[y, left], radii[y, right])) * 2
                 if width < thickness * (0.35 if extended else 0.6):
                     continue
+                if extended:
+                    width = max(width, thickness * 1.45)
                 a, b = np.array([end - 1, y], dtype=float), np.array([start, y], dtype=float)
                 direction = np.array([1., 0.])
                 if vertical:
@@ -110,6 +112,8 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False):
     endpoints, thickness = wall_endpoints(barrier)
     candidates = []
     rejected_leaves = []
+    free_distance = (cv2.distanceTransform((barrier == 0).astype(np.uint8), cv2.DIST_L2, 5)
+                     if extended else None)
     pairs = [(i, j, a, endpoints[j], "skeleton") for i, a in enumerate(endpoints)
              for j in range(i + 1, len(endpoints))]
     axes = axis_pairs(barrier, thickness, extended=extended)
@@ -142,21 +146,52 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False):
             opening = {"outer": [list(p) for p in polygon.exterior.coords[:-1]]}
             opening_type, lines = classify_opening(gray, opening)
             if opening_type == "door" and lines:
-                anchored, _, _ = leaf_candidates(gray, a["point"], b["point"], local_width)
                 usable = []
-                for leaf in anchored:
-                    hinge, tip = np.array(leaf["hinge"]), np.array(leaf["tip"])
-                    samples = hinge + np.linspace(.25, .9, 20)[:, None] * (tip - hinge)
-                    xx = np.clip(np.rint(samples[:, 0]).astype(int), 0, barrier.shape[1] - 1)
-                    yy = np.clip(np.rint(samples[:, 1]).astype(int), 0, barrier.shape[0] - 1)
-                    if np.mean(barrier[yy, xx] > 0) <= .55:
-                        usable.append(leaf)
+                blocked_tips = 0
+                anchored_count = 0
+
+                def inspect_leaf_axis(start, end, width=local_width, accepted=usable):
+                    nonlocal blocked_tips, anchored_count
+                    anchored, _, _ = leaf_candidates(gray, start, end, width)
+                    anchored_count += len(anchored)
+                    for leaf in anchored:
+                        hinge, tip = np.array(leaf["hinge"]), np.array(leaf["tip"])
+                        samples = hinge + np.linspace(.25, .9, 20)[:, None] * (tip - hinge)
+                        xx = np.clip(np.rint(samples[:, 0]).astype(int), 0, barrier.shape[1] - 1)
+                        yy = np.clip(np.rint(samples[:, 1]).astype(int), 0, barrier.shape[0] - 1)
+                        if np.mean(barrier[yy, xx] > 0) > .55:
+                            continue
+                        if extended:
+                            tx, ty = np.clip(np.rint(tip).astype(int), [0, 0],
+                                             [barrier.shape[1] - 1, barrier.shape[0] - 1])
+                            if free_distance[ty, tx] < max(3, width * .48):
+                                blocked_tips += 1
+                                continue
+                        accepted.append(leaf)
+
+                inspect_leaf_axis(a["point"], b["point"])
+                # Hough endpoints can change at adjacent raster rows. Retry a narrow
+                # perpendicular band around an existing axis-cap gap rather than
+                # scanning every image row and multiplying false candidates.
+                if not usable and extended and method == "axis_caps":
+                    normal = np.array([-direction[1], direction[0]])
+                    jitter = max(2, round(thickness * .2))
+                    for offset in range(1, jitter + 1):
+                        for sign in (-1, 1):
+                            shift = normal * offset * sign
+                            inspect_leaf_axis(a["point"] + shift, b["point"] + shift)
+                            if usable:
+                                break
+                        if usable:
+                            break
                 if usable:
                     evidence = "door_leaf"
                 else:
                     rejected_leaves.append({"start": a["point"].tolist(), "end": b["point"].tolist(),
                                             "width": local_width,
-                                            "reason": "leaf_overlaps_barrier" if anchored else "no_jamb_anchored_leaf"})
+                                            "reason": ("leaf_tip_touches_barrier" if blocked_tips else
+                                                       "leaf_overlaps_barrier" if anchored_count else
+                                                       "no_jamb_anchored_leaf")})
         # A broad passage without supporting evidence remains open.
         if evidence is None:
             continue
@@ -330,18 +365,29 @@ def extract_rooms(data, rgb):
         if (relaxed and rooms and diagnostics["outside_fraction_in_structure"] < 0.25
                 and not envelope_applied):
             break
-        candidates, info = gap_candidates(
-            barrier, gray, relaxed=relaxed, extended=envelope_applied and relaxed)
+        extended = envelope_applied and relaxed
+        candidates, info = gap_candidates(barrier, gray, relaxed=relaxed, extended=extended)
         trial, additions = apply_closures(barrier, candidates)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
+        base_area = diagnostics["interior_area_px"]
+        lost_area = max(0, base_area - trial_diagnostics["interior_area_px"])
+        closure_area = int(np.count_nonzero(additions))
+        unexplained_loss = max(0, lost_area - closure_area)
+        area_preserved = (
+            closure_area <= base_area * .03 and unexplained_loss <= base_area * .005
+            if extended else trial_diagnostics["interior_area_px"] >= base_area * .98
+        )
         improved = (len(trial_rooms) > len(rooms)
                     or trial_diagnostics["outside_fraction_in_structure"]
                     < diagnostics["outside_fraction_in_structure"] - 0.02)
         accepted = (bool(candidates) and improved and len(trial_rooms) >= len(rooms)
-                    and trial_diagnostics["interior_area_px"] >= diagnostics["interior_area_px"] * 0.98)
+                    and area_preserved)
         passes.append({"name": "relaxed" if relaxed else "conservative", "rooms": len(trial_rooms),
                        "temporary_closures": len(candidates), "accepted": accepted,
+                       "closure_area_px": closure_area,
+                       "lost_interior_area_px": lost_area,
+                       "unexplained_area_loss_px": unexplained_loss,
                        **info, **trial_diagnostics})
         if accepted:
             barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
