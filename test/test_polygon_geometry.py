@@ -109,6 +109,15 @@ class PolygonGeometryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             partition_rooms([shape], 10)
 
+    def test_sub_wall_cross_section_hole_created_by_offset_is_filled(self):
+        shape = Polygon([(0, 0), (100, 0), (100, 45), (64, 45), (64, 36), (36, 36),
+                         (36, 64), (64, 64), (64, 55), (100, 55), (100, 100), (0, 100)])
+        diagnostics = []
+        result = partition_rooms([shape], 10, diagnostics)
+        self.assertEqual(len(result), 1)
+        self.assertFalse(result[0].interiors)
+        self.assertTrue(diagnostics)
+
     def test_bbox_mode_selection_keeps_rectangular_baseline(self):
         self.assertFalse(requires_polygons(source([box(0, 0, 100, 100), box(120, 0, 200, 100)])["rooms"]))
 
@@ -128,7 +137,8 @@ class PolygonGeometryTest(unittest.TestCase):
                        str(directory / "source.json"), str(directory / "source.json"), str(ROOT / "test/template.json"),
                        "--output", str(directory / "doors.json"), "--windows-output", str(directory / "windows.json"),
                        "--bindings-output", str(directory / "bindings.json"), "--geometry-report", str(directory / "geometry.json")]
-            result = subprocess.run(command, capture_output=True, encoding="utf-8", env={**os.environ, "PYTHONUTF8": "1"})
+            result = subprocess.run(command, capture_output=True, encoding="utf-8",
+                                    env={**os.environ, "PYTHONUTF8": "1"}, check=False)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             binding = json.loads((directory / "windows.json").read_text(encoding="utf-8"))["windows"][0]
             self.assertEqual(binding["distance_to_wall_cm"], 0)

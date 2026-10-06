@@ -3,11 +3,12 @@
 import copy
 import math
 import uuid
+from itertools import pairwise
 
+from shapely import set_precision
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polygonize, unary_union
-from shapely import set_precision
 
 
 def parts(geometry, kind):
@@ -77,10 +78,12 @@ def partition_rooms(shapes, offset, diagnostics=None):
     for index, (source, merged) in enumerate(zip(shapes, result)):
         if merged.geom_type == "Polygon" and merged.interiors:
             holes = [Polygon(r) for r in merged.interiors]
-            if (all(p.area <= max(1, offset ** 2 * 0.25) for p in holes)
+            if (all(p.area <= max(1, offset ** 2) for p in holes)
                     and all(p.intersection(other).area < 1e-5 for p in holes
                             for j, other in enumerate(result) if j != index)):
-                # Tiny voids created solely by expansion belong to no source room.
+                # Voids smaller than one wall-offset cross-section are raster
+                # junction artifacts created solely by expansion and belong to
+                # no source room.
                 # Keep larger holes blocked: the target contract cannot encode them.
                 merged = Polygon(merged.exterior)
                 result[index] = merged
@@ -107,7 +110,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     bounds = unary_union(shapes).bounds
     ox = cx - (bounds[0] + bounds[2]) / 2 * scale
     oy = cy - (bounds[1] + bounds[3]) / 2 * scale
-    transform = dict(scale_x=scale, scale_y=scale, origin_x=ox, origin_y=oy)
+    transform = {"scale_x": scale, "scale_y": scale, "origin_x": ox, "origin_y": oy}
 
     wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in source.get("walls", [])]
     openings = [Polygon(p["outer"]) for p in source.get("doors", []) + source.get("windows", [])
@@ -141,8 +144,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
         if key not in coords:
             uid = f"c{len(nodes)}"
             coords[key] = uid
-            nodes.append(dict(uuid=uid, x=round(ox + key[0] * scale, 4),
-                              y=round(oy + key[1] * scale, 4), z=0, adjacency=[]))
+            nodes.append({"uuid": uid, "x": round(ox + key[0] * scale, 4),
+                          "y": round(oy + key[1] * scale, 4), "z": 0, "adjacency": []})
         return coords[key]
 
     segment_template = level_template.get("segments", [{}])[0]
@@ -161,7 +164,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
         elif edge.difference(support).length > max(2, edge.length * 0.15):
             reason = "missing_structural_support"
         if reason:
-            unsupported.append(dict(start=list(a), end=list(b), reason=reason))
+            unsupported.append({"start": list(a), "end": list(b), "reason": reason})
             continue
         segment = copy.deepcopy(segment_template)
         segment.update(uuid=str(uuid.uuid4()), start=start, end=end, thickness=thickness, height=height,
@@ -177,7 +180,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     for index, shape in enumerate(shapes):
         cycle = []
         ring = list(shape.exterior.coords)
-        for a, b in zip(ring, ring[1:]):
+        for a, b in pairwise(ring):
             edge = LineString([a, b])
             on_edge = [(edge.project(Point(p)), uid) for p, uid in coords.items()
                        if edge.distance(Point(p)) < 1e-3]
@@ -195,9 +198,11 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     project = copy.deepcopy(template)
     project["editable"] = True
     project["levels"][0].update(height=height, connectors=nodes, segments=segments, areas=areas, elements=[], tapes=[])
-    report = dict(adapter="polygon", pixel_to_world=transform,
-                  rooms=[dict(id=i, polygon=[list(p) for p in shape.exterior.coords[:-1]]) for i, shape in enumerate(shapes)],
-                  unsupported_segments=unsupported, warnings=list(dict.fromkeys(adjustments)), errors=[])
+    report = {"adapter": "polygon", "pixel_to_world": transform,
+              "rooms": [{"id": i, "polygon": [list(p) for p in shape.exterior.coords[:-1]]}
+                        for i, shape in enumerate(shapes)],
+              "unsupported_segments": unsupported,
+              "warnings": list(dict.fromkeys(adjustments)), "errors": []}
     if unsupported:
         report["errors"].append("Есть границы без подтверждённой стены или проёма; они не добавлены как физические стены.")
     if repaired:
