@@ -50,6 +50,30 @@ class RoomsTests(unittest.TestCase):
         self.assertFalse(np.any(inferred))
         self.assertFalse(result["rooms"][0]["uncertain"])
 
+    def test_isolated_furniture_enclosure_is_not_a_room(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
+                 rectangle(150, 100, 186, 103), rectangle(150, 133, 186, 136),
+                 rectangle(150, 100, 153, 136), rectangle(183, 100, 186, 136)]
+        data, rgb = source(walls)
+        result, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        rejected = [item for pass_result in result["diagnostics"]["passes"]
+                    for item in pass_result["rejected_components"]]
+        self.assertTrue(any(item["reason"] == "isolated_wall_enclosure"
+                            for item in rejected))
+        self.assertEqual(result["diagnostics"]["isolated_wall_enclosures"], 1)
+        self.assertTrue(result["diagnostics"]["warnings"])
+
+    def test_small_room_joined_to_main_walls_is_preserved(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
+                 rectangle(90, 20, 100, 110), rectangle(20, 100, 100, 110)]
+        data, rgb = source(walls)
+        result, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 2)
+        self.assertEqual(result["diagnostics"]["isolated_wall_enclosures"], 0)
+
     def test_furniture_line_away_from_jamb_does_not_close_passage(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
                  rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),

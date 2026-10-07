@@ -289,6 +289,13 @@ def room_candidates(barrier, walls, inferred):
     positive = wall_distance[wall_distance > 1]
     thickness = max(2.0, float(np.percentile(positive, 75)) * 2) if positive.size else 2.0
     minimum = max(64, round((x2 - x1) * (y2 - y1) * 0.002), round(thickness ** 2 * 2))
+    join_radius = max(1, round(thickness * .125))
+    joined_walls = cv2.morphologyEx(
+        walls, cv2.MORPH_CLOSE, np.ones((join_radius * 2 + 1,) * 2, np.uint8))
+    wall_count, wall_labels, wall_stats, _ = cv2.connectedComponentsWithStats(
+        (joined_walls > 0).astype(np.uint8), connectivity=8)
+    largest_wall_component = max(
+        [int(wall_stats[index, cv2.CC_STAT_AREA]) for index in range(1, wall_count)] + [0])
     outside = np.zeros_like(barrier, dtype=bool)
     rejected, rooms = [], []
     adjacent_inferred = cv2.dilate(inferred, np.ones((5, 5), np.uint8))
@@ -311,6 +318,19 @@ def room_candidates(barrier, walls, inferred):
         polygon = Polygon(points) if len(points) >= 3 else Polygon()
         if polygon.is_empty or not polygon.is_valid:
             rejected.append({"label": label, "reason": "invalid_polygon", "area_px": area})
+            continue
+        support_radius = max(2, round(thickness * .1))
+        nearby = cv2.dilate(component.astype(np.uint8),
+                            np.ones((support_radius * 2 + 1,) * 2, np.uint8))
+        support_ids, support_counts = np.unique(wall_labels[nearby > 0], return_counts=True)
+        supports = [(int(index), int(support), int(wall_stats[index, cv2.CC_STAT_AREA]))
+                    for index, support in zip(support_ids, support_counts)
+                    if index and support >= 20]
+        if (len(supports) == 1 and largest_wall_component
+                and supports[0][2] < largest_wall_component * .05):
+            rejected.append({"label": label, "reason": "isolated_wall_enclosure",
+                             "area_px": area, "wall_component_area_px": supports[0][2],
+                             "largest_wall_component_area_px": largest_wall_component})
             continue
         rooms.append({"id": len(rooms), "polygon": points,
                       "center": [round(float(v), 2) for v in centroids[label]],
@@ -401,6 +421,12 @@ def extract_rooms(data, rgb):
         warnings.append("Возможны незамкнутые границы и потерянные помещения.")
     if not rooms:
         warnings.append("Замкнутые помещения не найдены.")
+    isolated_enclosures = sum(item["reason"] == "isolated_wall_enclosure"
+                              for item in diagnostics["rejected_components"])
+    if isolated_enclosures:
+        warnings.append(
+            f"Изолированные небольшие контуры маски стен исключены из комнат ({isolated_enclosures}); "
+            "проверьте мебель и возможные пропущенные помещения.")
     review_doors = sum(door.get("classification", {}).get("requires_review") is True
                        for door in data.get("doors", []))
     if review_doors:
@@ -417,6 +443,7 @@ def extract_rooms(data, rgb):
               "diagnostics": {"version": 2, "passes": passes, "temporary_closures": closures,
                               "exterior_envelope": envelope,
                               "rooms_found": len(rooms), "uncertain_rooms": sum(r["uncertain"] for r in rooms),
+                              "isolated_wall_enclosures": isolated_enclosures,
                               "review_doors": review_doors,
                               "non_rectangular_rooms": non_rectangular,
                               "warnings": warnings, **diagnostics}}
