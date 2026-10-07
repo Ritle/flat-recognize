@@ -10,8 +10,8 @@ Both pipelines now validate export geometry and opening bindings. The demo
 blocks structurally invalid projects; see [docs/QUALITY_GATE.md](docs/QUALITY_GATE.md).
 V2 now exports complex room polygons with shared boundaries and exact opening
 transforms; see [docs/POLYGON_GEOMETRY.md](docs/POLYGON_GEOMETRY.md).
-V2 also recovers missed doors when both a jamb-anchored leaf and swing arc are
-visible; see [docs/OPENING_RECOVERY.md](docs/OPENING_RECOVERY.md).
+V2 also recovers missed doors from supported leaf evidence and short window
+candidates confirmed by a raster-line gap; see [docs/OPENING_RECOVERY.md](docs/OPENING_RECOVERY.md).
 V2 extends room boundaries with internal wall centerlines and shared T/X nodes;
 see [docs/INTERNAL_WALL_GRAPH.md](docs/INTERNAL_WALL_GRAPH.md).
 

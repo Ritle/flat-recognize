@@ -207,8 +207,12 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                         length = math.dist(coords[a], coords[b])
                         half = size["x"] / 2
                         center = length * position / 100
-                        if center - half < -5 or center + half > length + 5:
-                            issue("opening_exceeds_segment", "warning", f"Проём {uid} выходит за конец стены; проверьте ширину и привязку.")
+                        overhang = max(0, half - center, center + half - length)
+                        if overhang > 5:
+                            severe = overhang > max(20, size["x"] * .25)
+                            issue("opening_exceeds_segment", "error" if severe else "warning",
+                                  f"Проём {uid} выходит за конец стены; проверьте ширину и привязку.",
+                                  overhang_cm=round(overhang, 2), severe=severe)
                 materials = element.get("materials", [])
                 if not isinstance(materials, list) or any(not isinstance(m, dict) or m.get("itemUuid") != uid for m in materials):
                     issue("material_reference", "error", f"Материалы проёма {uid} ссылаются на другой объект.")
@@ -241,8 +245,10 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                     thickness = segment.get("thickness", 20)
                     threshold = max(20, thickness * 1.5) if finite(thickness) else 30
                     if distance > threshold:
-                        issue("opening_far_from_wall", "warning", f"Проём {key} находится далеко от стены ({distance:g} см).",
-                              distance_cm=distance, threshold_cm=threshold)
+                        severe = distance > threshold * 2
+                        issue("opening_far_from_wall", "error" if severe else "warning",
+                              f"Проём {key} находится далеко от стены ({distance:g} см).",
+                              distance_cm=distance, threshold_cm=threshold, severe=severe)
     errors = list(dict.fromkeys(i["message"] for i in issues if i["severity"] == "error"))
     warnings = list(dict.fromkeys(i["message"] for i in issues if i["severity"] != "error"))
     warning_codes = {i["code"] for i in issues if i["severity"] == "warning"}

@@ -52,10 +52,10 @@ async function show(status) {
     nodes.get('tabs').children = [];
     context.setupImages({images: {recovery: '/recovery'}});
     const tab = nodes.get('tabs').children[0];
-    assert.equal(tab.textContent, 'Восстановленные двери');
+    assert.equal(tab.textContent, 'Восстановленные проёмы');
     tab.onclick();
     assert.match(nodes.get('preview').src, /^\/recovery\?t=/);
-    assert.match(nodes.get('imageCaption').textContent, /найденное полотно/);
+    assert.match(nodes.get('imageCaption').textContent, /голубой — восстановленное окно/);
     assert.equal(nodes.get('imageCaption').style.display, 'block');
     nodes.get('tabs').children = [];
     context.setupImages({images: {segmentation_original: '/original-pass',

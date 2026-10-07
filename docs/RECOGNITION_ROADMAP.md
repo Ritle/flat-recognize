@@ -80,6 +80,14 @@ quality gate остался **2 good / 2 review / 6 invalid**. Детали —
 [POLYGON_GEOMETRY.md](POLYGON_GEOMETRY.md). Полный CPU-прогон сохранил
 **2 good / 2 review / 6 invalid**.
 
+Recovery использует также отклонённые segmentation-кандидаты: подтверждённое
+`raster_line`-замыканием окно `open-zones` восстановлено, но проект остаётся
+`invalid` из-за грубых ошибок привязки остальных проёмов. Quality gate теперь
+блокирует сильные вылеты за сегмент и большие расстояния до стены; это также
+выявило ошибочно допустимый ранее `complex-hatched`. Текущий результат полного
+CPU-прогона — **2 good / 1 review / 7 invalid**. Детали —
+[OPENING_RECOVERY.md](OPENING_RECOVERY.md) и [QUALITY_GATE.md](QUALITY_GATE.md).
+
 ## Цель
 
 Сделать `flat-recognize` устойчивым к реальным пользовательским изображениям:

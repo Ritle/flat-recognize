@@ -400,8 +400,9 @@ def main():
     )
 
     if args.pipeline_v2:
-        run_command("V2 - Recover missed doors", [python, SCRIPTS / "recover_openings_v2.py",
-                                                image, classified_json, rooms_json])
+        run_command("V2 - Recover missed openings", [python, SCRIPTS / "recover_openings_v2.py",
+                                                   image, classified_json, rooms_json,
+                                                   "--prediction", prediction_json])
         classified_json = require_file(OUTPUT / f"{stem}_recovered_classified.json", "Recovered openings")
         rooms_json = require_file(OUTPUT / f"{stem}_rooms_recovered.json", "Rooms with recovered openings")
         room_data = json.loads(rooms_json.read_text(encoding="utf-8"))

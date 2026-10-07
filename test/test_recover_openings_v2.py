@@ -44,6 +44,40 @@ def fixture(arc=True, leaf=True, vertical=False):
 
 
 class RecoveryTest(unittest.TestCase):
+    def test_rejected_short_window_over_raster_line_gap_is_recovered_for_review(self):
+        classified, rooms, rgb = fixture(arc=False, leaf=False)
+        rooms["diagnostics"]["temporary_closures"][0]["evidence"] = "raster_line"
+        candidate = {"id": 7, "source_class": "door", "reject_reason": ["not_elongated"],
+                     "outer": [[100, 82], [160, 82], [160, 118], [100, 118]],
+                     "aspect_ratio": 1.67, "center": [130, 100], "length": 60,
+                     "thickness": 36, "orientation": "horizontal"}
+        prediction = {"meta": copy.deepcopy(classified["meta"]),
+                      "diagnostics": {"rejected": [candidate]}}
+        before = copy.deepcopy((classified, rooms, prediction))
+        output, final_rooms, report = recover_openings(classified, rooms, rgb, prediction)
+        self.assertEqual(report["recovered_windows"], 1)
+        self.assertEqual(report["recovered_doors"], 0)
+        self.assertEqual(output["windows"], final_rooms["windows"])
+        self.assertEqual(output["windows"], output["openings"])
+        self.assertEqual(output["windows"][0]["classification"]["method"],
+                         "recovered_raster_line_window")
+        self.assertNotIn("reject_reason", output["windows"][0])
+        self.assertTrue(report["requires_review"])
+        self.assertTrue(final_rooms["diagnostics"]["warnings"])
+        self.assertEqual((classified, rooms, prediction), before)
+
+    def test_short_window_candidate_requires_raster_line_and_full_gap_support(self):
+        classified, rooms, rgb = fixture(arc=False, leaf=False)
+        candidate = {"id": 7, "source_class": "door", "reject_reason": ["not_elongated"],
+                     "outer": [[100, 82], [160, 82], [160, 118], [100, 118]],
+                     "aspect_ratio": 1.67}
+        prediction = {"meta": copy.deepcopy(classified["meta"]),
+                      "diagnostics": {"rejected": [candidate]}}
+        self.assertEqual(recover_openings(classified, rooms, rgb, prediction)[2]["recovered_windows"], 0)
+        rooms["diagnostics"]["temporary_closures"][0]["evidence"] = "raster_line"
+        candidate["outer"] = [[100, 82], [120, 82], [120, 118], [100, 118]]
+        self.assertEqual(recover_openings(classified, rooms, rgb, prediction)[2]["recovered_windows"], 0)
+
     def test_shifted_hinge_within_wall_width_is_recovered(self):
         classified, rooms, rgb = fixture(arc=False, leaf=False)
         image = Image.fromarray(rgb)

@@ -56,6 +56,25 @@ class QualityGateTest(unittest.TestCase):
         self.assertTrue(r["export_allowed"])
         self.assertIn("opening_far_from_wall", [i["code"] for i in r["issues"]])
 
+    def test_severe_binding_errors_block_export(self):
+        rooms, project, bindings = fixture()
+        bindings["windows"][0]["distance_to_wall_cm"] = 65
+        result = validate_recognition(rooms, project, bindings)
+        self.assertEqual(result["status"], "invalid")
+        self.assertFalse(result["export_allowed"])
+        self.assertTrue(any(i["code"] == "opening_far_from_wall" and i["severity"] == "error"
+                            for i in result["issues"]))
+
+        rooms, project, bindings = fixture()
+        project["levels"][0]["elements"][0]["wall"]["position"] = 14
+        self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "review")
+        project["levels"][0]["elements"][0]["wall"]["position"] = 1
+        project["levels"][0]["elements"][0]["size"]["x"] = 60
+        result = validate_recognition(rooms, project, bindings)
+        self.assertEqual(result["status"], "invalid")
+        self.assertTrue(any(i["code"] == "opening_exceeds_segment" and i["severity"] == "error"
+                            for i in result["issues"]))
+
     def test_broken_project_is_blocked(self):
         mutations = {
             "missing_connector": lambda l: l["segments"][0].update(start="absent"),
