@@ -37,6 +37,7 @@ SUFFIXES = (
     "_geometry.json", "_export_overlay.png",
     "_recovered_classified.json", "_rooms_recovered.json", "_opening_recovery.json",
     "_opening_recovery_overlay.png",
+    "_topology_classified.json", "_topology_windows.json", "_topology_windows_overlay.png",
 )
 
 
@@ -138,6 +139,9 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     rooms = changed.get(image.stem + "_rooms.json")
     recovered_rooms = changed.get(image.stem + "_rooms_recovered.json")
     recovery = changed.get(image.stem + "_opening_recovery.json")
+    topology_recovery = changed.get(image.stem + "_topology_windows.json")
+    if topology_recovery:
+        row["topology_window_recovery"] = load_json(topology_recovery)
     if recovery:
         row["opening_recovery"] = load_json(recovery)
     if recovered_rooms:

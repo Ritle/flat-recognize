@@ -439,6 +439,10 @@ def extract_rooms(data, rgb):
             f"Двери без подтверждённой дуги, найденные по полотну и двум косякам "
             f"({review_doors}), требуют проверки."
         )
+    review_windows = sum(window.get("classification", {}).get("requires_review") is True
+                         for window in data.get("windows", []))
+    if review_windows:
+        warnings.append(f"Окна, восстановленные по топологии ({review_windows}), требуют проверки.")
     non_rectangular = sum(r["area_px"] / max(1, (r["bbox"][2] - r["bbox"][0])
                                             * (r["bbox"][3] - r["bbox"][1])) < 0.9 for r in rooms)
     if non_rectangular:
@@ -451,6 +455,7 @@ def extract_rooms(data, rgb):
                               "isolated_wall_enclosures": isolated_enclosures,
                               "rejected_openings": rejected_openings,
                               "review_doors": review_doors,
+                              "review_windows": review_windows,
                               "non_rectangular_rooms": non_rectangular,
                               "warnings": warnings, **diagnostics}}
     return result, barrier, inferred

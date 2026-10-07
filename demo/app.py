@@ -316,11 +316,13 @@ async def recognize(
             "segmentation_fused": OUTPUT_DIR / f"{job_id}_segmentation_fused.png",
             "closures": OUTPUT_DIR / f"{job_id}_closures.png",
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
+            "topology_windows": OUTPUT_DIR / f"{job_id}_topology_windows_overlay.png",
         })
         for suffix in ("_preprocess.json", "_inference.json"):
             shutil.copy2(OUTPUT_DIR / f"{job_id}{suffix}", job_dir / suffix[1:])
         inference = json.loads((job_dir / "inference.json").read_text(encoding="utf-8"))
-        for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json"):
+        for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json",
+                       "_topology_windows.json", "_topology_classified.json"):
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
                 shutil.copy2(source, job_dir / suffix[1:])

@@ -58,6 +58,12 @@ async function show(status) {
     assert.match(nodes.get('imageCaption').textContent, /голубой — восстановленное окно/);
     assert.equal(nodes.get('imageCaption').style.display, 'block');
     nodes.get('tabs').children = [];
+    context.setupImages({images: {topology_windows: '/topology-windows'}});
+    assert.equal(nodes.get('tabs').children[0].textContent, 'Окна по топологии');
+    nodes.get('tabs').children[0].onclick();
+    assert.match(nodes.get('preview').src, /^\/topology-windows\?t=/);
+    assert.match(nodes.get('imageCaption').textContent, /Требует проверки/);
+    nodes.get('tabs').children = [];
     context.setupImages({images: {segmentation_original: '/original-pass',
         segmentation_normalized: '/normalized-pass', segmentation_fused: '/fused-pass'}});
     assert.deepEqual(nodes.get('tabs').children.map(tab => tab.textContent),

@@ -379,6 +379,13 @@ def main():
         "Classified openings JSON"
     )
 
+    if args.pipeline_v2:
+        run_command("V2 - Recover topology-supported windows",
+                    [python, SCRIPTS / "recover_windows_topology_v2.py", image,
+                     prediction_json, classified_json])
+        classified_json = require_file(
+            OUTPUT / f"{stem}_topology_classified.json", "Topology-supported windows")
+
     # =================================================
     # 3. Room extraction
     # =================================================
