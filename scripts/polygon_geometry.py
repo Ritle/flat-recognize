@@ -120,14 +120,23 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     known = unary_union([p if p.is_valid else p.buffer(0) for p in openings]) if openings else GeometryCollection()
     support = unary_union([walls, known]).buffer(half_wall + 3)
     unknown = []
-    known_tolerance = known.buffer(3) if not known.is_empty else known
+    # Room axes may be half a wall away from an opening polygon and temporary
+    # raster closures can extend slightly beyond its caps. Use the same support
+    # distance as physical openings, while keeping truly unmarked gaps unknown.
+    known_tolerance = known.buffer(half_wall + 3) if not known.is_empty else known
+    narrow_known_tolerance = known.buffer(3) if not known.is_empty else known
+    supported_closure_area = unary_union([walls, known_tolerance])
+    narrow_supported_closure_area = unary_union([walls, narrow_known_tolerance])
+    narrow_unknown = []
     for closure in source.get("diagnostics", {}).get("temporary_closures", []):
         strip = LineString([closure["start"], closure["end"]]).buffer(closure["width"] / 2 + 3)
         # A topology-only closure may never silently become a physical wall.
         # Opening polygons and room contours are derived by different raster
         # operations, so a small tolerance prevents sub-pixel cap remnants.
-        unknown.append(strip.difference(unary_union([walls, known_tolerance])))
+        unknown.append(strip.difference(supported_closure_area))
+        narrow_unknown.append(strip.difference(narrow_supported_closure_area))
     unknown = unary_union(unknown) if unknown else GeometryCollection()
+    narrow_unknown = unary_union(narrow_unknown) if narrow_unknown else GeometryCollection()
     boundary = unary_union([p.boundary for p in shapes])
     network = unary_union([boundary, unknown.boundary]) if not unknown.is_empty else boundary
     raw_edges = []
@@ -151,6 +160,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     segment_template = level_template.get("segments", [{}])[0]
     area_template = level_template.get("areas", [{}])[0]
     segments, unsupported = [], []
+    matched_closure_edges = 0
     unique = set()
     for a, b, edge in raw_edges:
         start, end = connector(a), connector(b)
@@ -166,6 +176,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
         if reason:
             unsupported.append({"start": list(a), "end": list(b), "reason": reason})
             continue
+        if edge.intersection(narrow_unknown).length > 1e-4:
+            matched_closure_edges += 1
         segment = copy.deepcopy(segment_template)
         segment.update(uuid=str(uuid.uuid4()), start=start, end=end, thickness=thickness, height=height,
                        alignment=0.5, left=int(start[1:]), right=int(end[1:]),
@@ -202,7 +214,12 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
               "rooms": [{"id": i, "polygon": [list(p) for p in shape.exterior.coords[:-1]]}
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
+              "matched_closure_edges": matched_closure_edges,
               "warnings": list(dict.fromkeys(adjustments)), "errors": []}
+    if matched_closure_edges:
+        report["warnings"].append(
+            f"Границы временных замыканий сопоставлены с распознанными проёмами с допуском "
+            f"половины толщины стены ({matched_closure_edges}); проверьте проёмы.")
     if unsupported:
         report["errors"].append("Есть границы без подтверждённой стены или проёма; они не добавлены как физические стены.")
     if repaired:

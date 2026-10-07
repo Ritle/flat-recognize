@@ -94,6 +94,34 @@ class PolygonGeometryTest(unittest.TestCase):
         _, report = build_polygon_project(data, template())
         self.assertEqual(report["unsupported_segments"], [])
 
+    def test_opening_support_covers_sub_wall_closure_cap_mismatch(self):
+        data = source([box(0, 0, 100, 100)])
+        gap = box(-25, 30, 1, 70)
+        wall = Polygon(data["walls"][0]["outer"], data["walls"][0]["holes"]).difference(gap)
+        data["walls"] = [{"outer": [list(p) for p in wall.exterior.coords[:-1]],
+                          "holes": [[list(p) for p in r.coords[:-1]] for r in wall.interiors]}]
+        data["diagnostics"]["temporary_closures"] = [
+            {"start": [-10, 30], "end": [-10, 70], "width": 20}]
+        data["windows"] = [{"outer": [[-25, 38], [1, 38], [1, 62], [-25, 62]]}]
+        _, report = build_polygon_project(data, template())
+        self.assertEqual(report["unsupported_segments"], [])
+        self.assertGreater(report["matched_closure_edges"], 0)
+        self.assertTrue(any("сопоставлены" in item for item in report["warnings"]))
+
+    def test_partial_opening_does_not_cover_long_unmarked_gap(self):
+        data = source([box(0, 0, 100, 100)])
+        gap = box(-25, 20, 1, 80)
+        wall = Polygon(data["walls"][0]["outer"], data["walls"][0]["holes"]).difference(gap)
+        data["walls"] = [{"outer": [list(p) for p in wall.exterior.coords[:-1]],
+                          "holes": [[list(p) for p in r.coords[:-1]] for r in wall.interiors]}]
+        data["diagnostics"]["temporary_closures"] = [
+            {"start": [-10, 20], "end": [-10, 80], "width": 20}]
+        data["windows"] = [{"outer": [[-25, 30], [1, 30], [1, 42], [-25, 42]]}]
+        project, report = build_polygon_project(data, template())
+        self.assertTrue(any(segment["reason"] == "temporary_closure_without_opening"
+                            for segment in report["unsupported_segments"]))
+        self.assertFalse(validate_recognition(data, project, geometry=report)["export_allowed"])
+
     def test_source_overlap_is_rejected(self):
         with self.assertRaises(ValueError):
             partition_rooms([box(0, 0, 100, 100), box(50, 50, 150, 150)], 10)
