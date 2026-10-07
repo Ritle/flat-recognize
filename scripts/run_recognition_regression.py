@@ -38,6 +38,9 @@ SUFFIXES = (
     "_recovered_classified.json", "_rooms_recovered.json", "_opening_recovery.json",
     "_opening_recovery_overlay.png",
     "_topology_classified.json", "_topology_windows.json", "_topology_windows_overlay.png",
+    "_interior_filtered_classified.json", "_rooms_filtered.json",
+    "_geometry_filtered.json", "_interior_windows.json",
+    "_interior_windows_overlay.png",
 )
 
 
@@ -138,6 +141,10 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     classified = changed.get(image.stem + "_classified.json")
     rooms = changed.get(image.stem + "_rooms.json")
     recovered_rooms = changed.get(image.stem + "_rooms_recovered.json")
+    filtered_rooms = changed.get(image.stem + "_rooms_filtered.json")
+    interior_filter = changed.get(image.stem + "_interior_windows.json")
+    if interior_filter:
+        row["interior_window_filter"] = load_json(interior_filter)
     recovery = changed.get(image.stem + "_opening_recovery.json")
     topology_recovery = changed.get(image.stem + "_topology_windows.json")
     if topology_recovery:
@@ -146,6 +153,8 @@ def run_case(case, run_dir, env, pipeline_v2=False):
         row["opening_recovery"] = load_json(recovery)
     if recovered_rooms:
         rooms = recovered_rooms
+    if filtered_rooms:
+        rooms = filtered_rooms
     if prediction:
         data = load_json(prediction)
         row["segmentation"] = {"wall_polygons": len(data.get("walls", [])),
@@ -171,7 +180,8 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     if preprocessing:
         row["preprocessing"] = load_json(preprocessing)
     final = case_dir / "project.json"
-    geometry_path = changed.get(image.stem + "_geometry.json")
+    geometry_path = changed.get(image.stem + "_geometry_filtered.json") or changed.get(
+        image.stem + "_geometry.json")
     if geometry_path:
         row["geometry"] = load_json(geometry_path)
     quality_path = final.with_suffix(".quality.json")

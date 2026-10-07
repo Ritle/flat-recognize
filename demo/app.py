@@ -260,6 +260,9 @@ async def recognize(
     if pipeline_v2 and recovered_room_path.exists():
         shutil.copy2(room_path, job_dir / "rooms_before_recovery.json")
         room_path = recovered_room_path
+    filtered_room_path = OUTPUT_DIR / f"{job_id}_rooms_filtered.json"
+    if pipeline_v2 and filtered_room_path.exists():
+        room_path = filtered_room_path
     room_data = json.loads(room_path.read_text(encoding="utf-8"))
     metrics = quality.get("metrics", {})
     stats = load_stats(project_path) if not rejected else {
@@ -277,6 +280,9 @@ async def recognize(
     geometry_path = OUTPUT_DIR / f"{job_id}_geometry.json"
     if geometry_path.exists():
         shutil.copy2(geometry_path, job_dir / "geometry.json")
+    interior_report = OUTPUT_DIR / f"{job_id}_interior_windows.json"
+    if interior_report.exists():
+        shutil.copy2(interior_report, job_dir / "interior_windows.json")
     candidate_path = OUTPUT_DIR / f"{job_id}_project.json"
     if candidate_path.exists():
         shutil.copy2(candidate_path, job_dir / "geometry_candidate.json")
@@ -318,11 +324,17 @@ async def recognize(
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
             "topology_windows": OUTPUT_DIR / f"{job_id}_topology_windows_overlay.png",
         })
+        if (interior_report.exists() and
+                json.loads(interior_report.read_text(encoding="utf-8")).get("rejected_windows", 0)):
+            generated_images["interior_windows"] = (
+                OUTPUT_DIR / f"{job_id}_interior_windows_overlay.png")
         for suffix in ("_preprocess.json", "_inference.json"):
             shutil.copy2(OUTPUT_DIR / f"{job_id}{suffix}", job_dir / suffix[1:])
         inference = json.loads((job_dir / "inference.json").read_text(encoding="utf-8"))
         for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json",
-                       "_topology_windows.json", "_topology_classified.json"):
+                       "_topology_windows.json", "_topology_classified.json",
+                       "_interior_filtered_classified.json", "_rooms_filtered.json",
+                       "_geometry_filtered.json"):
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
                 shutil.copy2(source, job_dir / suffix[1:])

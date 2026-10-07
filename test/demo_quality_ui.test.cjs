@@ -64,6 +64,11 @@ async function show(status) {
     assert.match(nodes.get('preview').src, /^\/topology-windows\?t=/);
     assert.match(nodes.get('imageCaption').textContent, /Требует проверки/);
     nodes.get('tabs').children = [];
+    context.setupImages({images: {interior_windows: '/interior-windows'}});
+    assert.equal(nodes.get('tabs').children[0].textContent, 'Отклонённые окна');
+    nodes.get('tabs').children[0].onclick();
+    assert.match(nodes.get('imageCaption').textContent, /экспорт заблокирован/);
+    nodes.get('tabs').children = [];
     context.setupImages({images: {segmentation_original: '/original-pass',
         segmentation_normalized: '/normalized-pass', segmentation_fused: '/fused-pass'}});
     assert.deepEqual(nodes.get('tabs').children.map(tab => tab.textContent),
