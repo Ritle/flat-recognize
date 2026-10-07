@@ -117,6 +117,45 @@ def point_to_segment(px, py, ax, ay, bx, by):
     return distance, t_clamped, qx, qy
 
 
+def choose_segment_binding(segments, wx, wy, required_width, orientation):
+    """Prefer a nearby aligned segment that can contain the whole opening."""
+    candidates = []
+    for item in segments:
+        dx, dy = item["bx"] - item["ax"], item["by"] - item["ay"]
+        length = math.hypot(dx, dy)
+        distance, t, qx, qy = point_to_segment(
+            wx, wy, item["ax"], item["ay"], item["bx"], item["by"])
+        center = t * length
+        overhang = max(0.0, required_width / 2 - center,
+                       center + required_width / 2 - length)
+        aligned = (orientation == "horizontal" and abs(dy) <= abs(dx) * .27
+                   or orientation == "vertical" and abs(dx) <= abs(dy) * .27)
+        candidates.append({"segment": item["segment"], "distance": distance, "t": t,
+                           "qx": qx, "qy": qy, "world_x": wx, "world_y": wy,
+                           "overhang": overhang, "aligned": aligned})
+    if not candidates:
+        return None
+    nearest = min(candidates, key=lambda candidate: candidate["distance"])
+    if nearest["overhang"] <= 5:
+        nearest["selection"] = "nearest"
+        return nearest
+    feasible = [candidate for candidate in candidates
+                if (candidate["aligned"] and candidate["overhang"] <= 5
+                    and candidate["distance"] <= nearest["distance"] + max(3, required_width * .05)
+                    and candidate["distance"] <= max(20, candidate["segment"].get("thickness", 20) * 1.5))]
+    if feasible:
+        chosen = min(feasible, key=lambda candidate: candidate["distance"])
+        chosen["selection"] = "span_aware"
+        chosen["nearest_distance"] = nearest["distance"]
+        return chosen
+    nearest["selection"] = "nearest"
+    return nearest
+
+
+def door_width_cm(recognized_width):
+    return max(40.0, float(recognized_width) * 1.12)
+
+
 def find_door_template(template):
     for level in template.get("levels", []):
         for element in level.get("elements", []):
@@ -412,44 +451,12 @@ def main():
             "by": float(b["y"]),
         })
 
-    def bind_opening(opening):
+    def bind_opening(opening, door=False):
         px, py = get_center(opening)
 
         wx, wy = pixel_to_world(
             px,
             py
-        )
-
-        best = None
-
-        for item in segment_geometry:
-            distance, t, qx, qy = (
-                point_to_segment(
-                    wx,
-                    wy,
-                    item["ax"],
-                    item["ay"],
-                    item["bx"],
-                    item["by"],
-                )
-            )
-
-            if best is None or distance < best["distance"]:
-                best = {
-                    "segment": item["segment"],
-                    "distance": distance,
-                    "t": t,
-                    "qx": qx,
-                    "qy": qy,
-                    "world_x": wx,
-                    "world_y": wy,
-                }
-
-        if best is None:
-            return None
-
-        best["position"] = (
-            best["t"] * 100.0
         )
 
         orientation = opening_orientation(
@@ -473,6 +480,14 @@ def main():
                 length_px *
                 ((scale_x + scale_y) / 2.0)
             )
+
+        required_width = door_width_cm(width_cm) if door else width_cm
+        best = choose_segment_binding(segment_geometry, wx, wy,
+                                      required_width, orientation)
+        if best is None:
+            return None
+
+        best["position"] = best["t"] * 100.0
 
         best["width_cm"] = width_cm
         best["orientation"] = orientation
@@ -503,9 +518,7 @@ def main():
     )
 
     for index, opening in enumerate(doors):
-        binding = bind_opening(
-            opening
-        )
+        binding = bind_opening(opening, door=True)
 
         if binding is None:
             continue
@@ -529,10 +542,7 @@ def main():
             )
         )
 
-        width_cm = max(
-            40.0,
-            float(binding["width_cm"]) * 1.12
-        )
+        width_cm = door_width_cm(binding["width_cm"])
 
         door = copy.deepcopy(
             door_template
@@ -652,6 +662,7 @@ def main():
                 binding["distance"],
                 2
             ),
+            "selection": binding["selection"],
         })
 
     # -------------------------------------------------------
@@ -716,6 +727,8 @@ def main():
                     binding["distance"],
                     2
                 ),
+
+            "selection": binding["selection"],
 
             "orientation":
                 binding["orientation"],
