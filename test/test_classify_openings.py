@@ -82,6 +82,30 @@ class ClassifyOpeningsTests(unittest.TestCase):
         result = classify_openings(data, rgb)
         self.assertEqual(result["doors"], [])
 
+    def test_window_on_detached_thin_furniture_line_is_rejected(self):
+        def rectangle(x1, y1, x2, y2):
+            return {"outer": [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]}
+
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
+                 rectangle(250, 98, 340, 99)]
+        opening = {"outer": [[325, 100], [374, 100], [374, 114], [325, 114]],
+                   "source_class": "window"}
+        data = {"meta": {"width": 400, "height": 300}, "walls": walls,
+                "openings": [opening]}
+        image = Image.new("RGB", (400, 300), "white")
+        draw = ImageDraw.Draw(image)
+        for wall in walls:
+            draw.polygon([tuple(point) for point in wall["outer"]], fill="black")
+        result = classify_openings(data, np.asarray(image))
+        self.assertEqual(result["doors"], [])
+        self.assertEqual(result["windows"], [])
+        self.assertEqual(result["openings"], [])
+        self.assertEqual(len(result["rejected_openings"]), 1)
+        classification = result["rejected_openings"][0]["classification"]
+        self.assertEqual(classification["method"], "rejected_detached_thin_wall_window")
+        self.assertTrue(classification["rejection"]["detached_linework"])
+
     def test_legacy_gap_classifier_keeps_perpendicular_line_signal(self):
         data, rgb = fixture(arc=False, leaf=True)
         gray = np.asarray(Image.fromarray(rgb).convert("L"))

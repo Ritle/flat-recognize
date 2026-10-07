@@ -427,6 +427,11 @@ def extract_rooms(data, rgb):
         warnings.append(
             f"Изолированные небольшие контуры маски стен исключены из комнат ({isolated_enclosures}); "
             "проверьте мебель и возможные пропущенные помещения.")
+    rejected_openings = len(data.get("rejected_openings", []))
+    if rejected_openings:
+        warnings.append(
+            f"Оконные кандидаты на изолированных тонких линиях отклонены ({rejected_openings}); "
+            "проверьте окна и возможные пропущенные проёмы.")
     review_doors = sum(door.get("classification", {}).get("requires_review") is True
                        for door in data.get("doors", []))
     if review_doors:
@@ -444,6 +449,7 @@ def extract_rooms(data, rgb):
                               "exterior_envelope": envelope,
                               "rooms_found": len(rooms), "uncertain_rooms": sum(r["uncertain"] for r in rooms),
                               "isolated_wall_enclosures": isolated_enclosures,
+                              "rejected_openings": rejected_openings,
                               "review_doors": review_doors,
                               "non_rectangular_rooms": non_rectangular,
                               "warnings": warnings, **diagnostics}}

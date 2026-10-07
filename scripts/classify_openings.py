@@ -48,6 +48,58 @@ def structural_union(items):
     return unary_union(shapes)
 
 
+def detached_thin_wall_labels(items, height, width):
+    """Find sizable isolated linework that is thin relative to the main walls."""
+    mask = np.zeros((height, width), dtype=np.uint8)
+    for item in items:
+        outer = np.rint(np.asarray(item.get("outer", []))).astype(np.int32)
+        if len(outer) < 3:
+            continue
+        polygon_mask = np.zeros_like(mask)
+        cv2.fillPoly(polygon_mask, [outer], 255)
+        for hole in item.get("holes", []):
+            points = np.rint(np.asarray(hole)).astype(np.int32)
+            if len(points) >= 3:
+                cv2.fillPoly(polygon_mask, [points], 0)
+        mask |= polygon_mask
+    distance = cv2.distanceTransform((mask > 0).astype(np.uint8), cv2.DIST_L2, 5)
+    positive = distance[distance > 1]
+    if not positive.size:
+        return np.zeros_like(mask, dtype=np.int32), set()
+    thickness = max(2.0, float(np.percentile(positive, 75)) * 2)
+    radius = max(1, round(thickness * .125))
+    joined = cv2.morphologyEx(mask, cv2.MORPH_CLOSE,
+                              np.ones((radius * 2 + 1,) * 2, np.uint8))
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(
+        (joined > 0).astype(np.uint8), connectivity=8)
+    if count <= 1:
+        return labels, set()
+    largest = max(int(stats[index, cv2.CC_STAT_AREA]) for index in range(1, count))
+    joined_distance = cv2.distanceTransform((joined > 0).astype(np.uint8), cv2.DIST_L2, 5)
+    detached = {index for index in range(1, count)
+                if (max(64, largest * .01) <= stats[index, cv2.CC_STAT_AREA] < largest * .05
+                    and np.percentile(joined_distance[labels == index], 90) < thickness * .25)}
+    return labels, detached
+
+
+def weak_window_on_detached_linework(opening, walls, labels, detached):
+    if opening.get("source_class") != "window" or not detached:
+        return None
+    start, end, width = opening_axis(opening)
+    support = wall_jamb_support(start, end, width, walls)
+    if min(support) >= 2:
+        return None
+    polygon = np.rint(np.asarray(opening["outer"])).astype(np.int32)
+    neighborhood = np.zeros(labels.shape, dtype=np.uint8)
+    cv2.fillPoly(neighborhood, [polygon], 255)
+    neighborhood = cv2.dilate(neighborhood, np.ones((7, 7), np.uint8))
+    indices, counts = np.unique(labels[neighborhood > 0], return_counts=True)
+    contacts = [{"component": int(index), "pixels": int(pixels)}
+                for index, pixels in zip(indices, counts)
+                if index in detached and pixels >= 20]
+    return {"jamb_support": support, "detached_linework": contacts} if contacts else None
+
+
 def classify_opening(gray, opening):
     minx, miny, maxx, maxy, length, thickness, orientation = \
         opening_geometry(opening)
@@ -178,7 +230,8 @@ def classify_openings(data, rgb):
     # luminance conversion and matches topology/recovery door evidence.
     gray = rgb.min(axis=2)
     walls = structural_union(data.get("walls", []))
-    doors, windows = [], []
+    wall_labels, detached = detached_thin_wall_labels(data.get("walls", []), height, width)
+    doors, windows, accepted, rejected = [], [], [], []
     for index, opening in enumerate(openings):
         opening_type, evidence = classify_opening_with_leaf(gray, opening, walls)
         opening["id"] = index
@@ -195,13 +248,22 @@ def classify_openings(data, rgb):
             "evidence": evidence,
             "source_class": opening.get("source_class"),
         }
+        rejection = (weak_window_on_detached_linework(opening, walls, wall_labels, detached)
+                     if opening_type == "window" else None)
+        if rejection:
+            opening["classification"].update(
+                method="rejected_detached_thin_wall_window", rejection=rejection)
+            rejected.append(opening)
+            continue
         (doors if opening_type == "door" else windows).append(opening)
+        accepted.append(opening)
     return {
         "meta": copy.deepcopy(meta),
         "walls": copy.deepcopy(data.get("walls", [])),
         "doors": doors,
         "windows": windows,
-        "openings": openings,
+        "openings": accepted,
+        "rejected_openings": rejected,
     }
 
 
@@ -298,6 +360,10 @@ def main():
             width=5
         )
 
+    for opening in result["rejected_openings"]:
+        points = [tuple(point) for point in opening["outer"]]
+        draw.line(points + [points[0]], fill="orange", width=5)
+
     overlay_path = (
         output_dir /
         f"{image_path.stem}_classified_overlay.png"
@@ -313,6 +379,7 @@ def main():
     print(f"Total openings: {len(openings)}")
     print(f"Doors:          {len(doors)}")
     print(f"Windows:        {len(windows)}")
+    print(f"Rejected:       {len(result['rejected_openings'])}")
     print()
 
 

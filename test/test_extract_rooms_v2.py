@@ -50,6 +50,18 @@ class RoomsTests(unittest.TestCase):
         self.assertFalse(np.any(inferred))
         self.assertFalse(result["rooms"][0]["uncertain"])
 
+    def test_rejected_window_candidate_is_reported_for_review(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280)]
+        data, rgb = source(walls)
+        data["rejected_openings"] = [{"classification": {
+            "method": "rejected_detached_thin_wall_window"}}]
+        result, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertEqual(result["diagnostics"]["rejected_openings"], 1)
+        self.assertTrue(any("Оконные кандидаты" in warning
+                            for warning in result["diagnostics"]["warnings"]))
+
     def test_isolated_furniture_enclosure_is_not_a_room(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
                  rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
