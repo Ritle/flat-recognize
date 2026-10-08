@@ -84,16 +84,27 @@ python scripts/evaluate_recognition.py `
 contains `ground_truth`. Its accuracy artifact is diagnostic: it does not
 change `good`, `review` or `invalid` and cannot allow export.
 
-Current coverage is intentionally limited: `clean-baseline` has manually
-traced source-image polygons for five room interiors and spans for five doors
-and six windows. The object counts were confirmed by the user; the coordinates
-were traced independently from the raster by Codex on 2026-10-08 and have not
-been independently reviewed. Walls and T/X junctions remain unannotated. The
-evaluator checks that covered geometry has valid IDs, in-bounds coordinates,
-nonempty room polygons, and nonzero wall/opening spans before scoring.
+Current coverage is intentionally limited. Source-image geometry was manually
+traced by Codex on 2026-10-08 for three plans and has not been independently
+reviewed:
 
-This single clean drawing is a pipeline sanity check, not evidence of accuracy
-across drawing styles. Before tuning a new threshold, annotate several distinct
-styles, keep some styles out of development, and compare category-level false
-positives and false negatives on that held-out set. Regression statuses and
-unchanged object counts still cannot substitute for that comparison.
+| Plan | Geometric coverage | Initial observation |
+|---|---|---|
+| `clean-baseline` | 5 rooms, 5 doors, 6 windows | All matched; mean room IoU 0.9753. The counts were confirmed by the user. |
+| `clean-diagonal` | 6 rooms, 6 doors, 7 windows | All matched; mean room IoU 0.9000. |
+| `small-furnished` | 2 windows | 2 of 10 predictions matched; 8 false window candidates. |
+
+Other categories on these plans are unannotated. In particular, walls and T/X
+junctions have no geometric coverage. The evaluator checks that covered
+geometry has valid IDs, in-bounds coordinates, nonempty room polygons, and
+nonzero wall/opening spans before scoring. Opening and room metrics list
+`unmatched_truth` IDs and zero-based `unmatched_predictions` indices; the
+indices refer to the corresponding arrays in the room artifact.
+
+These three examples are development cases, not a representative held-out set.
+The furnished example confirms a substantial false-window problem, but does
+not identify a safe removal rule by itself. Before tuning a new threshold,
+annotate more distinct styles, keep some styles out of development, and compare
+category-level false positives and false negatives on that held-out set.
+Regression statuses and unchanged object counts cannot substitute for that
+comparison.

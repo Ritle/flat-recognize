@@ -63,6 +63,17 @@ def greedy_matches(scores, threshold):
     return matches
 
 
+def unmatched_objects(matches, expected, predicted):
+    matched_truth = {i for i, _, _ in matches}
+    matched_predictions = {j for _, j, _ in matches}
+    return {
+        "unmatched_truth": [item.get("id", str(i)) for i, item in enumerate(expected)
+                            if i not in matched_truth],
+        "unmatched_predictions": [j for j in range(len(predicted))
+                                  if j not in matched_predictions],
+    }
+
+
 def evaluate_rooms(expected, predicted, tolerance):
     truth = [polygon(item) for item in expected]
     found = [polygon(item) for item in predicted]
@@ -77,6 +88,7 @@ def evaluate_rooms(expected, predicted, tolerance):
     result.update(
         mean_iou=round(sum(score for _, _, score in matches) / max(1, len(matches)), 4),
         iou_threshold=threshold,
+        **unmatched_objects(matches, expected, predicted),
         matches=[{
             "truth": expected[i].get("id", str(i)),
             "prediction": j,
@@ -158,6 +170,7 @@ def opening_scores(expected, predicted, tolerance):
 def evaluate_openings(expected, predicted, tolerance):
     matches = greedy_matches(opening_scores(expected, predicted, tolerance), 1e-9)
     result = detection_metrics(len(matches), len(predicted), len(expected))
+    result.update(unmatched_objects(matches, expected, predicted))
     result["matches"] = [{
         "truth": expected[i].get("id", str(i)),
         "prediction": j,
@@ -245,6 +258,7 @@ def evaluate_junctions(expected, predicted, tolerance):
                 scores.append((1 - distance / distance_limit, i, j))
     matches = greedy_matches(scores, 0)
     result = detection_metrics(len(matches), len(predicted), len(expected))
+    result.update(unmatched_objects(matches, expected, predicted))
     result["matches"] = [{
         "truth": expected[i].get("id", str(i)),
         "prediction": j,

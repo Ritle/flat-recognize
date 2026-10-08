@@ -76,6 +76,8 @@ class EvaluateRecognitionTests(unittest.TestCase):
         result = evaluate(truth, recognition)
         self.assertEqual(result["metrics"]["doors"]["false_negative"], 1)
         self.assertEqual(result["metrics"]["windows"]["false_positive"], 1)
+        self.assertEqual(result["metrics"]["doors"]["unmatched_truth"], ["d1"])
+        self.assertEqual(result["metrics"]["windows"]["unmatched_predictions"], [0])
 
     def test_invalid_ground_truth_geometry_is_rejected_before_scoring(self):
         truth = {"version": 1, "image": {"width": 100, "height": 80},

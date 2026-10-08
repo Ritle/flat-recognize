@@ -240,7 +240,8 @@ def write_report(report, run_dir):
             if count_categories:
                 coverage_parts.append(f"counts {exact}/{len(count_categories)}")
             if geometry_categories:
-                coverage_parts.append(f"geometry {len(geometry_categories)} categories")
+                count = len(geometry_categories)
+                coverage_parts.append(f"geometry {count} categor{'y' if count == 1 else 'ies'}")
             else:
                 coverage_parts.append("geometry 0")
             accuracy_text = f"[{'; '.join(coverage_parts)}]({row['id']}/accuracy.json)"

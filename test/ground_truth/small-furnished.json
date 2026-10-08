@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/Изображение ChatGPT 1 окт. 2026 г., 20_13_41.png",
+    "width": 474,
+    "height": 474,
+    "sha256": "514b21406c7bb3be11531eb5abdb3219f463dd89ce5f70be54b4f04593e99ebf"
+  },
+  "coverage": {
+    "windows": "geometry"
+  },
+  "windows": [
+    {"id": "w1", "span": [[78, 45], [199, 45]], "connects": ["outside"]},
+    {"id": "w2", "span": [[273, 45], [395, 45]], "connects": ["outside"]}
+  ],
+  "notes": "Two complete exterior window spans traced manually from source raster by Codex on 2026-10-08; not independently reviewed. All other categories are unannotated."
+}

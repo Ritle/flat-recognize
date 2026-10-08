@@ -35,6 +35,16 @@ class RegressionReportTest(unittest.TestCase):
         self.assertIn("[geometry 2 categories](geometry/accuracy.json)", markdown)
         self.assertNotIn("counts 0/0", markdown)
 
+    def test_one_geometry_category_uses_singular_label(self):
+        report = {"pipeline": "v2", "cases": [
+            {"id": "windows", "status": "quality_invalid", "seconds": 1,
+             "accuracy": {"coverage": {"windows": "geometry"}, "metrics": {}}},
+        ]}
+        with tempfile.TemporaryDirectory() as temp:
+            write_report(report, Path(temp))
+            markdown = (Path(temp) / "report.md").read_text(encoding="utf-8")
+        self.assertIn("[geometry 1 category](windows/accuracy.json)", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

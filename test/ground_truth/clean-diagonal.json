@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/Снимок экрана 2026-09-24 183058.png",
+    "width": 554,
+    "height": 386,
+    "sha256": "7bf5b7da1fb510e596c61a99c002d63bb491e57e2fb5cbe7416f02950e345812"
+  },
+  "coverage": {
+    "rooms": "geometry",
+    "doors": "geometry",
+    "windows": "geometry"
+  },
+  "rooms": [
+    {"id": "r1", "polygon": [[49, 37], [261, 37], [261, 249], [49, 249]]},
+    {"id": "r2", "polygon": [[271, 103], [374, 103], [374, 249], [271, 249]]},
+    {"id": "r3", "polygon": [[383, 64], [455, 64], [455, 131], [383, 131]]},
+    {"id": "r4", "polygon": [[464, 64], [503, 64], [503, 132], [464, 132]]},
+    {"id": "r5", "polygon": [[383, 142], [503, 142], [503, 249], [383, 249]]},
+    {"id": "r6", "polygon": [[49, 259], [258, 259], [185, 354], [49, 354]]}
+  ],
+  "doors": [
+    {"id": "d1", "span": [[45, 286], [45, 326]], "connects": ["r6", "outside"]},
+    {"id": "d2", "span": [[135, 254], [176, 254]], "connects": ["r1", "r6"]},
+    {"id": "d3", "span": [[266, 156], [266, 197]], "connects": ["r1", "r2"]},
+    {"id": "d4", "span": [[379, 176], [379, 217]], "connects": ["r2", "r5"]},
+    {"id": "d5", "span": [[399, 137], [438, 137]], "connects": ["r3", "r5"]},
+    {"id": "d6", "span": [[460, 79], [460, 119]], "connects": ["r3", "r4"]}
+  ],
+  "windows": [
+    {"id": "w1", "span": [[110, 33], [202, 33]], "connects": ["r1", "outside"]},
+    {"id": "w2", "span": [[45, 106], [45, 181]], "connects": ["r1", "outside"]},
+    {"id": "w3", "span": [[304, 99], [342, 99]], "connects": ["r2", "outside"]},
+    {"id": "w4", "span": [[304, 254], [343, 254]], "connects": ["r2", "outside"]},
+    {"id": "w5", "span": [[424, 254], [463, 254]], "connects": ["r5", "outside"]},
+    {"id": "w6", "span": [[92, 359], [141, 359]], "connects": ["r6", "outside"]},
+    {"id": "w7", "span": [[211, 327], [240, 289]], "connects": ["r6", "outside"]}
+  ],
+  "notes": "Coordinates traced manually from source raster by Codex on 2026-10-08; not independently reviewed. Walls and junctions are unannotated."
+}

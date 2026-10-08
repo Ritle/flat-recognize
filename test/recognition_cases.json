@@ -18,6 +18,7 @@
     {
       "id": "clean-diagonal",
       "image": "exmpls/Снимок экрана 2026-09-24 183058.png",
+      "ground_truth": "test/ground_truth/clean-diagonal.json",
       "tags": ["clean", "diagonal", "small_rooms"]
     },
     {
@@ -39,6 +40,7 @@
     {
       "id": "small-furnished",
       "image": "exmpls/Изображение ChatGPT 1 окт. 2026 г., 20_13_41.png",
+      "ground_truth": "test/ground_truth/small-furnished.json",
       "tags": ["small_resolution", "furniture", "thin_lines"]
     },
     {
