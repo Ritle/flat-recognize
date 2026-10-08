@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from classify_openings import classify_opening, classify_openings
+from classify_openings import classify_opening, classify_openings, duplicate_window_edge_strips
 
 
 def fixture(arc=True, leaf=True):
@@ -118,6 +118,33 @@ class ClassifyOpeningsTests(unittest.TestCase):
         data["meta"]["width"] = 100
         with self.assertRaises(ValueError):
             classify_openings(data, rgb)
+
+    def test_narrow_edge_strip_is_duplicate_but_adjacent_window_is_not(self):
+        def window(uid, x1, y1, x2, y2):
+            return {"id": uid, "outer": [[x1, y1], [x2, y1],
+                                           [x2, y2], [x1, y2]]}
+        windows = [window(0, 100, 50, 124, 110),
+                   window(1, 118, 60, 124, 108),
+                   window(2, 100, 125, 124, 175),
+                   window(3, 140, 60, 146, 108),
+                   window(4, 100, 55, 122, 105)]
+        self.assertEqual(set(duplicate_window_edge_strips(windows)), {1})
+        self.assertEqual(duplicate_window_edge_strips(windows)[1]["parent_id"], 0)
+
+    def test_duplicate_strip_is_rejected_with_diagnostic(self):
+        def opening(x1, y1, x2, y2):
+            return {"outer": [[x1, y1], [x2, y1], [x2, y2], [x1, y2]],
+                    "source_class": "window"}
+        data = {"meta": {"width": 240, "height": 240}, "walls": [],
+                "openings": [opening(100, 50, 124, 110),
+                             opening(118, 60, 124, 108),
+                             opening(100, 125, 124, 175)]}
+        result = classify_openings(data, np.full((240, 240, 3), 255, np.uint8))
+        self.assertEqual([item["id"] for item in result["windows"]], [0, 2])
+        self.assertEqual([item["id"] for item in result["openings"]], [0, 2])
+        self.assertEqual([item["id"] for item in result["rejected_openings"]], [1])
+        self.assertEqual(result["rejected_openings"][0]["classification"]["method"],
+                         "rejected_duplicate_window_edge_strip")
 
 
 if __name__ == "__main__":

@@ -100,6 +100,34 @@ def weak_window_on_detached_linework(opening, walls, labels, detached):
     return {"jamb_support": support, "detached_linework": contacts} if contacts else None
 
 
+def duplicate_window_edge_strips(windows):
+    """Find thin segmentation strips along a wider candidate's opening span."""
+    geometry = [opening_geometry(window) for window in windows]
+    rejected = {}
+    for thin_index, thin in enumerate(geometry):
+        tx1, ty1, tx2, ty2, thin_length, thin_width, orientation = thin
+        for broad_index, broad in enumerate(geometry):
+            if thin_index == broad_index or thin_index in rejected:
+                continue
+            bx1, by1, bx2, by2, broad_length, broad_width, broad_orientation = broad
+            if (orientation != broad_orientation or thin_width <= 0
+                    or thin_width > broad_width * .4
+                    or thin_length > broad_length * 1.05):
+                continue
+            if orientation == "horizontal":
+                overlap = max(0.0, min(tx2, bx2) - max(tx1, bx1))
+                offset = abs((ty1 + ty2 - by1 - by2) / 2)
+            else:
+                overlap = max(0.0, min(ty2, by2) - max(ty1, by1))
+                offset = abs((tx1 + tx2 - bx1 - bx2) / 2)
+            if overlap < thin_length * .9 or offset > broad_width / 2 + 2:
+                continue
+            rejected[thin_index] = {"parent_id": windows[broad_index]["id"],
+                                    "axial_overlap_ratio": round(overlap / thin_length, 3),
+                                    "thickness_ratio": round(thin_width / broad_width, 3)}
+    return rejected
+
+
 def classify_opening(gray, opening):
     minx, miny, maxx, maxy, length, thickness, orientation = \
         opening_geometry(opening)
@@ -257,6 +285,17 @@ def classify_openings(data, rgb):
             continue
         (doors if opening_type == "door" else windows).append(opening)
         accepted.append(opening)
+    duplicate_strips = duplicate_window_edge_strips(windows)
+    if duplicate_strips:
+        duplicate_ids = set()
+        for index, evidence in duplicate_strips.items():
+            window = windows[index]
+            duplicate_ids.add(window["id"])
+            window["classification"].update(
+                method="rejected_duplicate_window_edge_strip", rejection=evidence)
+            rejected.append(window)
+        windows = [window for window in windows if window["id"] not in duplicate_ids]
+        accepted = [opening for opening in accepted if opening["id"] not in duplicate_ids]
     return {
         "meta": copy.deepcopy(meta),
         "walls": copy.deepcopy(data.get("walls", [])),

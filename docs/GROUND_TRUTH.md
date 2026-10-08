@@ -93,7 +93,7 @@ reviewed:
 | `clean-baseline` | 5 rooms, 5 doors, 6 windows | All matched; mean room IoU 0.9753. The counts were confirmed by the user. |
 | `clean-diagonal` | 6 rooms, 6 doors, 7 windows | All matched; mean room IoU 0.9000. |
 | `small-furnished` | 2 windows | 2 of 10 predictions matched; 8 false window candidates. |
-| `colored-walls` | 5 windows | 3 of 8 predictions matched; 5 false candidates and 2 missed windows. |
+| `colored-walls` | 5 windows | Initially 3 of 8 matched (5 false, 2 missed); after edge-strip deduplication 3 of 7 matched (4 false, 2 missed). |
 
 Other categories on these plans are unannotated. In particular, walls and T/X
 junctions have no geometric coverage. The evaluator checks that covered
@@ -107,9 +107,9 @@ The furnished and colored examples confirm a substantial false-window problem.
 The colored example also has missed real windows, so a stricter filter alone
 could make recall worse. Its two missed top-right windows have no candidates
 in the initial `openings` array, so they cannot be recovered by reclassifying
-the existing candidates alone. One false positive is a narrow duplicate of
-the correctly matched lower-right window; the others require separate visual
-triage. Before tuning a new threshold,
+the existing candidates alone. One false positive was a narrow duplicate of
+the correctly matched lower-right window and is now rejected with a recorded
+parent candidate; the others require separate visual triage. Before tuning a new threshold,
 annotate more distinct styles, keep some styles out of development, and compare
 category-level false positives and false negatives on that held-out set.
 Regression statuses and unchanged object counts cannot substitute for that
