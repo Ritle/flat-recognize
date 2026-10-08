@@ -333,8 +333,7 @@ async def recognize(
         inference = json.loads((job_dir / "inference.json").read_text(encoding="utf-8"))
         for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json",
                        "_topology_windows.json", "_topology_classified.json",
-                       "_interior_filtered_classified.json", "_rooms_filtered.json",
-                       "_geometry_filtered.json"):
+                       "_interior_filtered_classified.json", "_rooms_filtered.json"):
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
                 shutil.copy2(source, job_dir / suffix[1:])
@@ -531,6 +530,8 @@ async def job_image(
         "closures",
         "export",
         "recovery",
+        "topology_windows",
+        "interior_windows",
     }
 
     if kind not in allowed:

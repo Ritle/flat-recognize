@@ -39,7 +39,7 @@ SUFFIXES = (
     "_opening_recovery_overlay.png",
     "_topology_classified.json", "_topology_windows.json", "_topology_windows_overlay.png",
     "_interior_filtered_classified.json", "_rooms_filtered.json",
-    "_geometry_filtered.json", "_interior_windows.json",
+    "_interior_windows.json",
     "_interior_windows_overlay.png",
 )
 
@@ -180,8 +180,7 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     if preprocessing:
         row["preprocessing"] = load_json(preprocessing)
     final = case_dir / "project.json"
-    geometry_path = changed.get(image.stem + "_geometry_filtered.json") or changed.get(
-        image.stem + "_geometry.json")
+    geometry_path = changed.get(image.stem + "_geometry.json")
     if geometry_path:
         row["geometry"] = load_json(geometry_path)
     quality_path = final.with_suffix(".quality.json")

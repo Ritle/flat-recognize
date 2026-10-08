@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from filter_interior_windows_v2 import filter_interior_windows, mark_geometry_dependency
+from filter_interior_windows_v2 import filter_interior_windows
 from validate_recognition import validate_recognition
 
 
@@ -42,7 +42,6 @@ class InteriorWindowFilterTests(unittest.TestCase):
         self.assertEqual(len(rooms["rooms"]), 1)
         self.assertEqual(classified["rejected_openings"][0]["id"], 1)
         self.assertTrue(report["topology_stable"])
-        self.assertTrue(mark_geometry_dependency({"errors": []}, report)["errors"])
         self.assertEqual((self.classified, self.rooms), original)
 
     def test_no_candidate_needs_no_recheck(self):
@@ -52,7 +51,6 @@ class InteriorWindowFilterTests(unittest.TestCase):
         with patch("filter_interior_windows_v2.extract_rooms") as extract:
             _, _, report = filter_interior_windows(self.classified, self.rooms, self.rgb)
         self.assertEqual(report["rejected_windows"], 0)
-        self.assertEqual(mark_geometry_dependency({"errors": []}, report)["errors"], [])
         extract.assert_not_called()
 
     def test_changed_topology_keeps_provisional_rooms_and_blocks_export(self):

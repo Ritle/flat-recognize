@@ -20,6 +20,16 @@ from test.test_validate_recognition import fixture
 
 
 class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
+    async def test_new_diagnostic_images_are_served(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(api, "JOBS_DIR", Path(temp)):
+            job_id = str(uuid.uuid4())
+            job = Path(temp) / job_id
+            job.mkdir()
+            for kind in ("topology_windows", "interior_windows"):
+                Image.new("RGB", (10, 10), "white").save(job / f"{kind}.png")
+                response = await api.job_image(job_id, kind)
+                self.assertEqual(Path(response.path), job / f"{kind}.png")
+
     async def test_result_and_export_routes_for_each_status(self):
         for status in ("good", "review", "invalid", "no_rooms", "geometry_invalid"):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as temp:

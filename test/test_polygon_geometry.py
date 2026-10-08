@@ -7,12 +7,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from polygon_geometry import build_polygon_project, partition_rooms, requires_polygons
+from polygon_geometry import build_polygon_project, partition_rooms, requires_polygons, supported_offset_sliver
 from validate_recognition import validate_recognition
 
 
@@ -31,6 +31,12 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_only_short_wall_adjacent_offset_slivers_are_supported(self):
+        wall = box(0, 0, 100, 10)
+        self.assertTrue(supported_offset_sliver(LineString([(40, 12), (43, 12)]), wall, 10))
+        self.assertFalse(supported_offset_sliver(LineString([(40, 12), (60, 12)]), wall, 10))
+        self.assertFalse(supported_offset_sliver(LineString([(40, 30), (43, 30)]), wall, 10))
+
     def test_l_shape_does_not_contain_neighbor(self):
         a = Polygon([(0, 0), (200, 0), (200, 80), (80, 80), (80, 200), (0, 200)])
         b = box(100, 100, 200, 200)

@@ -35,15 +35,6 @@ def same_room_topology(before, after):
     return True
 
 
-def mark_geometry_dependency(geometry, report):
-    result = copy.deepcopy(geometry)
-    if report["rejected_windows"]:
-        result.setdefault("errors", []).append(
-            "Геометрия экспорта построена с оконными кандидатами, позднее отклонёнными; "
-            "требуется повторная проверка опоры границ комнат.")
-    return result
-
-
 def filter_interior_windows(classified, rooms, rgb):
     height, width = rgb.shape[:2]
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
@@ -117,7 +108,6 @@ def main():
     parser.add_argument("image", type=Path)
     parser.add_argument("classified", type=Path)
     parser.add_argument("rooms", type=Path)
-    parser.add_argument("geometry", type=Path)
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
     args = parser.parse_args()
     image = Image.open(args.image).convert("RGB")
@@ -125,14 +115,10 @@ def main():
         json.loads(args.classified.read_text(encoding="utf-8")),
         json.loads(args.rooms.read_text(encoding="utf-8")),
         np.asarray(image))
-    geometry = mark_geometry_dependency(
-        json.loads(args.geometry.read_text(encoding="utf-8")), report)
-    report["geometry_built_with_rejected_windows"] = bool(report["rejected_windows"])
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stem = args.image.stem
     for suffix, data in (("_interior_filtered_classified.json", classified),
                          ("_rooms_filtered.json", rooms),
-                         ("_geometry_filtered.json", geometry),
                          ("_interior_windows.json", report)):
         (args.output_dir / (stem + suffix)).write_text(
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

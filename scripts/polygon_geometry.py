@@ -27,6 +27,12 @@ def requires_polygons(rooms):
                for i, a in enumerate(shapes) for b in shapes[i + 1:])
 
 
+def supported_offset_sliver(edge, walls, half_wall):
+    """Allow only tiny offset fragments beside a recognized wall, not a gap."""
+    return (edge.length <= max(2, half_wall * .5)
+            and edge.difference(walls.buffer(half_wall)).length < 1e-4)
+
+
 def partition_rooms(shapes, offset, diagnostics=None):
     """Expand to wall axes, partition contested strips, retain original interiors.
 
@@ -161,6 +167,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     area_template = level_template.get("areas", [{}])[0]
     segments, unsupported = [], []
     matched_closure_edges = 0
+    offset_sliver_edges = 0
     unique = set()
     for a, b, edge in raw_edges:
         start, end = connector(a), connector(b)
@@ -170,7 +177,10 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
         unique.add(pair)
         reason = None
         if edge.intersection(unknown).length > 1e-4:
-            reason = "temporary_closure_without_opening"
+            if supported_offset_sliver(edge, walls, half_wall):
+                offset_sliver_edges += 1
+            else:
+                reason = "temporary_closure_without_opening"
         elif edge.difference(support).length > max(2, edge.length * 0.15):
             reason = "missing_structural_support"
         if reason:
@@ -215,11 +225,16 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
               "matched_closure_edges": matched_closure_edges,
+              "offset_sliver_edges": offset_sliver_edges,
               "warnings": list(dict.fromkeys(adjustments)), "errors": []}
     if matched_closure_edges:
         report["warnings"].append(
             f"Границы временных замыканий сопоставлены с распознанными проёмами с допуском "
             f"половины толщины стены ({matched_closure_edges}); проверьте проёмы.")
+    if offset_sliver_edges:
+        report["warnings"].append(
+            f"Короткие остатки смещения границы у распознанной стены приняты "
+            f"как участки стены ({offset_sliver_edges}); проверьте по исходному плану.")
     if unsupported:
         report["errors"].append("Есть границы без подтверждённой стены или проёма; они не добавлены как физические стены.")
     if repaired:
