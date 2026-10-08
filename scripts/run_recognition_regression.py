@@ -213,11 +213,17 @@ def run_case(case, run_dir, env, pipeline_v2=False):
 
 
 def write_report(report, run_dir):
+    count_cases = sum(any(mode == "count" for mode in row.get("accuracy", {}).get("coverage", {}).values())
+                      for row in report["cases"])
+    geometry_cases = sum(any(mode == "geometry" for mode in row.get("accuracy", {}).get("coverage", {}).values())
+                         for row in report["cases"])
     (run_dir / "report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     lines = [f"# {report['pipeline'].upper()} recognition regression", "",
              "Counts without ground truth are observations, not recognition accuracy.", "",
-             "| Case | Rooms | Classified D/W | Accuracy | Status | Quality | Seconds |",
+             f"Ground truth coverage: {count_cases}/{len(report['cases'])} cases with confirmed counts; "
+             f"{geometry_cases}/{len(report['cases'])} with geometric annotations.", "",
+             "| Case | Rooms | Classified D/W | Ground truth | Status | Quality | Seconds |",
              "|---|---:|---:|---|---|---|---:|"]
     for row in report["cases"]:
         classified = row.get("classified", {})
@@ -225,9 +231,13 @@ def write_report(report, run_dir):
         accuracy = row.get("accuracy")
         accuracy_text = "—"
         if accuracy:
-            annotated = accuracy.get("metrics", {})
-            exact = sum(metric.get("exact") is True for metric in annotated.values())
-            accuracy_text = f"{exact}/{len(annotated)} exact"
+            coverage = accuracy.get("coverage", {})
+            count_categories = [name for name, mode in coverage.items() if mode == "count"]
+            geometry_categories = [name for name, mode in coverage.items() if mode == "geometry"]
+            exact = sum(accuracy.get("metrics", {}).get(name, {}).get("exact") is True
+                        for name in count_categories)
+            accuracy_text = (f"[counts {exact}/{len(count_categories)}; "
+                             f"geometry {len(geometry_categories)}]({row['id']}/accuracy.json)")
         lines.append(f"| [{row['id']}]({row['id']}/pipeline.log) | "
                      f"{row.get('rooms_found', '—')} | "
                      f"{classified.get('doors', '—')}/{classified.get('windows', '—')} | "

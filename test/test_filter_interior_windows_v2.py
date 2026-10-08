@@ -53,37 +53,23 @@ class InteriorWindowFilterTests(unittest.TestCase):
         self.assertEqual(report["rejected_windows"], 0)
         extract.assert_not_called()
 
-    def test_rejects_weak_line_with_same_room_on_both_sides(self):
-        # A narrow indentation represents a false furniture line in the room mask.
+    def test_same_room_on_both_sides_is_diagnostic_only(self):
+        # A narrow indentation can be furniture, or a merged real opening.
         self.rooms["rooms"][0]["polygon"] = [[20, 20], [180, 20], [180, 180],
                                              [20, 180], [20, 101], [120, 101],
                                              [120, 95], [20, 95]]
         self.classified["windows"][0]["source_class"] = "window"
-        rebuilt = copy.deepcopy(self.rooms)
-        rebuilt["windows"] = rebuilt["windows"][1:]
-        with patch("filter_interior_windows_v2.extract_rooms", return_value=(rebuilt, None, None)):
-            classified, _, report = filter_interior_windows(self.classified, self.rooms, self.rgb)
-        self.assertEqual([candidate["id"] for candidate in report["candidates"]], [1])
-        self.assertEqual(report["candidates"][0]["reason"],
-                         "same_room_both_sides_weak_jamb_window")
-        self.assertEqual([window["id"] for window in classified["windows"]], [2])
-
-    def test_keeps_same_room_candidate_when_removal_changes_room_shape(self):
-        self.rooms["rooms"][0]["polygon"] = [[20, 20], [180, 20], [180, 180],
-                                             [20, 180], [20, 101], [120, 101],
-                                             [120, 95], [20, 95]]
-        self.classified["windows"][0]["source_class"] = "window"
-        rebuilt = copy.deepcopy(self.rooms)
-        rebuilt["rooms"][0]["polygon"] = [[20, 20], [180, 20], [180, 180], [20, 180]]
-        with patch("filter_interior_windows_v2.extract_rooms", return_value=(rebuilt, None, None)):
+        with patch("filter_interior_windows_v2.extract_rooms") as extract:
             classified, rooms, report = filter_interior_windows(self.classified, self.rooms, self.rgb)
+        self.assertEqual([candidate["id"] for candidate in report["ambiguous_candidates"]], [1])
+        self.assertEqual(report["ambiguous_candidates"][0]["reason"],
+                         "same_room_both_sides_weak_jamb_window")
         self.assertEqual([window["id"] for window in classified["windows"]], [1, 2])
         self.assertEqual(report["rejected_windows"], 0)
-        self.assertEqual([candidate["id"] for candidate in report["deferred_candidates"]], [1])
+        extract.assert_not_called()
         quality = validate_recognition(rooms)
-        self.assertEqual(quality["status"], "invalid")
-        self.assertTrue(any(issue["code"] == "unresolved_same_room_window"
-                            for issue in quality["issues"]))
+        self.assertTrue(any(issue["code"] == "same_room_window_ambiguous"
+                            and issue["severity"] == "warning" for issue in quality["issues"]))
 
     def test_merged_room_does_not_remove_door_class_opening(self):
         self.rooms["rooms"][0]["polygon"] = [[20, 20], [180, 20], [180, 180],
@@ -93,7 +79,7 @@ class InteriorWindowFilterTests(unittest.TestCase):
         with patch("filter_interior_windows_v2.extract_rooms") as extract:
             classified, _, report = filter_interior_windows(self.classified, self.rooms, self.rgb)
         self.assertEqual([window["id"] for window in classified["windows"]], [1, 2])
-        self.assertEqual(report["deferred_windows"], 0)
+        self.assertEqual(report["ambiguous_windows"], 1)
         extract.assert_not_called()
 
     def test_changed_topology_keeps_provisional_rooms_and_blocks_export(self):

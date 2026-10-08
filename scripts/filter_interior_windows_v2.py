@@ -86,12 +86,6 @@ def filter_interior_windows(classified, rooms, rgb):
                       if shape.covers(point) and shape.boundary.distance(point) > max(12, thickness * 2)]
         start, end, wall_width = opening_axis(window)
         across_room = same_room_across_opening(start, end, wall_width, room_shapes)
-        if not deep_rooms and across_room is not None:
-            length = float(np.linalg.norm(np.asarray(end) - np.asarray(start)))
-            if window.get("source_class") != "window" and length / max(wall_width, 1) < 10:
-                # A merged room can straddle a real opening. For door-class
-                # candidates, only a very thin line is suspicious enough to flag.
-                across_room = None
         if not deep_rooms and across_room is None:
             continue
         support = wall_jamb_support(start, end, wall_width, wall_shapes)
@@ -107,58 +101,38 @@ def filter_interior_windows(classified, rooms, rgb):
 
     filtered_classified = copy.deepcopy(classified)
     filtered_rooms = copy.deepcopy(rooms)
-    accepted, deferred = [], []
-    report = {"version": 2, "method": "interior_or_same_room_weak_jamb_window",
+    report = {"version": 3, "method": "deep_filter_and_same_room_observation",
               "examined_windows": len(classified.get("windows", [])),
-              "rejected_windows": 0, "candidates": [], "deferred_windows": 0,
-              "deferred_candidates": [],
+              "rejected_windows": 0, "candidates": [], "ambiguous_windows": 0,
+              "ambiguous_candidates": [],
               "topology_stable": True}
     deep = [candidate for candidate in candidates
             if candidate["reason"] == "deep_interior_weak_jamb_window"]
     across = [candidate for candidate in candidates
               if candidate["reason"] == "same_room_both_sides_weak_jamb_window"]
+    report.update(rejected_windows=len(deep), candidates=deep,
+                  ambiguous_windows=len(across), ambiguous_candidates=across)
     if deep:
         filtered_classified = without_windows(filtered_classified, deep)
         rebuilt, _, _ = extract_rooms(filtered_classified, rgb)
         stable = same_room_topology(rooms.get("rooms", []), rebuilt.get("rooms", []))
         report["topology_stable"] = stable
-        accepted.extend(deep)
+        report.update(rooms_before=len(rooms.get("rooms", [])),
+                      rooms_after=len(rebuilt.get("rooms", [])))
         if stable:
             filtered_rooms = rebuilt
         else:
             ids = {candidate["id"] for candidate in deep}
             filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
                                          if window.get("id") not in ids]
-            deferred.extend(across)
-            report["rooms_after"] = len(rebuilt.get("rooms", []))
-    if report["topology_stable"]:
-        for candidate in across:
-            trial = without_windows(filtered_classified, [candidate])
-            rebuilt, _, _ = extract_rooms(trial, rgb)
-            if (same_room_topology(filtered_rooms.get("rooms", []), rebuilt.get("rooms", []))
-                    and same_room_topology(rooms.get("rooms", []), rebuilt.get("rooms", []))):
-                filtered_classified, filtered_rooms = trial, rebuilt
-                accepted.append(candidate)
-            else:
-                deferred.append(candidate)
-    if accepted or deferred:
-        report.update(rejected_windows=len(accepted), candidates=accepted,
-                      deferred_windows=len(deferred), deferred_candidates=deferred,
-                      rooms_before=len(rooms.get("rooms", [])))
-        report.setdefault("rooms_after", len(filtered_rooms.get("rooms", [])))
         if "opening_recovery" in rooms.get("diagnostics", {}):
             filtered_rooms.setdefault("diagnostics", {})["opening_recovery"] = (
                 rooms["diagnostics"]["opening_recovery"])
-    if accepted:
         filtered_rooms.setdefault("diagnostics", {}).setdefault("warnings", []).append(
-            f"Отклонено оконных кандидатов внутри комнат: {len(accepted)}; "
+            f"Отклонено оконных кандидатов внутри комнат: {len(deep)}; "
             "контуры комнат пересчитаны и требуют проверки." if report["topology_stable"] else
-            f"Отклонено оконных кандидатов внутри комнат: {len(accepted)}; "
+            f"Отклонено оконных кандидатов внутри комнат: {len(deep)}; "
             "повторное выделение изменило контуры комнат, экспорт заблокирован.")
-    if deferred:
-        filtered_rooms.setdefault("diagnostics", {}).setdefault("warnings", []).append(
-            f"Оконные кандидаты на ложных внутренних линиях не удалены из-за изменения "
-            f"формы комнат ({len(deferred)}); требуется проверка.")
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
     return filtered_classified, filtered_rooms, report
 
@@ -185,14 +159,14 @@ def main():
     overlay = image.copy()
     draw = ImageDraw.Draw(overlay)
     for key, color in (("candidates", (255, 100, 0)),
-                       ("deferred_candidates", (255, 0, 180))):
+                       ("ambiguous_candidates", (255, 0, 180))):
         for candidate in report[key]:
             bbox = candidate["bbox"]
             draw.rectangle(bbox, outline=color, width=5)
             draw.text((bbox[0], max(0, bbox[1] - 15)), str(candidate["id"]), fill=color)
     overlay.save(args.output_dir / (stem + "_interior_windows_overlay.png"))
     print(f"Interior window filter: {report['rejected_windows']} rejected, "
-          f"{report['deferred_windows']} deferred; topology stable: {report['topology_stable']}")
+          f"{report['ambiguous_windows']} ambiguous; topology stable: {report['topology_stable']}")
 
 
 if __name__ == "__main__":

@@ -87,9 +87,9 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     if isinstance(interior_filter, dict) and interior_filter.get("topology_stable") is False:
         issue("unstable_room_topology", "error",
               "После удаления ложных окон контуры комнат изменились; экспорт заблокирован.")
-    if isinstance(interior_filter, dict) and interior_filter.get("deferred_windows", 0):
-        issue("unresolved_same_room_window", "error",
-              "Оконные кандидаты на внутренних линиях не удалось безопасно удалить; экспорт заблокирован.")
+    if isinstance(interior_filter, dict) and interior_filter.get("ambiguous_windows", 0):
+        issue("same_room_window_ambiguous", "warning",
+              "У некоторых окон по обе стороны одна распознанная комната; проверьте проёмы и границы помещений.")
     diagnostic_warnings = diagnostics.get("warnings", [])
     for warning in diagnostic_warnings if isinstance(diagnostic_warnings, list) else []:
         if geometry and geometry.get("adapter") == "polygon" and warning == "Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.":

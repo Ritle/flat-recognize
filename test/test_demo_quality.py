@@ -30,13 +30,14 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 response = await api.job_image(job_id, kind)
                 self.assertEqual(Path(response.path), job / f"{kind}.png")
 
-    async def test_deferred_window_diagnostic_is_exposed(self):
+    async def test_ambiguous_window_diagnostic_is_exposed(self):
         with tempfile.TemporaryDirectory() as temp:
             jobs, output = Path(temp) / "jobs", Path(temp) / "output"
             output.mkdir()
             rooms, _, _ = fixture()
+            rooms["rooms"] = []
             rooms.setdefault("diagnostics", {})["interior_window_filter"] = {
-                "topology_stable": True, "deferred_windows": 1}
+                "topology_stable": True, "ambiguous_windows": 1}
             quality = validate_recognition(rooms)
 
             def pipeline(image_path, project_path, pipeline_v2):
@@ -44,7 +45,7 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
                 (output / f"{stem}_rooms_filtered.json").write_text(json.dumps(rooms), encoding="utf-8")
                 (output / f"{stem}_interior_windows.json").write_text(
-                    json.dumps({"rejected_windows": 0, "deferred_windows": 1}), encoding="utf-8")
+                    json.dumps({"rejected_windows": 0, "ambiguous_windows": 1}), encoding="utf-8")
                 for suffix in ("_preprocess.json", "_inference.json"):
                     (output / f"{stem}{suffix}").write_text("{}", encoding="utf-8")
                 Image.new("RGB", (10, 10), "white").save(

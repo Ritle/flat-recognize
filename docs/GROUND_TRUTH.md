@@ -83,3 +83,11 @@ python scripts/evaluate_recognition.py `
 `run_recognition_regression.py` runs the same evaluator when a manifest case
 contains `ground_truth`. Its accuracy artifact is diagnostic: it does not
 change `good`, `review` or `invalid` and cannot allow export.
+
+Current coverage is intentionally limited: `clean-baseline` has confirmed
+counts for rooms, doors and windows only. No image has geometric ground truth
+for rooms, walls, openings or T/X junctions yet. Regression statuses and
+unchanged object counts therefore must not be read as recognition accuracy.
+Before tuning a new threshold, annotate plans from several distinct drawing
+styles, keep some styles out of development, and compare category-level false
+positives and false negatives on that held-out set.

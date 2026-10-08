@@ -326,7 +326,7 @@ async def recognize(
         })
         interior_counts = (json.loads(interior_report.read_text(encoding="utf-8"))
                            if interior_report.exists() else {})
-        if interior_counts.get("rejected_windows", 0) or interior_counts.get("deferred_windows", 0):
+        if interior_counts.get("rejected_windows", 0) or interior_counts.get("ambiguous_windows", 0):
             generated_images["interior_windows"] = (
                 OUTPUT_DIR / f"{job_id}_interior_windows_overlay.png")
         for suffix in ("_preprocess.json", "_inference.json"):
