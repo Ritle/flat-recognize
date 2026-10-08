@@ -1,8 +1,6 @@
-"""Reject weak window candidates inside a room after provisional room extraction.
+"""Reject weak interior windows and rebuild rooms without them.
 
-Some candidates currently help the global gap search find unrelated wall closures.
-Room geometry is therefore retained, but explicitly marked invalid when it depended
-on an opening that is removed from the final project.
+The topology is accepted only when the room polygons survive re-extraction.
 """
 
 import argparse
@@ -17,10 +15,38 @@ from shapely.geometry import Point, Polygon
 
 from classify_openings import opening_axis, opening_geometry, structural_union
 from door_leaf_evidence import leaf_and_arc, wall_jamb_support
+from extract_rooms_v2 import extract_rooms
 
 
-def filter_interior_windows(classified, rooms, geometry, gray):
-    height, width = gray.shape
+def same_room_topology(before, after):
+    if len(before) != len(after):
+        return False
+    unmatched = [Polygon(room["polygon"]) for room in after]
+    for room in before:
+        source = Polygon(room["polygon"])
+        if not unmatched or not source.is_valid or source.area <= 0:
+            return False
+        scores = [source.intersection(shape).area / source.union(shape).area
+                  if shape.is_valid and shape.area > 0 else 0 for shape in unmatched]
+        index = int(np.argmax(scores))
+        if scores[index] < .98:
+            return False
+        unmatched.pop(index)
+    return True
+
+
+def mark_geometry_dependency(geometry, report):
+    result = copy.deepcopy(geometry)
+    if report["rejected_windows"]:
+        result.setdefault("errors", []).append(
+            "Геометрия экспорта построена с оконными кандидатами, позднее отклонёнными; "
+            "требуется повторная проверка опоры границ комнат.")
+    return result
+
+
+def filter_interior_windows(classified, rooms, rgb):
+    height, width = rgb.shape[:2]
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     for name, data in (("classified", classified), ("rooms", rooms)):
         meta = data.get("meta", {})
         if (meta.get("width"), meta.get("height")) != (width, height):
@@ -50,11 +76,10 @@ def filter_interior_windows(classified, rooms, geometry, gray):
 
     filtered_classified = copy.deepcopy(classified)
     filtered_rooms = copy.deepcopy(rooms)
-    filtered_geometry = copy.deepcopy(geometry)
     report = {"version": 1, "method": "deep_interior_weak_jamb_window",
               "examined_windows": len(classified.get("windows", [])),
               "rejected_windows": len(rejected), "candidates": rejected,
-              "room_geometry_provisional": bool(rejected)}
+              "topology_stable": True}
     if rejected:
         ids = {candidate["id"] for candidate in rejected}
         removed = [window for window in filtered_classified["windows"] if window.get("id") in ids]
@@ -65,14 +90,26 @@ def filter_interior_windows(classified, rooms, geometry, gray):
         for window in removed:
             window["reject_reason"] = ["deep_interior_weak_jamb_window"]
             filtered_classified.setdefault("rejected_openings", []).append(window)
-        filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
-                                     if window.get("id") not in ids]
-        warning = (f"Отклонено оконных кандидатов внутри комнат: {len(rejected)}. "
-                   "Геометрия комнат построена с их участием и требует проверки.")
-        filtered_rooms.setdefault("diagnostics", {}).setdefault("warnings", []).append(warning)
-        filtered_geometry.setdefault("errors", []).append(warning)
+        rebuilt, _, _ = extract_rooms(filtered_classified, rgb)
+        stable = same_room_topology(rooms.get("rooms", []), rebuilt.get("rooms", []))
+        report.update(topology_stable=stable,
+                      rooms_before=len(rooms.get("rooms", [])),
+                      rooms_after=len(rebuilt.get("rooms", [])))
+        if stable:
+            filtered_rooms = rebuilt
+            if "opening_recovery" in rooms.get("diagnostics", {}):
+                filtered_rooms["diagnostics"]["opening_recovery"] = (
+                    rooms["diagnostics"]["opening_recovery"])
+        else:
+            filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
+                                         if window.get("id") not in ids]
+        filtered_rooms.setdefault("diagnostics", {}).setdefault("warnings", []).append(
+            f"Отклонено оконных кандидатов внутри комнат: {len(rejected)}; "
+            "контуры комнат пересчитаны и требуют проверки." if stable else
+            f"Отклонено оконных кандидатов внутри комнат: {len(rejected)}; "
+            "повторное выделение изменило контуры комнат, экспорт заблокирован.")
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
-    return filtered_classified, filtered_rooms, filtered_geometry, report
+    return filtered_classified, filtered_rooms, report
 
 
 def main():
@@ -84,11 +121,13 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
     args = parser.parse_args()
     image = Image.open(args.image).convert("RGB")
-    classified, rooms, geometry, report = filter_interior_windows(
+    classified, rooms, report = filter_interior_windows(
         json.loads(args.classified.read_text(encoding="utf-8")),
         json.loads(args.rooms.read_text(encoding="utf-8")),
-        json.loads(args.geometry.read_text(encoding="utf-8")),
-        cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2GRAY))
+        np.asarray(image))
+    geometry = mark_geometry_dependency(
+        json.loads(args.geometry.read_text(encoding="utf-8")), report)
+    report["geometry_built_with_rejected_windows"] = bool(report["rejected_windows"])
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stem = args.image.stem
     for suffix, data in (("_interior_filtered_classified.json", classified),
@@ -105,7 +144,7 @@ def main():
         draw.text((bbox[0], max(0, bbox[1] - 15)), str(candidate["id"]), fill=(255, 100, 0))
     overlay.save(args.output_dir / (stem + "_interior_windows_overlay.png"))
     print(f"Interior window filter: {report['rejected_windows']} rejected; "
-          f"geometry provisional: {report['room_geometry_provisional']}")
+          f"topology stable: {report['topology_stable']}")
 
 
 if __name__ == "__main__":

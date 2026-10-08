@@ -416,6 +416,7 @@ def main():
         for warning in room_data.get("diagnostics", {}).get("warnings", []):
             print(f"WARNING: {warning}")
 
+
     validation_command = [python, SCRIPTS / "validate_recognition.py",
                           "--rooms", rooms_json, "--scale", str(args.scale),
                           "--output", quality_json]
@@ -457,15 +458,15 @@ def main():
     run_command("Quality gate - Export geometry", validation_command + ["--project", project_json])
 
     if args.pipeline_v2:
-        run_command("V2 - Reject deep-interior false windows",
+        run_command("V2 - Reject and recheck interior windows",
                     [python, SCRIPTS / "filter_interior_windows_v2.py", image,
                      classified_json, rooms_json, geometry_report])
         classified_json = require_file(OUTPUT / f"{stem}_interior_filtered_classified.json",
                                        "Interior-filtered openings")
         rooms_json = require_file(OUTPUT / f"{stem}_rooms_filtered.json",
-                                  "Rooms with filtered windows")
+                                  "Rooms rechecked after window filtering")
         geometry_report = require_file(OUTPUT / f"{stem}_geometry_filtered.json",
-                                       "Geometry with filter diagnostic")
+                                       "Geometry with filtered-window dependency")
         validation_command = [python, SCRIPTS / "validate_recognition.py",
                               "--rooms", rooms_json, "--scale", str(args.scale),
                               "--output", quality_json, "--geometry", geometry_report]

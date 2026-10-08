@@ -76,17 +76,24 @@ def wall_endpoints(barrier):
     return points, thickness
 
 
-def axis_pairs(barrier, thickness, extended=False):
+def axis_pairs(barrier, thickness, extended=False, sampling_thickness=None):
     """Recover wall caps obscured by short skeleton branches in noisy masks."""
     pairs = []
     distance = cv2.distanceTransform((barrier > 0).astype(np.uint8), cv2.DIST_L2, 5)
     length = max(7, round(thickness * (1.5 if extended else 2)))
-    stride = max(2, round(thickness * (0.25 if extended else 0.65)))
+    # Include a fixed wall-only grid as well as the original barrier grid.
+    # An unrelated opening can change barrier thickness enough to shift rows
+    # past a real gap; the original grid still retains nearby leaf evidence.
+    stride_ratio = 0.25 if extended else 0.65
+    stride = max(2, round((sampling_thickness or thickness) * stride_ratio))
+    barrier_stride = max(2, round(thickness * stride_ratio))
     for vertical in (False, True):
         mask = barrier.T if vertical else barrier
         radii = distance.T if vertical else distance
         long_runs = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((1, length), np.uint8))
-        for y in range(stride // 2, mask.shape[0], stride):
+        rows = set(range(stride // 2, mask.shape[0], stride))
+        rows.update(range(barrier_stride // 2, mask.shape[0], barrier_stride))
+        for y in sorted(rows):
             changes = np.diff(np.pad((long_runs[y] > 0).astype(np.int8), 1))
             starts, ends = np.where(changes == 1)[0], np.where(changes == -1)[0]
             for end, start in zip(ends[:-1], starts[1:]):
@@ -108,7 +115,7 @@ def axis_pairs(barrier, thickness, extended=False):
     return pairs
 
 
-def gap_candidates(barrier, gray, relaxed=False, extended=False):
+def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickness=None):
     endpoints, thickness = wall_endpoints(barrier)
     candidates = []
     rejected_leaves = []
@@ -116,7 +123,8 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False):
                      if extended else None)
     pairs = [(i, j, a, endpoints[j], "skeleton") for i, a in enumerate(endpoints)
              for j in range(i + 1, len(endpoints))]
-    axes = axis_pairs(barrier, thickness, extended=extended)
+    axes = axis_pairs(barrier, thickness, extended=extended,
+                      sampling_thickness=sampling_thickness)
     for index, (a, b) in enumerate(axes):
         offset = len(endpoints) + index * 2
         pairs.append((offset, offset + 1, a, b, "axis_caps"))
@@ -221,7 +229,8 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False):
     return closures, {"wall_endpoints": len(endpoints), "candidate_gaps": len(candidates),
                       "rejected_leaf_gaps": rejected_leaves,
                       "axis_cap_pairs": len(axes),
-                      "estimated_wall_thickness": round(thickness, 2)}
+                      "estimated_wall_thickness": round(thickness, 2),
+                      "axis_sampling_thickness": round(sampling_thickness or thickness, 2)}
 
 
 def apply_closures(barrier, closures):
@@ -366,6 +375,7 @@ def extract_rooms(data, rgb):
     rooms, diagnostics = room_candidates(barrier, walls, inferred)
     passes = [{"name": "known_openings", "rooms": len(rooms), **diagnostics}]
     gray = rgb.min(axis=2)
+    _, wall_only_thickness = wall_endpoints(walls)
     closures = []
     envelope = None
     envelope_applied = False
@@ -386,7 +396,8 @@ def extract_rooms(data, rgb):
                 and not envelope_applied):
             break
         extended = envelope_applied and relaxed
-        candidates, info = gap_candidates(barrier, gray, relaxed=relaxed, extended=extended)
+        candidates, info = gap_candidates(barrier, gray, relaxed=relaxed, extended=extended,
+                                          sampling_thickness=wall_only_thickness)
         trial, additions = apply_closures(barrier, candidates)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)

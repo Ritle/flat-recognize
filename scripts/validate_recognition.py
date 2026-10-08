@@ -83,6 +83,10 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     diagnostics = rooms.get("diagnostics", {})
     if not isinstance(diagnostics, dict):
         diagnostics = {}
+    interior_filter = diagnostics.get("interior_window_filter", {})
+    if isinstance(interior_filter, dict) and interior_filter.get("topology_stable") is False:
+        issue("unstable_room_topology", "error",
+              "После удаления ложных окон контуры комнат изменились; экспорт заблокирован.")
     diagnostic_warnings = diagnostics.get("warnings", [])
     for warning in diagnostic_warnings if isinstance(diagnostic_warnings, list) else []:
         if geometry and geometry.get("adapter") == "polygon" and warning == "Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.":

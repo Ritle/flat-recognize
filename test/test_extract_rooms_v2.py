@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from extract_rooms_v2 import extract_rooms, gap_candidates
+from extract_rooms_v2 import axis_pairs, extract_rooms, gap_candidates
 
 
 def rectangle(x1, y1, x2, y2):
@@ -28,6 +28,17 @@ def source(walls, leaf=False):
 
 
 class RoomsTests(unittest.TestCase):
+    def test_axis_sampling_rows_do_not_shift_with_barrier_thickness(self):
+        barrier = np.zeros((300, 400), np.uint8)
+        cv2.rectangle(barrier, (20, 120), (140, 160), 255, -1)
+        cv2.rectangle(barrier, (220, 120), (380, 160), 255, -1)
+        first = axis_pairs(barrier, 27, sampling_thickness=26)
+        second = axis_pairs(barrier, 28, sampling_thickness=26)
+        first_rows = [int(a["point"][1]) for a, b in first if 70 < b["point"][0] - a["point"][0] < 90]
+        second_rows = [int(a["point"][1]) for a, b in second if 70 < b["point"][0] - a["point"][0] < 90]
+        self.assertIn(144, first_rows)
+        self.assertIn(144, second_rows)
+
     def test_missed_exterior_door_is_closed_only_for_topology(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
                  rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),
