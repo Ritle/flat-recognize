@@ -45,6 +45,27 @@ class RegressionReportTest(unittest.TestCase):
             markdown = (Path(temp) / "report.md").read_text(encoding="utf-8")
         self.assertIn("[geometry 1 category](windows/accuracy.json)", markdown)
 
+    def test_style_diagnostics_keep_unannotated_metrics_unknown(self):
+        report = {"pipeline": "v2", "cases": [
+            {"id": "colored", "status": "quality_invalid", "seconds": 1,
+             "tags": ["colored", "furniture"],
+             "inference": {"passes": {"original": {"wall": 19},
+                                      "normalized": {"wall": 27654}},
+                           "disagreement_fraction": 0.147833},
+             "accuracy": {"coverage": {"windows": "geometry"},
+                          "metrics": {"windows": {"coverage": "geometry",
+                                                  "true_positive": 3,
+                                                  "false_positive": 4,
+                                                  "false_negative": 2}}}},
+            {"id": "unknown", "status": "quality_invalid", "seconds": 2,
+             "tags": ["hatching"]},
+        ]}
+        with tempfile.TemporaryDirectory() as temp:
+            write_report(report, Path(temp))
+            markdown = (Path(temp) / "report.md").read_text(encoding="utf-8")
+        self.assertIn("| colored | colored, furniture | 19/27654 | 14.8% | 3/4/2 | — |", markdown)
+        self.assertIn("| unknown | hatching | — | — | — | — |", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

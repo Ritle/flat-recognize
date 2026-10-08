@@ -179,6 +179,9 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     preprocessing = changed.get(image.stem + "_preprocess.json")
     if preprocessing:
         row["preprocessing"] = load_json(preprocessing)
+    inference = changed.get(image.stem + "_inference.json")
+    if inference:
+        row["inference"] = load_json(inference)
     final = case_dir / "project.json"
     geometry_path = changed.get(image.stem + "_geometry.json")
     if geometry_path:
@@ -250,6 +253,31 @@ def write_report(report, run_dir):
                      f"{classified.get('doors', '—')}/{classified.get('windows', '—')} | "
                      f"{accuracy_text} | "
                      f"{stage} | {row.get('quality', {}).get('status', '—')} | {row['seconds']} |")
+    lines.extend(["", "## Style diagnostics", "",
+                  "Ground-truth scores cover only annotated categories. Pass disagreement measures "
+                  "segmentation instability, not geometric accuracy.", "",
+                  "| Case | Style tags | Original/normalized wall pixels | Pass disagreement | "
+                  "GT windows TP/FP/FN | GT rooms TP/FP/FN |",
+                  "|---|---|---:|---:|---:|---:|"])
+    for row in report["cases"]:
+        inference = row.get("inference", {})
+        passes = inference.get("passes", {})
+        original = passes.get("original", {}).get("wall")
+        normalized = passes.get("normalized", {}).get("wall")
+        wall_pixels = (f"{original}/{normalized}"
+                       if original is not None and normalized is not None else "—")
+        disagreement = inference.get("disagreement_fraction")
+        disagreement_text = f"{disagreement:.1%}" if disagreement is not None else "—"
+        metrics = row.get("accuracy", {}).get("metrics", {})
+
+        def score(category):
+            item = metrics.get(category, {})
+            return (f"{item['true_positive']}/{item['false_positive']}/{item['false_negative']}"
+                    if item.get("coverage") == "geometry" else "—")
+
+        lines.append(f"| {row['id']} | {', '.join(row.get('tags', [])) or '—'} | "
+                     f"{wall_pixels} | {disagreement_text} | "
+                     f"{score('windows')} | {score('rooms')} |")
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
