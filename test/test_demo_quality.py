@@ -30,6 +30,37 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 response = await api.job_image(job_id, kind)
                 self.assertEqual(Path(response.path), job / f"{kind}.png")
 
+    async def test_deferred_window_diagnostic_is_exposed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            jobs, output = Path(temp) / "jobs", Path(temp) / "output"
+            output.mkdir()
+            rooms, _, _ = fixture()
+            rooms.setdefault("diagnostics", {})["interior_window_filter"] = {
+                "topology_stable": True, "deferred_windows": 1}
+            quality = validate_recognition(rooms)
+
+            def pipeline(image_path, project_path, pipeline_v2):
+                stem = image_path.stem
+                (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
+                (output / f"{stem}_rooms_filtered.json").write_text(json.dumps(rooms), encoding="utf-8")
+                (output / f"{stem}_interior_windows.json").write_text(
+                    json.dumps({"rejected_windows": 0, "deferred_windows": 1}), encoding="utf-8")
+                for suffix in ("_preprocess.json", "_inference.json"):
+                    (output / f"{stem}{suffix}").write_text("{}", encoding="utf-8")
+                Image.new("RGB", (10, 10), "white").save(
+                    output / f"{stem}_interior_windows_overlay.png")
+                project_path.with_suffix(".quality.json").write_text(
+                    json.dumps(quality), encoding="utf-8")
+                return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
+
+            with patch.object(api, "JOBS_DIR", jobs), patch.object(api, "OUTPUT_DIR", output), \
+                    patch.object(api, "run_pipeline", side_effect=pipeline):
+                response = await api.recognize(UploadFile(filename="test.png", file=io.BytesIO(b"source")), True)
+                self.assertEqual(response["quality"]["status"], "invalid")
+                self.assertIn("interior_windows", response["images"])
+                image = await api.job_image(response["job_id"], "interior_windows")
+                self.assertTrue(Path(image.path).exists())
+
     async def test_result_and_export_routes_for_each_status(self):
         for status in ("good", "review", "invalid", "no_rooms", "geometry_invalid"):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as temp:

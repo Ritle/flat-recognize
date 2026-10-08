@@ -324,8 +324,9 @@ async def recognize(
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
             "topology_windows": OUTPUT_DIR / f"{job_id}_topology_windows_overlay.png",
         })
-        if (interior_report.exists() and
-                json.loads(interior_report.read_text(encoding="utf-8")).get("rejected_windows", 0)):
+        interior_counts = (json.loads(interior_report.read_text(encoding="utf-8"))
+                           if interior_report.exists() else {})
+        if interior_counts.get("rejected_windows", 0) or interior_counts.get("deferred_windows", 0):
             generated_images["interior_windows"] = (
                 OUTPUT_DIR / f"{job_id}_interior_windows_overlay.png")
         for suffix in ("_preprocess.json", "_inference.json"):
