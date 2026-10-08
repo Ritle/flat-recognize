@@ -136,7 +136,7 @@ def choose_segment_binding(segments, wx, wy, required_width, orientation):
     if not candidates:
         return None
     nearest = min(candidates, key=lambda candidate: candidate["distance"])
-    if nearest["overhang"] <= 5:
+    if nearest["aligned"] and nearest["overhang"] <= 5:
         nearest["selection"] = "nearest"
         return nearest
     feasible = [candidate for candidate in candidates

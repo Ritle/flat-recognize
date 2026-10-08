@@ -32,6 +32,20 @@ class OpeningBindingSelectionTests(unittest.TestCase):
         self.assertEqual(result["segment"]["uuid"], "nearest")
         self.assertEqual(result["selection"], "nearest")
 
+    def test_nearby_aligned_wall_beats_perpendicular_crossing(self):
+        segments = [segment("crossing", 50, -60, 50, 60),
+                    segment("wall", 0, 3, 100, 3)]
+        result = choose_segment_binding(segments, 50, 0, 80, "horizontal")
+        self.assertEqual(result["segment"]["uuid"], "wall")
+        self.assertEqual(result["selection"], "span_aware")
+        self.assertEqual(result["nearest_distance"], 0)
+
+    def test_distant_aligned_wall_does_not_replace_crossing(self):
+        segments = [segment("crossing", 50, -60, 50, 60),
+                    segment("wall", 0, 25, 100, 25)]
+        result = choose_segment_binding(segments, 50, 0, 80, "horizontal")
+        self.assertEqual(result["segment"]["uuid"], "crossing")
+
     def test_distant_or_perpendicular_alternative_is_not_used(self):
         segments = [segment("short", 0, 0, 70, 0),
                     segment("far", -20, 12, 100, 12),
