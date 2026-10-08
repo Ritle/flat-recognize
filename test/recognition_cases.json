@@ -30,6 +30,7 @@
     {
       "id": "colored-walls",
       "image": "exmpls/Изображение ChatGPT 1 окт. 2026 г., 20_13_37.png",
+      "ground_truth": "test/ground_truth/colored-walls.json",
       "tags": ["colored", "text", "furniture", "margins"]
     },
     {

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/Изображение ChatGPT 1 окт. 2026 г., 20_13_37.png",
+    "width": 736,
+    "height": 736,
+    "sha256": "23afbddf64b4ec765bf2fd8c263e62f91983689d50fed83b0b17e09fb15f9a4b"
+  },
+  "coverage": {
+    "windows": "geometry"
+  },
+  "windows": [
+    {"id": "w1", "span": [[147, 143], [235, 143]], "connects": ["outside"]},
+    {"id": "w2", "span": [[313, 143], [401, 143]], "connects": ["outside"]},
+    {"id": "w3", "span": [[465, 138], [643, 138]], "connects": ["outside"]},
+    {"id": "w4", "span": [[646, 140], [646, 204]], "connects": ["outside"]},
+    {"id": "w5", "span": [[640, 505], [640, 557]], "connects": ["outside"]}
+  ],
+  "notes": "Five complete exterior windows traced manually from source raster by Codex on 2026-10-08; not independently reviewed. The five narrow panes on the top-right wall are one ribbon window; other categories are unannotated."
+}
