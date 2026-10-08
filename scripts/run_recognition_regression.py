@@ -221,7 +221,7 @@ def write_report(report, run_dir):
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     lines = [f"# {report['pipeline'].upper()} recognition regression", "",
              "Counts without ground truth are observations, not recognition accuracy.", "",
-             f"Ground truth coverage: {count_cases}/{len(report['cases'])} cases with confirmed counts; "
+             f"Ground truth coverage: {count_cases}/{len(report['cases'])} cases with count-only annotations; "
              f"{geometry_cases}/{len(report['cases'])} with geometric annotations.", "",
              "| Case | Rooms | Classified D/W | Ground truth | Status | Quality | Seconds |",
              "|---|---:|---:|---|---|---|---:|"]
@@ -236,8 +236,14 @@ def write_report(report, run_dir):
             geometry_categories = [name for name, mode in coverage.items() if mode == "geometry"]
             exact = sum(accuracy.get("metrics", {}).get(name, {}).get("exact") is True
                         for name in count_categories)
-            accuracy_text = (f"[counts {exact}/{len(count_categories)}; "
-                             f"geometry {len(geometry_categories)}]({row['id']}/accuracy.json)")
+            coverage_parts = []
+            if count_categories:
+                coverage_parts.append(f"counts {exact}/{len(count_categories)}")
+            if geometry_categories:
+                coverage_parts.append(f"geometry {len(geometry_categories)} categories")
+            else:
+                coverage_parts.append("geometry 0")
+            accuracy_text = f"[{'; '.join(coverage_parts)}]({row['id']}/accuracy.json)"
         lines.append(f"| [{row['id']}]({row['id']}/pipeline.log) | "
                      f"{row.get('rooms_found', '—')} | "
                      f"{classified.get('doors', '—')}/{classified.get('windows', '—')} | "

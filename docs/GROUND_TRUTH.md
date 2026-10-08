@@ -84,10 +84,16 @@ python scripts/evaluate_recognition.py `
 contains `ground_truth`. Its accuracy artifact is diagnostic: it does not
 change `good`, `review` or `invalid` and cannot allow export.
 
-Current coverage is intentionally limited: `clean-baseline` has confirmed
-counts for rooms, doors and windows only. No image has geometric ground truth
-for rooms, walls, openings or T/X junctions yet. Regression statuses and
-unchanged object counts therefore must not be read as recognition accuracy.
-Before tuning a new threshold, annotate plans from several distinct drawing
+Current coverage is intentionally limited: `clean-baseline` has manually
+traced source-image polygons for five room interiors and spans for five doors
+and six windows. The object counts were confirmed by the user; the coordinates
+were traced independently from the raster by Codex on 2026-10-08 and have not
+been independently reviewed. Walls and T/X junctions remain unannotated. The
+evaluator checks that covered geometry has valid IDs, in-bounds coordinates,
+nonempty room polygons, and nonzero wall/opening spans before scoring.
+
+This single clean drawing is a pipeline sanity check, not evidence of accuracy
+across drawing styles. Before tuning a new threshold, annotate several distinct
 styles, keep some styles out of development, and compare category-level false
-positives and false negatives on that held-out set.
+positives and false negatives on that held-out set. Regression statuses and
+unchanged object counts still cannot substitute for that comparison.

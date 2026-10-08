@@ -7,14 +7,31 @@
     "sha256": "f45b70ae05e58f96982c6e5fd345842868a0e3f9f027036510d0573071be0d13"
   },
   "coverage": {
-    "rooms": "count",
-    "doors": "count",
-    "windows": "count"
+    "rooms": "geometry",
+    "doors": "geometry",
+    "windows": "geometry"
   },
-  "expected_counts": {
-    "rooms": 5,
-    "doors": 5,
-    "windows": 6
-  },
-  "notes": "User-confirmed counts. Spatial geometry and junctions are intentionally unannotated."
+  "rooms": [
+    {"id": "r1", "polygon": [[32, 29], [188, 29], [188, 291], [32, 291]], "holes": [], "type": "enclosed"},
+    {"id": "r2", "polygon": [[201, 29], [461, 29], [461, 291], [201, 291]], "holes": [], "type": "enclosed"},
+    {"id": "r3", "polygon": [[474, 29], [653, 29], [653, 291], [474, 291]], "holes": [], "type": "enclosed"},
+    {"id": "r4", "polygon": [[107, 307], [402, 307], [402, 477], [107, 477]], "holes": [], "type": "enclosed"},
+    {"id": "r5", "polygon": [[416, 307], [653, 307], [653, 520], [416, 520]], "holes": [], "type": "enclosed"}
+  ],
+  "doors": [
+    {"id": "d1", "span": [[195, 170], [195, 211]], "connects": ["r1", "r2"]},
+    {"id": "d2", "span": [[467, 170], [467, 211]], "connects": ["r2", "r3"]},
+    {"id": "d3", "span": [[255, 299], [296, 299]], "connects": ["r2", "r4"]},
+    {"id": "d4", "span": [[544, 299], [584, 299]], "connects": ["r3", "r5"]},
+    {"id": "d5", "span": [[504, 527], [544, 527]], "connects": ["r5", "outside"]}
+  ],
+  "windows": [
+    {"id": "w1", "span": [[283, 22], [379, 22]], "connects": ["r2", "outside"]},
+    {"id": "w2", "span": [[530, 22], [597, 22]], "connects": ["r3", "outside"]},
+    {"id": "w3", "span": [[660, 112], [660, 209]], "connects": ["r3", "outside"]},
+    {"id": "w4", "span": [[660, 380], [660, 450]], "connects": ["r5", "outside"]},
+    {"id": "w5", "span": [[183, 484], [326, 484]], "connects": ["r4", "outside"]},
+    {"id": "w6", "span": [[409, 357], [409, 425]], "connects": ["r4", "r5"]}
+  ],
+  "notes": "Counts confirmed by user. Room interiors and opening spans traced manually from the source raster by Codex on 2026-10-08; geometry has not been independently reviewed. Walls and T/X junctions remain unannotated."
 }

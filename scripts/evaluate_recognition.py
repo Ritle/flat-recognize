@@ -259,6 +259,23 @@ def validate_ground_truth(data):
     image = data.get("image", {})
     if not all(isinstance(image.get(key), int) and image[key] > 0 for key in ("width", "height")):
         raise ValueError("image.width and image.height must be positive integers")
+    width, height = image["width"], image["height"]
+
+    def point(value, label):
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            raise ValueError(f"{label} must be an [x, y] point")
+        x, y = value
+        if (not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                    and math.isfinite(v) for v in (x, y))
+                or not (0 <= x <= width and 0 <= y <= height)):
+            raise ValueError(f"{label} must be finite and inside the source image")
+
+    def points(value, label, minimum):
+        if not isinstance(value, list) or len(value) < minimum:
+            raise ValueError(f"{label} needs at least {minimum} points")
+        for index, value_point in enumerate(value):
+            point(value_point, f"{label}[{index}]")
+
     coverage = data.get("coverage", {})
     unknown = set(coverage) - set(CATEGORIES)
     if unknown:
@@ -268,8 +285,51 @@ def validate_ground_truth(data):
             raise ValueError(f"Coverage for {category} must be count or geometry")
         if mode == "count" and category not in data.get("expected_counts", {}):
             raise ValueError(f"Missing expected_counts.{category}")
-        if mode == "geometry" and not isinstance(data.get(category), list):
+        if mode == "count":
+            count = data["expected_counts"][category]
+            if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                raise ValueError(f"expected_counts.{category} must be a nonnegative integer")
+            continue
+        items = data.get(category)
+        if not isinstance(items, list):
             raise ValueError(f"Missing geometry array: {category}")
+        ids = set()
+        for index, item in enumerate(items):
+            label = f"{category}[{index}]"
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"]:
+                raise ValueError(f"{label} needs a nonempty id")
+            if item["id"] in ids:
+                raise ValueError(f"Duplicate {category} id: {item['id']}")
+            ids.add(item["id"])
+            if category == "rooms":
+                outer = item.get("polygon", item.get("outer"))
+                points(outer, f"{label}.polygon", 3)
+                holes = item.get("holes", [])
+                if not isinstance(holes, list):
+                    raise ValueError(f"{label}.holes must be a list")
+                for hole_index, hole in enumerate(holes):
+                    points(hole, f"{label}.holes[{hole_index}]", 3)
+                shape = Polygon(outer, holes)
+                if not shape.is_valid or shape.area <= 0:
+                    raise ValueError(f"{label} has an invalid or empty polygon")
+            elif category == "walls":
+                points(item.get("centerline"), f"{label}.centerline", 2)
+                thickness = item.get("thickness_px")
+                if (not isinstance(thickness, (int, float)) or isinstance(thickness, bool)
+                        or not math.isfinite(thickness) or thickness <= 0
+                        or LineString(item["centerline"]).length <= 0):
+                    raise ValueError(f"{label} needs positive thickness and length")
+            elif category in ("doors", "windows"):
+                span = item.get("span")
+                if not isinstance(span, list) or len(span) != 2:
+                    raise ValueError(f"{label}.span needs exactly two points")
+                points(span, f"{label}.span", 2)
+                if span[0] == span[1]:
+                    raise ValueError(f"{label}.span has zero length")
+            else:
+                point(item.get("point"), f"{label}.point")
+                if item.get("type") not in ("T", "X"):
+                    raise ValueError(f"{label}.type must be T or X")
 
 
 def evaluate(ground_truth, recognition):
@@ -315,8 +375,9 @@ def evaluate(ground_truth, recognition):
                 "coverage": "geometry",
                 **evaluate_junctions(ground_truth[category], predicted, tolerance),
             }
-    result["all_annotated_counts_exact"] = all(
-        metric.get("exact", True) for metric in result["metrics"].values())
+    result["all_annotated_counts_exact"] = bool(result["metrics"]) and all(
+        metric["expected"] == metric["predicted"]
+        for metric in result["metrics"].values())
     return result
 
 

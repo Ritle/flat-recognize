@@ -1,10 +1,11 @@
+import copy
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from evaluate_recognition import evaluate
+from evaluate_recognition import evaluate, validate_ground_truth
 
 
 def rectangle(x1, y1, x2, y2):
@@ -75,6 +76,53 @@ class EvaluateRecognitionTests(unittest.TestCase):
         result = evaluate(truth, recognition)
         self.assertEqual(result["metrics"]["doors"]["false_negative"], 1)
         self.assertEqual(result["metrics"]["windows"]["false_positive"], 1)
+
+    def test_invalid_ground_truth_geometry_is_rejected_before_scoring(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"rooms": "geometry", "doors": "geometry"},
+                 "rooms": [{"id": "r1", "polygon": [[10, 10], [90, 70],
+                                                      [10, 70], [90, 10]]}],
+                 "doors": [{"id": "d1", "span": [[40, 40], [60, 40]]}]}
+        with self.assertRaisesRegex(ValueError, "invalid or empty polygon"):
+            validate_ground_truth(truth)
+        truth["rooms"][0]["polygon"] = [[10, 10], [90, 10], [90, 70], [10, 70]]
+        truth["doors"][0]["span"] = [[40, 40], [140, 40]]
+        with self.assertRaisesRegex(ValueError, "inside the source image"):
+            validate_ground_truth(truth)
+        truth["doors"][0]["span"] = [[40, 40], [40, 40]]
+        with self.assertRaisesRegex(ValueError, "zero length"):
+            validate_ground_truth(truth)
+
+    def test_duplicate_ids_and_invalid_count_are_rejected(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"rooms": "geometry"},
+                 "rooms": [{"id": "r1", "polygon": [[10, 10], [90, 10],
+                                                      [90, 70], [10, 70]]}]}
+        duplicate = copy.deepcopy(truth["rooms"][0])
+        truth["rooms"].append(duplicate)
+        with self.assertRaisesRegex(ValueError, "Duplicate rooms id"):
+            validate_ground_truth(truth)
+        truth["rooms"].pop()
+        truth["coverage"] = {"rooms": "count"}
+        truth["expected_counts"] = {"rooms": -1}
+        with self.assertRaisesRegex(ValueError, "nonnegative integer"):
+            validate_ground_truth(truth)
+
+    def test_geometry_count_mismatch_is_not_reported_exact(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"rooms": "geometry"},
+                 "rooms": [{"id": "r1", "polygon": [[10, 10], [90, 10],
+                                                      [90, 70], [10, 70]]}]}
+        recognition = {"meta": {"width": 100, "height": 80}, "rooms": []}
+        result = evaluate(truth, recognition)
+        self.assertFalse(result["all_annotated_counts_exact"])
+
+    def test_no_coverage_is_not_reported_exact(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {}}
+        recognition = {"meta": {"width": 100, "height": 80}}
+        result = evaluate(truth, recognition)
+        self.assertFalse(result["all_annotated_counts_exact"])
 
 
 if __name__ == "__main__":
