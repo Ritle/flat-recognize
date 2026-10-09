@@ -196,6 +196,11 @@ def main():
         help="Final JSON output path"
     )
 
+    parser.add_argument(
+        "--review-decisions", type=Path,
+        help="Explicit door/window/ignore choices for this exact source image"
+    )
+
     args = parser.parse_args()
 
     python = sys.executable
@@ -379,6 +384,14 @@ def main():
         "Classified openings JSON"
     )
 
+    if args.review_decisions and not args.pipeline_v2:
+        reviewed = OUTPUT / f"{stem}_reviewed_classified.json"
+        run_command("Apply user opening choices",
+                    [python, SCRIPTS / "review_decisions.py", "--classified", classified_json,
+                     "--decisions", require_file(args.review_decisions, "Review decisions"),
+                     "--image", image, "--output", reviewed])
+        classified_json = require_file(reviewed, "Reviewed openings")
+
     if args.pipeline_v2:
         run_command("V2 - Recover topology-supported windows",
                     [python, SCRIPTS / "recover_windows_topology_v2.py", image,
@@ -423,6 +436,21 @@ def main():
                                        "Interior-filtered openings")
         rooms_json = require_file(OUTPUT / f"{stem}_rooms_filtered.json",
                                   "Rooms rechecked after window filtering")
+
+        if args.review_decisions:
+            reviewed = OUTPUT / f"{stem}_reviewed_classified.json"
+            reviewed_dir = OUTPUT / f"{stem}_reviewed"
+            run_command("Apply user opening choices",
+                        [python, SCRIPTS / "review_decisions.py", "--classified", classified_json,
+                         "--decisions", require_file(args.review_decisions, "Review decisions"),
+                         "--image", image, "--output", reviewed])
+            classified_json = require_file(reviewed, "Reviewed openings")
+            run_command("Rebuild rooms after user choices",
+                        [python, SCRIPTS / "extract_rooms_v2.py", image, classified_json,
+                         "--output-dir", reviewed_dir])
+            rooms_json = require_file(reviewed_dir / f"{stem}_rooms.json", "Reviewed rooms")
+            rooms_overlay = reviewed_dir / f"{stem}_rooms_overlay.png"
+            barrier_image = reviewed_dir / f"{stem}_barrier.png"
 
     validation_command = [python, SCRIPTS / "validate_recognition.py",
                           "--rooms", rooms_json, "--scale", str(args.scale),

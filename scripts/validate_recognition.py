@@ -110,6 +110,11 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     else:
         issue("approximate_scale", "info", f"Масштаб {scale:g} см/пиксель задан без проверки по известной длине; физические размеры приблизительны.")
     metrics.update(rooms=len(source_rooms), detected_doors=len(doors), detected_windows=len(windows))
+    review_decisions = rooms.get("review_decisions", []) if isinstance(rooms, dict) else []
+    if isinstance(review_decisions, list) and review_decisions:
+        metrics["user_review_choices"] = len(review_decisions)
+        issue("user_review_applied", "warning",
+              f"Пользователь уточнил проёмы ({len(review_decisions)}); проверьте итоговую геометрию.")
 
     exported = {"doorItem": 0, "windowItem": 0}
     all_segments = {}
@@ -262,7 +267,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                         if perpendicular:
                             issue("opening_perpendicular_wall", "error",
                                   f"Проём {key} {opening_index} привязан к поперечной стене; проверьте классификацию и геометрию.",
-                                  opening_index=opening_index, wall_uuid=wall_id,
+                                  opening_kind=key, opening_index=opening_index, wall_uuid=wall_id,
                                   pixel_center=binding.get("pixel_center"))
                     thickness = segment.get("thickness", 20)
                     threshold = max(20, thickness * 1.5) if finite(thickness) else 30
@@ -271,7 +276,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                         issue("opening_far_from_wall", "error" if severe else "warning",
                               f"Проём {key} находится далеко от стены ({distance:g} см).",
                               distance_cm=distance, threshold_cm=threshold, severe=severe,
-                              opening_index=opening_index, wall_uuid=wall_id,
+                              opening_kind=key, opening_index=opening_index, wall_uuid=wall_id,
                               pixel_center=binding.get("pixel_center"))
     errors = list(dict.fromkeys(i["message"] for i in issues if i["severity"] == "error"))
     warnings = list(dict.fromkeys(i["message"] for i in issues if i["severity"] != "error"))

@@ -70,6 +70,12 @@ class RoomsTests(unittest.TestCase):
         result, _, _ = extract_rooms(data, rgb)
         self.assertEqual(len(result["rooms"]), 1)
         self.assertEqual(result["diagnostics"]["rejected_openings"], 1)
+        data["rejected_openings"][0]["classification"]["method"] = "user_ignored"
+        data["review_decisions"] = [{"opening_id": 3, "choice": "ignore"}]
+        reviewed, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(reviewed["review_decisions"], data["review_decisions"])
+        self.assertFalse(any("изолированных тонких" in warning
+                             for warning in reviewed["diagnostics"]["warnings"]))
         self.assertTrue(any("Оконные кандидаты" in warning
                             for warning in result["diagnostics"]["warnings"]))
 

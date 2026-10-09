@@ -75,5 +75,20 @@ async function show(status) {
         ['Сегментация: исходник', 'Сегментация: нормализация', 'Сегментация: fusion']);
     context.setupImages({images: {}, original_url: '/original'});
     assert.equal(nodes.get('imageCaption').style.display, 'none');
+    const question = {opening_id: 8, fingerprint: 'geometry-hash', image_sha256: 'image-hash',
+        current: 'door', reasons: ['classification_uncertain'],
+        center: [20, 30], image_size: [100, 80]};
+    context.renderReviewQuestions({review_questions: [question], applied_decisions: []});
+    assert.equal(nodes.get('reviewPanel').style.display, 'block');
+    const select = nodes.get('reviewList').children[0].children[2];
+    select.value = 'window';
+    let submitted;
+    context.captureReview = (file, payload) => { submitted = {file, payload}; };
+    vm.runInContext('currentFile = {name: "plan.png"}; upload = captureReview;', context);
+    nodes.get('applyReviewButton').onclick();
+    assert.equal(submitted.file.name, 'plan.png');
+    assert.equal(submitted.payload.image_sha256, 'image-hash');
+    assert.equal(submitted.payload.answers[0].choice, 'window');
+    assert.equal(submitted.payload.answers[0].fingerprint, 'geometry-hash');
     console.log('UI good → invalid → review and recovery diagnostics: passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

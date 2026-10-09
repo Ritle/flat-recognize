@@ -33,6 +33,14 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(r["quality"], 1)
         self.assertIn("approximate_scale", [i["code"] for i in r["issues"]])
 
+    def test_manual_opening_choice_remains_review(self):
+        rooms, project, bindings = fixture()
+        rooms["review_decisions"] = [{"opening_id": 1, "choice": "window"}]
+        result = validate_recognition(rooms, project, bindings)
+        self.assertEqual(result["status"], "review")
+        self.assertTrue(result["export_allowed"])
+        self.assertEqual(result["metrics"]["user_review_choices"], 1)
+
     def test_invalid_source(self):
         for polygons, code in (([], "no_rooms"),
                                ([[[0, 0], [100, 100], [100, 0], [0, 100]]], "invalid_polygon"),

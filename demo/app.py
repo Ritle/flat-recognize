@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -10,6 +11,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+
+from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -98,6 +101,7 @@ def run_pipeline(
     image_path: Path,
     project_path: Path,
     pipeline_v2: bool = False,
+    review_decisions: Path | None = None,
 ):
     command = [
         sys.executable,
@@ -113,6 +117,8 @@ def run_pipeline(
 
     if pipeline_v2:
         command.append("--pipeline-v2")
+    if review_decisions is not None:
+        command.extend(["--review-decisions", str(review_decisions)])
 
     return subprocess.run(
         command,
@@ -144,7 +150,10 @@ async def index():
 async def recognize(
     file: UploadFile = File(...),
     pipeline_v2: bool = Form(False),
+    decisions: str | None = Form(None),
 ):
+    if decisions is not None and not isinstance(decisions, str):
+        decisions = None
     original_name = (
         file.filename or "floorplan.jpg"
     )
@@ -175,6 +184,28 @@ async def recognize(
             detail="Максимальный размер файла — 20 МБ"
         )
 
+    source_hash = hashlib.sha256(data).hexdigest()
+    review_payload = None
+    applied_decisions = []
+    if decisions is not None:
+        if len(decisions) > 16_384:
+            raise HTTPException(status_code=400, detail="Too many review decisions")
+        try:
+            review_payload = json.loads(decisions)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Invalid review decisions JSON") from exc
+        answers = review_payload.get("answers") if isinstance(review_payload, dict) else None
+        if (not isinstance(review_payload, dict) or review_payload.get("version") != 1
+                or review_payload.get("image_sha256") != source_hash
+                or not isinstance(answers, list) or len(answers) > MAX_ANSWERS
+                or any(not isinstance(answer, dict)
+                       or not isinstance(answer.get("opening_id"), int)
+                       or answer.get("choice") not in CHOICES
+                       or not isinstance(answer.get("fingerprint"), str)
+                       for answer in answers)):
+            raise HTTPException(status_code=400, detail="Review decisions do not match this image")
+        applied_decisions = answers
+
     job_id = str(
         uuid.uuid4()
     )
@@ -204,6 +235,11 @@ async def recognize(
         data
     )
 
+    decisions_path = None
+    if review_payload is not None:
+        decisions_path = job_dir / "review_decisions.json"
+        decisions_path.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
     project_path = (
         job_dir /
         "project.json"
@@ -216,6 +252,7 @@ async def recognize(
         image_path,
         project_path,
         pipeline_v2,
+        decisions_path,
     )
 
     elapsed = (
@@ -243,6 +280,10 @@ async def recognize(
             encoding="utf-8"
         )
 
+        if (decisions_path is not None and result.returncode == 3
+                and "REVIEW_DECISION_ERROR:" in (result.stderr or "")):
+            raise HTTPException(status_code=409, detail="Выбор устарел: загрузите план заново и уточните проём ещё раз")
+
         if not rejected:
             raise HTTPException(
                 status_code=500,
@@ -263,6 +304,9 @@ async def recognize(
     filtered_room_path = OUTPUT_DIR / f"{job_id}_rooms_filtered.json"
     if pipeline_v2 and filtered_room_path.exists():
         room_path = filtered_room_path
+    reviewed_dir = OUTPUT_DIR / f"{job_id}_reviewed"
+    if pipeline_v2 and decisions_path is not None:
+        room_path = reviewed_dir / f"{job_id}_rooms.json"
     room_data = json.loads(room_path.read_text(encoding="utf-8"))
     metrics = quality.get("metrics", {})
     stats = load_stats(project_path) if not rejected else {
@@ -274,6 +318,14 @@ async def recognize(
     }
     shutil.copy2(quality_path, job_dir / "quality.json")
     shutil.copy2(room_path, job_dir / "rooms.json")
+    classified_path = OUTPUT_DIR / f"{job_id}_classified.json"
+    if pipeline_v2:
+        classified_path = OUTPUT_DIR / f"{job_id}_interior_filtered_classified.json"
+    if decisions_path is not None:
+        classified_path = OUTPUT_DIR / f"{job_id}_reviewed_classified.json"
+    classified_data = json.loads(classified_path.read_text(encoding="utf-8"))
+    shutil.copy2(classified_path, job_dir / "classified.json")
+    review_questions = make_review_questions(classified_data, quality, source_hash)
     binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
@@ -310,6 +362,11 @@ async def recognize(
             f"{job_id}_barrier.png",
         "export": OUTPUT_DIR / f"{job_id}_export_overlay.png",
     }
+    if pipeline_v2 and decisions_path is not None:
+        generated_images.update({
+            "rooms": reviewed_dir / f"{job_id}_rooms_overlay.png",
+            "barrier": reviewed_dir / f"{job_id}_barrier.png",
+        })
 
     warnings = quality["warnings"]
     inference = None
@@ -324,6 +381,8 @@ async def recognize(
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
             "topology_windows": OUTPUT_DIR / f"{job_id}_topology_windows_overlay.png",
         })
+        if decisions_path is not None:
+            generated_images["closures"] = reviewed_dir / f"{job_id}_closures.png"
         interior_counts = (json.loads(interior_report.read_text(encoding="utf-8"))
                            if interior_report.exists() else {})
         if interior_counts.get("rejected_windows", 0) or interior_counts.get("ambiguous_windows", 0):
@@ -372,6 +431,9 @@ async def recognize(
         "warnings": warnings,
         "quality": quality,
         "inference": inference,
+        "review_questions": review_questions,
+        "applied_decisions": applied_decisions,
+        "image_sha256": source_hash,
     }
 
     (

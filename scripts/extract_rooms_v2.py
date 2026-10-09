@@ -439,9 +439,12 @@ def extract_rooms(data, rgb):
             f"Изолированные небольшие контуры маски стен исключены из комнат ({isolated_enclosures}); "
             "проверьте мебель и возможные пропущенные помещения.")
     rejected_openings = len(data.get("rejected_openings", []))
-    if rejected_openings:
+    automatic_rejections = sum(
+        (opening.get("classification") or {}).get("method") != "user_ignored"
+        for opening in data.get("rejected_openings", []))
+    if automatic_rejections:
         warnings.append(
-            f"Оконные кандидаты на изолированных тонких линиях отклонены ({rejected_openings}); "
+            f"Оконные кандидаты на изолированных тонких линиях отклонены ({automatic_rejections}); "
             "проверьте окна и возможные пропущенные проёмы.")
     review_doors = sum(door.get("classification", {}).get("requires_review") is True
                        for door in data.get("doors", []))
@@ -458,7 +461,9 @@ def extract_rooms(data, rgb):
                                             * (r["bbox"][3] - r["bbox"][1])) < 0.9 for r in rooms)
     if non_rectangular:
         warnings.append("Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.")
-    result = {"meta": data.get("meta", {}), "walls": data.get("walls", []),
+    result = {"meta": data.get("meta", {}),
+              "review_decisions": data.get("review_decisions", []),
+              "walls": data.get("walls", []),
               "doors": data.get("doors", []), "windows": data.get("windows", []), "rooms": rooms,
               "diagnostics": {"version": 2, "passes": passes, "temporary_closures": closures,
                               "exterior_envelope": envelope,

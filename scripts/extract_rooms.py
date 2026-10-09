@@ -298,6 +298,8 @@ def main():
     result = {
         "meta": meta,
 
+        "review_decisions": data.get("review_decisions", []),
+
         "walls": walls,
 
         "doors": data.get(

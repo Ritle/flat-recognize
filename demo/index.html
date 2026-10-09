@@ -241,6 +241,7 @@
     }
 
     .image-wrap {
+        position: relative;
         background:
             repeating-conic-gradient(
                 #151820 0% 25%,
@@ -311,6 +312,33 @@
     .new-file {
         margin-top: 20px;
     }
+
+    .review-marker {
+        display: none;
+        position: absolute;
+        z-index: 2;
+        width: 30px;
+        height: 30px;
+        border: 3px solid #ffb02e;
+        border-radius: 50%;
+        box-shadow: 0 0 0 4px #1118;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+
+    .review-panel {
+        display: none;
+        background: #11141b;
+        border: 1px solid #48412e;
+        border-radius: 20px;
+        padding: 18px;
+        margin-bottom: 20px;
+    }
+    .review-panel h3 { margin: 0 0 8px; }
+    .review-panel p { color: #aeb6c7; margin: 0 0 14px; }
+    .review-list { display: grid; gap: 10px; margin-bottom: 14px; }
+    .review-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .review-item select { padding: 8px; border-radius: 8px; }
 
     .pipeline-option {
         display: block;
@@ -518,9 +546,17 @@
                     id="preview"
                     alt="Floorplan preview"
                 >
+                <div class="review-marker" id="reviewMarker" aria-hidden="true"></div>
             </div>
             <div class="image-caption" id="imageCaption" style="display:none"></div>
 
+        </div>
+
+        <div class="review-panel" id="reviewPanel">
+            <h3>Уточнить спорные проёмы</h3>
+            <p>Выберите вариант по исходному плану. После пересчёта результат снова пройдёт проверку качества; выбор не гарантирует доступность экспорта.</p>
+            <div class="review-list" id="reviewList"></div>
+            <button class="btn btn-secondary" id="applyReviewButton" type="button">Пересчитать с выбранными вариантами</button>
         </div>
 
         <div class="json-panel" id="jsonPanel">
@@ -563,6 +599,9 @@ const results = document.getElementById('results');
 const errorBox = document.getElementById('error');
 
 let currentJson = null;
+let currentFile = null;
+let currentQuestions = [];
+let reviewSelects = [];
 
 input.addEventListener('change', () => {
     if (input.files.length) {
@@ -588,7 +627,9 @@ dropZone.addEventListener('drop', e => {
     }
 });
 
-async function upload(file) {
+async function upload(file, decisionsPayload = null) {
+
+    currentFile = file;
 
     errorBox.style.display = 'none';
     results.style.display = 'none';
@@ -598,6 +639,7 @@ async function upload(file) {
     const form = new FormData();
     form.append('file', file);
     form.append('pipeline_v2', String(document.getElementById('pipelineV2').checked));
+    if (decisionsPayload) form.append('decisions', JSON.stringify(decisionsPayload));
 
     try {
 
@@ -722,6 +764,7 @@ async function showResult(data) {
     }
 
     setupImages(data);
+    renderReviewQuestions(data);
 
     results.style.display = 'block';
 
@@ -729,6 +772,78 @@ async function showResult(data) {
         behavior: 'smooth'
     });
 }
+
+function renderReviewQuestions(data) {
+    const panel = document.getElementById('reviewPanel');
+    const list = document.getElementById('reviewList');
+    list.textContent = '';
+    currentQuestions = data.review_questions || [];
+    reviewSelects = [];
+    document.getElementById('reviewMarker').style.display = 'none';
+    panel.style.display = currentQuestions.length ? 'block' : 'none';
+    const applied = new Map((data.applied_decisions || []).map(
+        answer => [answer.opening_id, answer.choice]));
+    for (const question of currentQuestions) {
+        const row = document.createElement('div');
+        row.className = 'review-item';
+        const locate = document.createElement('button');
+        locate.type = 'button';
+        locate.className = 'btn btn-secondary';
+        locate.textContent = `Показать проём №${question.opening_id}`;
+        locate.onclick = () => highlightQuestion(question, data.original_url);
+        const label = document.createElement('span');
+        const names = {door: 'дверь', window: 'окно', ignore: 'не проём'};
+        const reasons = {classification_uncertain: 'неуверенная классификация',
+            opening_far_from_wall: 'далеко от стены',
+            opening_perpendicular_wall: 'поперечная привязка к стене',
+            user_choice: 'выбор пользователя'};
+        label.textContent = `Сейчас: ${names[question.current] || question.current}` +
+            ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
+        const select = document.createElement('select');
+        for (const [value, title] of [['', 'Оставить решение системы'],
+                                       ['door', 'Дверь'], ['window', 'Окно'],
+                                       ['ignore', 'Не проём']]) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = title;
+            select.appendChild(option);
+        }
+        select.value = applied.get(question.opening_id) || '';
+        reviewSelects.push({question, select});
+        row.appendChild(locate);
+        row.appendChild(label);
+        row.appendChild(select);
+        list.appendChild(row);
+    }
+}
+
+function highlightQuestion(question, imageUrl) {
+    const preview = document.getElementById('preview');
+    const marker = document.getElementById('reviewMarker');
+    const place = () => {
+        const size = question.image_size;
+        if (!size || !preview.clientWidth || !preview.clientHeight) return;
+        marker.style.left = `${preview.offsetLeft + question.center[0] * preview.clientWidth / size[0]}px`;
+        marker.style.top = `${preview.offsetTop + question.center[1] * preview.clientHeight / size[1]}px`;
+        marker.style.display = 'block';
+    };
+    preview.onload = place;
+    preview.src = imageUrl + '?t=' + Date.now();
+    place();
+    preview.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+document.getElementById('applyReviewButton').onclick = () => {
+    if (!currentFile) return;
+    const answers = reviewSelects.filter(item => item.select.value).map(item => ({
+        opening_id: item.question.opening_id,
+        fingerprint: item.question.fingerprint,
+        choice: item.select.value
+    }));
+    const payload = answers.length ? {version: 1,
+        image_sha256: currentQuestions[0].image_sha256, answers} : null;
+    upload(currentFile, payload);
+};
 
 function setupImages(data) {
 
