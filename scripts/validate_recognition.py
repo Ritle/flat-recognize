@@ -113,6 +113,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
 
     exported = {"doorItem": 0, "windowItem": 0}
     all_segments = {}
+    all_segment_coords = {}
     if project is not None:
         if not isinstance(project, dict):
             issue("invalid_project", "error", "Проект должен быть JSON-объектом.")
@@ -162,6 +163,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                 neighbours[start].add(end)
                 neighbours[end].add(start)
                 all_segments[uid] = segment
+                all_segment_coords[uid] = (coords[start], coords[end])
                 thickness = segment.get("thickness")
                 height = segment.get("height")
                 if not finite(thickness) or thickness <= 0 or not finite(height) or height <= 0:
@@ -245,17 +247,32 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                 for binding in rows:
                     distance = binding.get("distance_to_wall_cm")
                     wall_id = binding.get("wall_uuid")
+                    opening_index = binding.get("door" if key == "doors" else "window")
                     segment = all_segments.get(wall_id) if isinstance(wall_id, str) else None
                     if segment is None or not finite(distance) or distance < 0:
                         issue("invalid_binding", "error", "Некорректная диагностическая привязка проёма.")
                         continue
+                    orientation = binding.get("orientation")
+                    endpoints = all_segment_coords.get(wall_id)
+                    if orientation in ("horizontal", "vertical") and endpoints is not None:
+                        (ax, ay), (bx, by) = endpoints
+                        dx, dy = abs(bx - ax), abs(by - ay)
+                        perpendicular = (orientation == "horizontal" and dy > dx * 3.7
+                                         or orientation == "vertical" and dx > dy * 3.7)
+                        if perpendicular:
+                            issue("opening_perpendicular_wall", "error",
+                                  f"Проём {key} {opening_index} привязан к поперечной стене; проверьте классификацию и геометрию.",
+                                  opening_index=opening_index, wall_uuid=wall_id,
+                                  pixel_center=binding.get("pixel_center"))
                     thickness = segment.get("thickness", 20)
                     threshold = max(20, thickness * 1.5) if finite(thickness) else 30
                     if distance > threshold:
                         severe = distance > threshold * 2
                         issue("opening_far_from_wall", "error" if severe else "warning",
                               f"Проём {key} находится далеко от стены ({distance:g} см).",
-                              distance_cm=distance, threshold_cm=threshold, severe=severe)
+                              distance_cm=distance, threshold_cm=threshold, severe=severe,
+                              opening_index=opening_index, wall_uuid=wall_id,
+                              pixel_center=binding.get("pixel_center"))
     errors = list(dict.fromkeys(i["message"] for i in issues if i["severity"] == "error"))
     warnings = list(dict.fromkeys(i["message"] for i in issues if i["severity"] != "error"))
     warning_codes = {i["code"] for i in issues if i["severity"] == "warning"}

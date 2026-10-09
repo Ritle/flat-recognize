@@ -75,6 +75,22 @@ class QualityGateTest(unittest.TestCase):
         self.assertTrue(any(i["code"] == "opening_exceeds_segment" and i["severity"] == "error"
                             for i in result["issues"]))
 
+    def test_perpendicular_binding_blocks_export_with_opening_location(self):
+        rooms, project, bindings = fixture()
+        project["levels"][0]["elements"][1]["wall"]["uuid"] = "s1"
+        bindings["windows"][0].update(wall_uuid="s1", orientation="horizontal",
+                                      window=1, pixel_center=[50, 20])
+        result = validate_recognition(rooms, project, bindings)
+        self.assertEqual(result["status"], "invalid")
+        issue = next(i for i in result["issues"]
+                     if i["code"] == "opening_perpendicular_wall")
+        self.assertEqual(issue["opening_index"], 1)
+        self.assertEqual(issue["wall_uuid"], "s1")
+        self.assertEqual(issue["pixel_center"], [50, 20])
+
+        bindings["windows"][0]["orientation"] = "vertical"
+        self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "good")
+
     def test_broken_project_is_blocked(self):
         mutations = {
             "missing_connector": lambda l: l["segments"][0].update(start="absent"),
