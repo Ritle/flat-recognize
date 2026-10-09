@@ -103,7 +103,7 @@ independently reviewed:
 | `small-furnished` | 2 windows | 2 of 10 predictions matched; 8 false window candidates. |
 | `colored-walls` | 5 windows | Initially 3 of 8 matched (5 false, 2 missed); after edge-strip deduplication 3 of 7 matched (4 false, 2 missed). |
 | `open-zones` | 2 doors and 6 top-facade windows, scoped | Doors 2/0/0; windows improved from 5/5/1 to 5/1/1 TP/FP/FN inside annotated regions after perpendicular-endcap filtering. |
-| `complex-hatched` | 2 central doors and 4 side-facade windows, scoped | Doors 2/0/0 and windows 2/0/2 TP/FP/FN inside annotated regions. |
+| `complex-hatched` | 2 central doors and 4 side-facade windows, scoped | Doors 2/0/0; windows improved from 2/0/2 to 4/0/0 TP/FP/FN inside annotated regions after weak-arc reclassification. |
 
 On `open-zones`, four unsupported vertical window candidates cross longer,
 wall-supported horizontal windows. The filter records their IDs and parent
@@ -112,6 +112,13 @@ windows, removes them from window export, and preserves their polygons in
 rechecked first. This prevents deleting the only evidence for three existing
 room-boundary segments; it does not certify those segments as accurate walls.
 The project remains `invalid` under the final quality gate.
+
+On `complex-hatched`, the two upper side windows were segmented as opening
+polygons but misclassified as doors because nearby furniture lines weakly
+resembled swing arcs. They are reclassified as review-required windows only
+when a long weak-arc candidate aligns with a separate, similar-sized,
+wall-supported window bay. This does not affect room topology and does not
+resolve the remaining final-project quality errors.
 
 Other categories on these plans are unannotated. In particular, walls and T/X
 junctions have no geometric coverage. The evaluator checks that covered

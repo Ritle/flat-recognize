@@ -2,13 +2,15 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from classify_openings import classify_opening, classify_openings, duplicate_window_edge_strips
+from classify_openings import (aligned_window_over_weak_door_arc, classify_opening,
+                               classify_openings, duplicate_window_edge_strips)
 
 
 def fixture(arc=True, leaf=True):
@@ -145,6 +147,40 @@ class ClassifyOpeningsTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in result["rejected_openings"]], [1])
         self.assertEqual(result["rejected_openings"][0]["classification"]["method"],
                          "rejected_duplicate_window_edge_strip")
+
+    def test_long_weak_door_arc_needs_aligned_supported_window(self):
+        def opening(uid, x1, y1, x2, y2, arc=None):
+            return {"id": uid, "outer": [[x1, y1], [x2, y1],
+                                           [x2, y2], [x1, y2]],
+                    "classification": {"evidence": {"arc_hits": arc} if arc else None}}
+        upper = opening(1, 85, 50, 110, 210, 7)
+        lower = opening(2, 85, 254, 110, 414)
+        with patch("classify_openings.wall_jamb_support", return_value=[3, 3]):
+            evidence = aligned_window_over_weak_door_arc(
+                upper, [lower], None, (661, 1000, 3))
+            self.assertEqual(evidence["aligned_window_id"], 2)
+            self.assertEqual(evidence["weak_arc_hits"], 7)
+            self.assertIsNone(aligned_window_over_weak_door_arc(
+                opening(3, 85, 50, 110, 210, 9), [lower], None, (661, 1000, 3)))
+            self.assertIsNone(aligned_window_over_weak_door_arc(
+                opening(4, 85, 50, 110, 140, 7), [lower], None, (661, 1000, 3)))
+
+    def test_reclassified_window_cannot_support_another_door(self):
+        def opening(y1, y2):
+            return {"outer": [[85, y1], [110, y1],
+                              [110, y2], [85, y2]]}
+        data = {"meta": {"width": 1000, "height": 661}, "walls": [],
+                "openings": [opening(50, 210), opening(254, 414)]}
+        rgb = np.full((661, 1000, 3), 255, np.uint8)
+        with patch("classify_openings.classify_opening_with_leaf",
+                   return_value=("door", {"arc_hits": 7})), \
+             patch("classify_openings.aligned_window_over_weak_door_arc",
+                   side_effect=lambda door, windows, *_: {"aligned_window_id": 99}
+                   if door["id"] == 0 else None) as alignment:
+            result = classify_openings(data, rgb)
+        self.assertEqual([item["id"] for item in result["windows"]], [0])
+        self.assertEqual([item["id"] for item in result["doors"]], [1])
+        self.assertTrue(all(len(call.args[1]) == 0 for call in alignment.call_args_list))
 
 
 if __name__ == "__main__":

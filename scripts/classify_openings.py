@@ -128,6 +128,43 @@ def duplicate_window_edge_strips(windows):
     return rejected
 
 
+def aligned_window_over_weak_door_arc(door, windows, walls, image_shape):
+    """Find a matching window bay when a long door leaf is weakly supported."""
+    evidence = door.get("classification", {}).get("evidence") or {}
+    arc_hits = evidence.get("arc_hits")
+    x1, y1, x2, y2, length, thickness, orientation = opening_geometry(door)
+    if (not isinstance(arc_hits, int) or arc_hits <= 0 or arc_hits >= 8
+            or length < min(image_shape[:2]) * .18):
+        return None
+    candidates = []
+    for window in windows:
+        a, b, c, d, other_length, other_thickness, other_orientation = opening_geometry(window)
+        if (orientation != other_orientation
+                or min(length, other_length) / max(length, other_length) < .75
+                or min(thickness, other_thickness) / max(thickness, other_thickness) < .55):
+            continue
+        if min(wall_jamb_support(*opening_axis(window), walls)) < 2:
+            continue
+        if orientation == "vertical":
+            normal_offset = abs((x1 + x2 - a - c) / 2)
+            axis_gap = max(0, max(y1, b) - min(y2, d))
+            axis_overlap = max(0, min(y2, d) - max(y1, b))
+        else:
+            normal_offset = abs((y1 + y2 - b - d) / 2)
+            axis_gap = max(0, max(x1, a) - min(x2, c))
+            axis_overlap = max(0, min(x2, c) - max(x1, a))
+        if (normal_offset <= max(6, min(thickness, other_thickness) * .3)
+                and axis_gap <= min(length, other_length) * .5
+                and axis_overlap <= min(length, other_length) * .1):
+            candidates.append((axis_gap, normal_offset, window.get("id")))
+    if not candidates:
+        return None
+    gap, offset, parent_id = min(candidates)
+    return {"aligned_window_id": parent_id, "axis_gap_px": round(gap, 2),
+            "normal_offset_px": round(offset, 2), "weak_arc_hits": arc_hits,
+            "previous_door_evidence": evidence}
+
+
 def classify_opening(gray, opening):
     minx, miny, maxx, maxy, length, thickness, orientation = \
         opening_geometry(opening)
@@ -285,6 +322,22 @@ def classify_openings(data, rgb):
             continue
         (doors if opening_type == "door" else windows).append(opening)
         accepted.append(opening)
+    reclassified = set()
+    reference_windows = tuple(windows)
+    for door in doors:
+        alignment = aligned_window_over_weak_door_arc(
+            door, reference_windows, walls, rgb.shape)
+        if alignment is None:
+            continue
+        door["type"] = "window"
+        door["classification"] = {
+            "method": "aligned_window_over_weak_door_arc", "confirmed": False,
+            "requires_review": True, "evidence": alignment,
+            "source_class": door.get("source_class"),
+        }
+        windows.append(door)
+        reclassified.add(door["id"])
+    doors = [door for door in doors if door["id"] not in reclassified]
     duplicate_strips = duplicate_window_edge_strips(windows)
     if duplicate_strips:
         duplicate_ids = set()
