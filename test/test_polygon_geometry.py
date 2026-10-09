@@ -89,6 +89,23 @@ class PolygonGeometryTest(unittest.TestCase):
         _, known = build_polygon_project(data, template())
         self.assertEqual(known["unsupported_segments"], [])
 
+    def test_explicit_reclassified_wall_support_closes_rejected_endcap(self):
+        data = source([box(0, 0, 100, 100)])
+        gap = box(-25, 30, 1, 70)
+        wall = Polygon(data["walls"][0]["outer"], data["walls"][0]["holes"]).difference(gap)
+        data["walls"] = [{"outer": [list(p) for p in wall.exterior.coords[:-1]],
+                          "holes": [[list(p) for p in r.coords[:-1]] for r in wall.interiors]}]
+        data["diagnostics"]["temporary_closures"] = [
+            {"start": [-10, 30], "end": [-10, 70], "width": 20}]
+        _, unsupported = build_polygon_project(data, template())
+        self.assertTrue(unsupported["unsupported_segments"])
+        data["reclassified_wall_support"] = [{
+            "outer": [[-25, 30], [1, 30], [1, 70], [-25, 70]],
+            "source_opening_id": 11, "parent_window_id": 10}]
+        _, supported = build_polygon_project(data, template())
+        self.assertEqual(supported["unsupported_segments"], [])
+        self.assertEqual(data["windows"], [])
+
     def test_opening_coordinate_tolerance_covers_small_closure_cap_mismatch(self):
         data = source([box(0, 0, 100, 100)])
         gap = box(-25, 30, 1, 70)

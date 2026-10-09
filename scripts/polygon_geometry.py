@@ -118,7 +118,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     oy = cy - (bounds[1] + bounds[3]) / 2 * scale
     transform = {"scale_x": scale, "scale_y": scale, "origin_x": ox, "origin_y": oy}
 
-    wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in source.get("walls", [])]
+    wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in
+                   source.get("walls", []) + source.get("reclassified_wall_support", [])]
     openings = [Polygon(p["outer"]) for p in source.get("doors", []) + source.get("windows", [])
                 if len(p.get("outer", [])) >= 3]
     repaired = sum(not p.is_valid for p in wall_shapes + openings)

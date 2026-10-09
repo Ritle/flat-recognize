@@ -126,6 +126,42 @@ class EvaluateRecognitionTests(unittest.TestCase):
         result = evaluate(truth, recognition)
         self.assertFalse(result["all_annotated_counts_exact"])
 
+    def test_scoped_opening_geometry_excludes_unannotated_area(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"windows": "geometry"},
+                 "annotation_regions": {"windows": [[0, 0, 100, 30]]},
+                 "windows": [{"id": "w1", "span": [[20, 10], [40, 10]]}]}
+        recognition = {"meta": {"width": 100, "height": 80}, "windows": [
+            rectangle(18, 48, 42, 52),  # Outside annotated band.
+            rectangle(19, 8, 41, 12),   # Match.
+            rectangle(65, 8, 85, 12),   # False positive inside annotated band.
+        ]}
+        result = evaluate(truth, recognition)["metrics"]["windows"]
+        self.assertEqual((result["true_positive"], result["false_positive"]), (1, 1))
+        self.assertEqual(result["scoped_prediction_indices"], [1, 2])
+        self.assertEqual(result["unmatched_predictions"], [2])
+        self.assertEqual(result["matches"][0]["prediction"], 1)
+        self.assertEqual(result["excluded_prediction_count"], 1)
+
+    def test_scoped_truth_must_be_inside_annotated_area(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"doors": "geometry"},
+                 "annotation_regions": {"doors": [[0, 0, 100, 30]]},
+                 "doors": [{"id": "d1", "span": [[20, 50], [40, 50]]}]}
+        with self.assertRaisesRegex(ValueError, "outside annotation_regions"):
+            validate_ground_truth(truth)
+
+    def test_equal_counts_with_false_positive_and_miss_are_not_exact(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"windows": "geometry"},
+                 "windows": [{"id": "w1", "span": [[20, 10], [40, 10]]}]}
+        recognition = {"meta": {"width": 100, "height": 80},
+                       "windows": [rectangle(65, 8, 85, 12)]}
+        result = evaluate(truth, recognition)
+        self.assertEqual(result["metrics"]["windows"]["expected"], 1)
+        self.assertEqual(result["metrics"]["windows"]["predicted"], 1)
+        self.assertFalse(result["all_annotated_counts_exact"])
+
 
 if __name__ == "__main__":
     unittest.main()

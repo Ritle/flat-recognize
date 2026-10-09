@@ -294,6 +294,21 @@ def validate_ground_truth(data):
     unknown = set(coverage) - set(CATEGORIES)
     if unknown:
         raise ValueError(f"Unknown coverage categories: {sorted(unknown)}")
+    regions = data.get("annotation_regions", {})
+    if not isinstance(regions, dict) or set(regions) - {"doors", "windows"}:
+        raise ValueError("annotation_regions supports only doors and windows")
+    for category, boxes in regions.items():
+        if coverage.get(category) != "geometry" or not isinstance(boxes, list) or not boxes:
+            raise ValueError(f"annotation_regions.{category} needs geometry coverage and boxes")
+        for index, box in enumerate(boxes):
+            label = f"annotation_regions.{category}[{index}]"
+            if not isinstance(box, list) or len(box) != 4:
+                raise ValueError(f"{label} needs [x1, y1, x2, y2]")
+            x1, y1, x2, y2 = box
+            point([x1, y1], label)
+            point([x2, y2], label)
+            if x1 >= x2 or y1 >= y2:
+                raise ValueError(f"{label} must have positive area")
     for category, mode in coverage.items():
         if mode not in ("count", "geometry"):
             raise ValueError(f"Coverage for {category} must be count or geometry")
@@ -340,6 +355,11 @@ def validate_ground_truth(data):
                 points(span, f"{label}.span", 2)
                 if span[0] == span[1]:
                     raise ValueError(f"{label}.span has zero length")
+                if category in regions:
+                    center = LineString(span).centroid
+                    if not any(x1 <= center.x <= x2 and y1 <= center.y <= y2
+                               for x1, y1, x2, y2 in regions[category]):
+                        raise ValueError(f"{label}.span center is outside annotation_regions")
             else:
                 point(item.get("point"), f"{label}.point")
                 if item.get("type") not in ("T", "X"):
@@ -380,9 +400,32 @@ def evaluate(ground_truth, recognition):
             result["metrics"][category] = {
                 "coverage": "geometry", **evaluate_walls(ground_truth[category], predicted)}
         elif category in ("doors", "windows"):
+            regions = ground_truth.get("annotation_regions", {}).get(category)
+            if regions:
+                indices = []
+                for index, item in enumerate(predicted):
+                    span = prediction_span(item)
+                    if len(span) != 2:
+                        continue
+                    center = LineString(span).centroid
+                    if any(x1 <= center.x <= x2 and y1 <= center.y <= y2
+                           for x1, y1, x2, y2 in regions):
+                        indices.append(index)
+                scoped = [predicted[index] for index in indices]
+                metrics = evaluate_openings(ground_truth[category], scoped, tolerance)
+                metrics["scope"] = "annotation_regions"
+                metrics["annotation_regions"] = regions
+                metrics["scoped_prediction_indices"] = indices
+                metrics["excluded_prediction_count"] = len(predicted) - len(scoped)
+                metrics["unmatched_predictions"] = [
+                    indices[index] for index in metrics["unmatched_predictions"]]
+                for match in metrics["matches"]:
+                    match["prediction"] = indices[match["prediction"]]
+            else:
+                metrics = evaluate_openings(ground_truth[category], predicted, tolerance)
             result["metrics"][category] = {
                 "coverage": "geometry",
-                **evaluate_openings(ground_truth[category], predicted, tolerance),
+                **metrics,
             }
         else:
             result["metrics"][category] = {
@@ -390,7 +433,9 @@ def evaluate(ground_truth, recognition):
                 **evaluate_junctions(ground_truth[category], predicted, tolerance),
             }
     result["all_annotated_counts_exact"] = bool(result["metrics"]) and all(
-        metric["expected"] == metric["predicted"]
+        (metric["exact"] if metric["coverage"] == "count" else
+         metric["area_iou"] >= .999 if "area_iou" in metric else
+         metric["true_positive"] == metric["expected"] and metric["false_positive"] == 0)
         for metric in result["metrics"].values())
     return result
 

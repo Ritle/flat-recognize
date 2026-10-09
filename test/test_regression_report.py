@@ -66,6 +66,22 @@ class RegressionReportTest(unittest.TestCase):
         self.assertIn("| colored | colored, furniture | 19/27654 | 14.8% | 3/4/2 | — |", markdown)
         self.assertIn("| unknown | hatching | — | — | — | — |", markdown)
 
+    def test_scoped_geometry_is_labeled_in_report(self):
+        report = {"pipeline": "v2", "cases": [
+            {"id": "partial", "status": "quality_invalid", "seconds": 1,
+             "accuracy": {"coverage": {"windows": "geometry"},
+                          "metrics": {"windows": {"coverage": "geometry",
+                                                  "scope": "annotation_regions",
+                                                  "true_positive": 2,
+                                                  "false_positive": 1,
+                                                  "false_negative": 1}}}},
+        ]}
+        with tempfile.TemporaryDirectory() as temp:
+            write_report(report, Path(temp))
+            markdown = (Path(temp) / "report.md").read_text(encoding="utf-8")
+        self.assertIn("geometry 1 category; scoped 1", markdown)
+        self.assertIn("2/1/1 (region)", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/Изображение ChatGPT 1 окт. 2026 г., 20_13_42.png",
+    "width": 1680,
+    "height": 1188,
+    "sha256": "0ce1d3dbe6b330a19c08ae468aa596c662741409503833bf76a1539f04853b58"
+  },
+  "coverage": {
+    "doors": "geometry",
+    "windows": "geometry"
+  },
+  "annotation_regions": {
+    "doors": [[320, 470, 590, 590], [300, 790, 430, 930]],
+    "windows": [[160, 95, 1540, 215]]
+  },
+  "doors": [
+    {"id": "d1", "span": [[458, 535], [563, 535]], "connects": ["bedroom", "hall"]},
+    {"id": "d2", "span": [[372, 818], [372, 907]], "connects": ["bathroom", "hall"]}
+  ],
+  "windows": [
+    {"id": "w1", "span": [[236, 148], [393, 148]], "connects": ["outside"]},
+    {"id": "w2", "span": [[422, 148], [503, 148]], "connects": ["outside"]},
+    {"id": "w3", "span": [[686, 148], [846, 148]], "connects": ["outside"]},
+    {"id": "w4", "span": [[872, 148], [957, 148]], "connects": ["outside"]},
+    {"id": "w5", "span": [[1138, 148], [1300, 148]], "connects": ["outside"]},
+    {"id": "w6", "span": [[1326, 148], [1409, 148]], "connects": ["outside"]}
+  ],
+  "notes": "Partial geometric annotation traced manually from source raster by Codex on 2026-10-09; not independently reviewed. Scores apply only inside annotation_regions. The lower exterior threshold and other unresolved openings are outside the evaluated regions."
+}

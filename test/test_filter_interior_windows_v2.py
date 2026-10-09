@@ -100,6 +100,28 @@ class InteriorWindowFilterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "coordinates"):
             filter_interior_windows(self.classified, self.rooms, self.rgb)
 
+    def test_unsupported_perpendicular_endcap_is_removed_without_room_change(self):
+        parent = window(10, 20, 20, 120, 35)
+        endcap = window(11, 100, 30, 113, 75)
+        separate = window(12, 145, 30, 158, 75)
+        self.classified["windows"] = [parent, endcap, separate]
+        self.classified["openings"] = copy.deepcopy(self.classified["windows"])
+        self.rooms["rooms"] = []
+        self.rooms["windows"] = copy.deepcopy(self.classified["windows"])
+        rebuilt = copy.deepcopy(self.rooms)
+        rebuilt["windows"] = [parent, separate]
+        def jamb_support(start, end, width, walls):
+            return [3, 3] if abs(end[0] - start[0]) > abs(end[1] - start[1]) else [0, 0]
+        with patch("filter_interior_windows_v2.extract_rooms", return_value=(rebuilt, None, None)):
+            with patch("filter_interior_windows_v2.wall_jamb_support", side_effect=jamb_support):
+                classified, rooms, report = filter_interior_windows(
+                    self.classified, self.rooms, self.rgb)
+        self.assertEqual([item["id"] for item in report["perpendicular_endcaps"]], [11])
+        self.assertEqual([item["id"] for item in classified["windows"]], [10, 12])
+        self.assertEqual([item["id"] for item in rooms["windows"]], [10, 12])
+        self.assertEqual(rooms["reclassified_wall_support"][0]["source_opening_id"], 11)
+        self.assertTrue(report["topology_stable"])
+
 
 if __name__ == "__main__":
     unittest.main()

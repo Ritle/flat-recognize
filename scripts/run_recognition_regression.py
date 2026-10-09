@@ -245,6 +245,10 @@ def write_report(report, run_dir):
             if geometry_categories:
                 count = len(geometry_categories)
                 coverage_parts.append(f"geometry {count} categor{'y' if count == 1 else 'ies'}")
+                scoped = sum(accuracy.get("metrics", {}).get(name, {}).get("scope") ==
+                             "annotation_regions" for name in geometry_categories)
+                if scoped:
+                    coverage_parts.append(f"scoped {scoped}")
             else:
                 coverage_parts.append("geometry 0")
             accuracy_text = f"[{'; '.join(coverage_parts)}]({row['id']}/accuracy.json)"
@@ -272,8 +276,10 @@ def write_report(report, run_dir):
 
         def score(category):
             item = metrics.get(category, {})
-            return (f"{item['true_positive']}/{item['false_positive']}/{item['false_negative']}"
-                    if item.get("coverage") == "geometry" else "—")
+            if item.get("coverage") != "geometry":
+                return "—"
+            value = f"{item['true_positive']}/{item['false_positive']}/{item['false_negative']}"
+            return value + " (region)" if item.get("scope") == "annotation_regions" else value
 
         lines.append(f"| {row['id']} | {', '.join(row.get('tags', [])) or '—'} | "
                      f"{wall_pixels} | {disagreement_text} | "

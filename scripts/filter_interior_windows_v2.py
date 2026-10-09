@@ -1,4 +1,4 @@
-"""Reject weak interior windows and rebuild rooms without them.
+"""Reject weak interior windows and unsupported perpendicular endcaps.
 
 The topology is accepted only when the room polygons survive re-extraction.
 """
@@ -51,6 +51,37 @@ def same_room_across_opening(start, end, wall_width, room_shapes):
     return None
 
 
+def perpendicular_weak_endcaps(windows, wall_shapes):
+    """Reject unsupported fragments crossing a longer perpendicular window."""
+    geometry = [opening_geometry(window) for window in windows]
+    support = [wall_jamb_support(*opening_axis(window), wall_shapes) for window in windows]
+    candidates = []
+    for index, window in enumerate(windows):
+        cx1, cy1, cx2, cy2, length, thickness, orientation = geometry[index]
+        if support[index] != [0, 0]:
+            continue
+        for parent_index, parent in enumerate(windows):
+            if index == parent_index:
+                continue
+            px1, py1, px2, py2, parent_length, parent_thickness, parent_orientation = geometry[parent_index]
+            if (orientation == parent_orientation or parent_length < length * 1.2
+                    or max(support[parent_index]) < 2):
+                continue
+            margin = max(4, parent_thickness * .2)
+            if orientation == "vertical":
+                aligned = px1 - margin <= (cx1 + cx2) / 2 <= px2 + margin
+                crossed = min(cy2, py2) - max(cy1, py1)
+            else:
+                aligned = py1 - margin <= (cy1 + cy2) / 2 <= py2 + margin
+                crossed = min(cx2, px2) - max(cx1, px1)
+            if aligned and crossed >= max(4, min(thickness, parent_thickness) * .15):
+                candidates.append({"id": window.get("id"), "bbox": window.get("bbox"),
+                                   "parent_id": parent.get("id"), "jamb_support": [0, 0],
+                                   "reason": "perpendicular_weak_jamb_window_endcap"})
+                break
+    return candidates
+
+
 def without_windows(classified, candidates):
     result = copy.deepcopy(classified)
     reasons = {candidate["id"]: candidate["reason"] for candidate in candidates}
@@ -101,37 +132,64 @@ def filter_interior_windows(classified, rooms, rgb):
 
     filtered_classified = copy.deepcopy(classified)
     filtered_rooms = copy.deepcopy(rooms)
-    report = {"version": 3, "method": "deep_filter_and_same_room_observation",
+    endcaps = perpendicular_weak_endcaps(classified.get("windows", []), wall_shapes)
+    endcap_ids = {candidate["id"] for candidate in endcaps}
+    report = {"version": 4, "method": "interior_and_perpendicular_endcap_filter",
               "examined_windows": len(classified.get("windows", [])),
               "rejected_windows": 0, "candidates": [], "ambiguous_windows": 0,
-              "ambiguous_candidates": [],
+              "ambiguous_candidates": [], "perpendicular_endcaps": endcaps,
               "topology_stable": True}
     deep = [candidate for candidate in candidates
-            if candidate["reason"] == "deep_interior_weak_jamb_window"]
+            if candidate["reason"] == "deep_interior_weak_jamb_window"
+            and candidate["id"] not in endcap_ids]
     across = [candidate for candidate in candidates
-              if candidate["reason"] == "same_room_both_sides_weak_jamb_window"]
-    report.update(rejected_windows=len(deep), candidates=deep,
+              if candidate["reason"] == "same_room_both_sides_weak_jamb_window"
+              and candidate["id"] not in endcap_ids]
+    rejected = deep + endcaps
+    report.update(rejected_windows=len(rejected), candidates=rejected,
                   ambiguous_windows=len(across), ambiguous_candidates=across)
-    if deep:
-        filtered_classified = without_windows(filtered_classified, deep)
+    if rejected:
+        filtered_classified = without_windows(filtered_classified, rejected)
         rebuilt, _, _ = extract_rooms(filtered_classified, rgb)
         stable = same_room_topology(rooms.get("rooms", []), rebuilt.get("rooms", []))
         report["topology_stable"] = stable
         report.update(rooms_before=len(rooms.get("rooms", [])),
                       rooms_after=len(rebuilt.get("rooms", [])))
         if stable:
-            filtered_rooms = rebuilt
+            if endcaps:
+                # Endcaps are opening duplicates, not room-boundary repairs.
+                # Re-extraction verifies topology, but its slightly shifted
+                # contours can perturb downstream wall serialization.
+                if deep:
+                    baseline_classified = without_windows(classified, deep)
+                    baseline_rooms, _, _ = extract_rooms(baseline_classified, rgb)
+                else:
+                    baseline_rooms = copy.deepcopy(rooms)
+                report["endcap_geometry_preserved"] = True
+                filtered_rooms = baseline_rooms
+                ids = {candidate["id"] for candidate in endcaps}
+                filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
+                                             if window.get("id") not in ids]
+                source_windows = {window.get("id"): window for window in classified.get("windows", [])}
+                support = [{"outer": copy.deepcopy(source_windows[item["id"]]["outer"]),
+                            "holes": copy.deepcopy(source_windows[item["id"]].get("holes", [])),
+                            "source_opening_id": item["id"], "parent_window_id": item["parent_id"]}
+                           for item in endcaps]
+                filtered_rooms.setdefault("reclassified_wall_support", []).extend(support)
+                report["reclassified_wall_support"] = [item["id"] for item in endcaps]
+            else:
+                filtered_rooms = rebuilt
         else:
-            ids = {candidate["id"] for candidate in deep}
+            ids = {candidate["id"] for candidate in rejected}
             filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
                                          if window.get("id") not in ids]
         if "opening_recovery" in rooms.get("diagnostics", {}):
             filtered_rooms.setdefault("diagnostics", {})["opening_recovery"] = (
                 rooms["diagnostics"]["opening_recovery"])
         filtered_rooms.setdefault("diagnostics", {}).setdefault("warnings", []).append(
-            f"Отклонено оконных кандидатов внутри комнат: {len(deep)}; "
+            f"Отклонено оконных кандидатов без опоры на стены: {len(rejected)}; "
             "контуры комнат пересчитаны и требуют проверки." if report["topology_stable"] else
-            f"Отклонено оконных кандидатов внутри комнат: {len(deep)}; "
+            f"Отклонено оконных кандидатов без опоры на стены: {len(rejected)}; "
             "повторное выделение изменило контуры комнат, экспорт заблокирован.")
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
     return filtered_classified, filtered_rooms, report

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/plannn.jpg.webp",
+    "width": 1000,
+    "height": 661,
+    "sha256": "f9de83a36500c404183f698bbed76de50e69d20786c37523c3a4c3eb868ef66d"
+  },
+  "coverage": {
+    "doors": "geometry",
+    "windows": "geometry"
+  },
+  "annotation_regions": {
+    "doors": [[465, 330, 565, 425], [605, 330, 705, 430]],
+    "windows": [[80, 45, 120, 430], [945, 45, 990, 430]]
+  },
+  "doors": [
+    {"id": "d1", "span": [[478, 354], [537, 354]], "connects": ["hall", "entry"]},
+    {"id": "d2", "span": [[621, 355], [678, 355]], "connects": ["hall", "storage"]}
+  ],
+  "windows": [
+    {"id": "w1", "span": [[98, 49], [98, 210]], "connects": ["outside"]},
+    {"id": "w2", "span": [[98, 254], [98, 415]], "connects": ["outside"]},
+    {"id": "w3", "span": [[970, 50], [970, 210]], "connects": ["outside"]},
+    {"id": "w4", "span": [[970, 255], [970, 417]], "connects": ["outside"]}
+  ],
+  "notes": "Partial geometric annotation traced manually from source raster by Codex on 2026-10-09; not independently reviewed. Scores apply only inside annotation_regions. Ambiguous top facade strips, balcony access, and other doors remain unannotated."
+}

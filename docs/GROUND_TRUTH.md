@@ -13,6 +13,14 @@ pixels before resize or letterbox. Every category declares its coverage:
 An empty array with `geometry` coverage means that the image is confirmed to
 contain no objects of that category. It is different from an omitted category.
 
+For a complex image, `annotation_regions` may restrict `doors` or `windows`
+geometry to fully inspected source-image rectangles `[x1, y1, x2, y2]`. Only
+predictions whose opening-span centers fall in those rectangles are scored.
+Every annotated span center must also lie inside its category's rectangles.
+Metrics label this as `scope: annotation_regions`, record original prediction
+indices, and never claim accuracy for the rest of the image. Do not place a
+region boundary through an opening whose status is uncertain.
+
 ## Format
 
 ```json
@@ -85,8 +93,8 @@ contains `ground_truth`. Its accuracy artifact is diagnostic: it does not
 change `good`, `review` or `invalid` and cannot allow export.
 
 Current coverage is intentionally limited. Source-image geometry was manually
-traced by Codex on 2026-10-08 for four plans and has not been independently
-reviewed:
+traced by Codex on 2026-10-08 and 2026-10-09 for six plans and has not been
+independently reviewed:
 
 | Plan | Geometric coverage | Initial observation |
 |---|---|---|
@@ -94,6 +102,16 @@ reviewed:
 | `clean-diagonal` | 6 rooms, 6 doors, 7 windows | All matched; mean room IoU 0.9000. |
 | `small-furnished` | 2 windows | 2 of 10 predictions matched; 8 false window candidates. |
 | `colored-walls` | 5 windows | Initially 3 of 8 matched (5 false, 2 missed); after edge-strip deduplication 3 of 7 matched (4 false, 2 missed). |
+| `open-zones` | 2 doors and 6 top-facade windows, scoped | Doors 2/0/0; windows improved from 5/5/1 to 5/1/1 TP/FP/FN inside annotated regions after perpendicular-endcap filtering. |
+| `complex-hatched` | 2 central doors and 4 side-facade windows, scoped | Doors 2/0/0 and windows 2/0/2 TP/FP/FN inside annotated regions. |
+
+On `open-zones`, four unsupported vertical window candidates cross longer,
+wall-supported horizontal windows. The filter records their IDs and parent
+windows, removes them from window export, and preserves their polygons in
+`reclassified_wall_support` for explicit boundary support. Room topology is
+rechecked first. This prevents deleting the only evidence for three existing
+room-boundary segments; it does not certify those segments as accurate walls.
+The project remains `invalid` under the final quality gate.
 
 Other categories on these plans are unannotated. In particular, walls and T/X
 junctions have no geometric coverage. The evaluator checks that covered
@@ -102,7 +120,7 @@ nonzero wall/opening spans before scoring. Opening and room metrics list
 `unmatched_truth` IDs and zero-based `unmatched_predictions` indices; the
 indices refer to the corresponding arrays in the room artifact.
 
-These four examples are development cases, not a representative held-out set.
+These six examples are development cases, not a representative held-out set.
 The furnished and colored examples confirm a substantial false-window problem.
 The colored example also has missed real windows, so a stricter filter alone
 could make recall worse. Its two missed top-right windows have no candidates

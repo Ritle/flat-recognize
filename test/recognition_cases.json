@@ -47,6 +47,7 @@
     {
       "id": "open-zones",
       "image": "exmpls/Изображение ChatGPT 1 окт. 2026 г., 20_13_42.png",
+      "ground_truth": "test/ground_truth/open-zones.json",
       "tags": ["open_zones", "furniture", "dashed_lines", "non_rectangular"]
     },
     {
@@ -58,6 +59,7 @@
     {
       "id": "complex-hatched",
       "image": "exmpls/plannn.jpg.webp",
+      "ground_truth": "test/ground_truth/complex-hatched.json",
       "tags": ["hatching", "text", "furniture", "balcony", "open_zones", "non_rectangular", "webp"]
     }
   ]

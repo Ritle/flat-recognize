@@ -80,7 +80,8 @@ def skeleton_paths(mask):
 
 def source_shapes(source):
     polygons = [Polygon(item["outer"], item.get("holes", []))
-                for item in source.get("walls", []) + source.get("doors", []) + source.get("windows", [])
+                for item in (source.get("walls", []) + source.get("reclassified_wall_support", [])
+                             + source.get("doors", []) + source.get("windows", []))
                 if len(item.get("outer", [])) >= 3]
     return unary_union([p if p.is_valid else p.buffer(0) for p in polygons])
 
@@ -115,7 +116,8 @@ def internal_lines(source, room_shapes, existing, half_wall):
     domain = interior.difference(corridor)
     raw_support = source_shapes(source)
     wall_support = unary_union([Polygon(item["outer"], item.get("holes", [])).buffer(0)
-                               for item in source.get("walls", [])])
+                               for item in (source.get("walls", [])
+                                            + source.get("reclassified_wall_support", []))])
     support = raw_support.buffer(step * 1.5)
     unknown = []
     for closure in source.get("diagnostics", {}).get("temporary_closures", []):
