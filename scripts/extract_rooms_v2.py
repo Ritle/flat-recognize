@@ -8,8 +8,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from classify_openings import classify_opening
-from door_leaf_evidence import leaf_candidates
+from classify_openings import classify_opening, structural_union
+from door_leaf_evidence import leaf_and_arc, leaf_candidates
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Polygon
@@ -115,7 +115,8 @@ def axis_pairs(barrier, thickness, extended=False, sampling_thickness=None):
     return pairs
 
 
-def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickness=None):
+def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickness=None,
+                   wall_shapes=None):
     endpoints, thickness = wall_endpoints(barrier)
     candidates = []
     rejected_leaves = []
@@ -193,6 +194,15 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickn
                         if usable:
                             break
                 if usable:
+                    if (wall_shapes is not None
+                            and max(abs(direction)) < np.cos(np.radians(12))
+                            and leaf_and_arc(gray, a["point"], b["point"], local_width,
+                                             wall_shapes) is None):
+                        rejected_leaves.append({"start": a["point"].tolist(),
+                                                "end": b["point"].tolist(),
+                                                "width": local_width,
+                                                "reason": "oblique_arc_not_confirmed"})
+                        continue
                     evidence = "door_leaf"
                 else:
                     rejected_leaves.append({"start": a["point"].tolist(), "end": b["point"].tolist(),
@@ -375,6 +385,7 @@ def extract_rooms(data, rgb):
     rooms, diagnostics = room_candidates(barrier, walls, inferred)
     passes = [{"name": "known_openings", "rooms": len(rooms), **diagnostics}]
     gray = rgb.min(axis=2)
+    wall_shapes = structural_union(data.get("walls", []))
     _, wall_only_thickness = wall_endpoints(walls)
     closures = []
     envelope = None
@@ -397,7 +408,8 @@ def extract_rooms(data, rgb):
             break
         extended = envelope_applied and relaxed
         candidates, info = gap_candidates(barrier, gray, relaxed=relaxed, extended=extended,
-                                          sampling_thickness=wall_only_thickness)
+                                          sampling_thickness=wall_only_thickness,
+                                          wall_shapes=wall_shapes)
         trial, additions = apply_closures(barrier, candidates)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
@@ -428,6 +440,13 @@ def extract_rooms(data, rgb):
         warnings.append("Наружный контур восстановлен предположительно только для topology; проверьте границы.")
     if closures:
         warnings.append("Границы некоторых помещений восстановлены предположительно; проверьте результат.")
+    rejected_oblique = sum(
+        candidate.get("reason") == "oblique_arc_not_confirmed"
+        for phase in passes for candidate in phase.get("rejected_leaf_gaps", []))
+    if rejected_oblique:
+        warnings.append(
+            f"Наклонные разрывы без подтверждённой дуги оставлены открытыми ({rejected_oblique}); "
+            "проверьте возможные пропущенные двери и границы помещений.")
     if diagnostics["outside_fraction_in_structure"] >= 0.25:
         warnings.append("Возможны незамкнутые границы и потерянные помещения.")
     if not rooms:
@@ -472,6 +491,7 @@ def extract_rooms(data, rgb):
                               "rejected_openings": rejected_openings,
                               "review_doors": review_doors,
                               "review_windows": review_windows,
+                              "rejected_oblique_closures": rejected_oblique,
                               "non_rectangular_rooms": non_rectangular,
                               "warnings": warnings, **diagnostics}}
     return result, barrier, inferred

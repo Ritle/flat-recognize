@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -163,6 +164,30 @@ class RoomsTests(unittest.TestCase):
         self.assertTrue(diagnostics["rejected_leaf_gaps"])
         self.assertTrue(all(candidate["reason"] == "leaf_tip_touches_barrier"
                             for candidate in diagnostics["rejected_leaf_gaps"]))
+
+    def test_oblique_leaf_needs_arc_before_it_closes_a_room(self):
+        barrier = np.zeros((400, 400), dtype=np.uint8)
+        gray = np.full_like(barrier, 255)
+        start, end = np.array([10., 10.]), np.array([60., 30.])
+        direction = (end - start) / np.linalg.norm(end - start)
+        endpoints = [{"point": start, "direction": direction, "width": 10.},
+                     {"point": end, "direction": -direction, "width": 10.}]
+        leaf = {"hinge": start.tolist(), "tip": [35., 60.]}
+        with (patch("extract_rooms_v2.wall_endpoints", return_value=(endpoints, 10.)),
+              patch("extract_rooms_v2.axis_pairs", return_value=[]),
+              patch("extract_rooms_v2.classify_opening", return_value=("door", [leaf])),
+              patch("extract_rooms_v2.leaf_candidates", return_value=([leaf], None, None))):
+            with patch("extract_rooms_v2.leaf_and_arc", return_value=None):
+                closures, diagnostics = gap_candidates(barrier, gray, relaxed=True,
+                                                        wall_shapes=object())
+            self.assertEqual(closures, [])
+            self.assertIn("oblique_arc_not_confirmed",
+                          [item["reason"] for item in diagnostics["rejected_leaf_gaps"]])
+            with patch("extract_rooms_v2.leaf_and_arc", return_value={"arc_hits": 8}):
+                closures, _ = gap_candidates(barrier, gray, relaxed=True,
+                                             wall_shapes=object())
+            self.assertEqual(len(closures), 1)
+            self.assertEqual(closures[0]["evidence"], "door_leaf")
 
     def test_arc_less_door_marks_room_result_for_review(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
