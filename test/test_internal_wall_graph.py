@@ -12,7 +12,7 @@ from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from internal_wall_graph import extend_project_walls
+from internal_wall_graph import extend_project_walls, internal_lines
 from polygon_geometry import build_polygon_project, parts
 from validate_recognition import validate_recognition
 
@@ -78,6 +78,23 @@ class InternalWallsTest(unittest.TestCase):
                     if item.get("reason") == "isolated_wall_component"]
         self.assertTrue(rejected)
         self.assertGreater(rejected[0]["boundary_distance_px"], 20)
+
+    def test_nearby_isolated_furniture_loop_is_not_exported_as_wall(self):
+        room = box(0, 0, 200, 200)
+        ring = box(60, 20, 130, 90).difference(box(70, 30, 120, 80))
+        data = {"walls": [{"outer": [list(p) for p in ring.exterior.coords[:-1]],
+                            "holes": [[list(p) for p in inner.coords[:-1]]
+                                      for inner in ring.interiors]}],
+                "doors": [], "windows": []}
+        lines, report = internal_lines(data, [room], room.boundary, 10)
+        self.assertEqual(lines, [])
+        loops = [item for item in report["rejected"]
+                 if item["reason"] == "isolated_closed_wall_loop"]
+        self.assertEqual(len(loops), 1)
+        self.assertLess(loops[0]["boundary_distance_px"], 26)
+        _, geometry, _ = self.build(fixture([ring]))
+        self.assertEqual(geometry["internal_wall_graph"]["added_segments"], [])
+        self.assertTrue(any("колонны" in warning for warning in geometry["warnings"]))
 
     def test_t_and_x_junctions_are_noded_without_duplicate_segments(self):
         for shape, degree in ((unary_union([box(90, -10, 110, 105), box(20, 90, 180, 110)]), 3),

@@ -13,7 +13,7 @@ import numpy as np
 from extract_rooms_v2 import skeletonize
 from polygon_geometry import parts
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon
-from shapely.ops import nearest_points, unary_union
+from shapely.ops import nearest_points, polygonize, unary_union
 
 
 def skeleton_paths(mask):
@@ -204,6 +204,17 @@ def internal_lines(source, room_shapes, existing, half_wall):
     for component in components:
         shape = unary_union([accepted[index] for index in component])
         distance = float(shape.distance(existing))
+        if distance > connection_tolerance and any(polygonize(shape)):
+            # A detached closed centerline is an interior island. Furniture
+            # outlines frequently pass width/support checks, but a physical
+            # partition represented by this schema must attach to the graph.
+            for index in component:
+                report["rejected"].append({
+                    **accepted_entries[index],
+                    "reason": "isolated_closed_wall_loop",
+                    "boundary_distance_px": round(distance, 3),
+                })
+            continue
         lengths = []
         orthogonal_lengths = []
         for index in component:
@@ -245,6 +256,9 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
     lines, report = internal_lines(source, rooms, existing, thickness / sx / 2)
     report.update(added_segments=[], split_existing_segments=0)
     geometry["internal_wall_graph"] = report
+    if any(item["reason"] == "isolated_closed_wall_loop" for item in report["rejected"]):
+        geometry["warnings"].append(
+            "Замкнутые внутренние линии без соединения со стенами не добавлены; проверьте возможные колонны.")
     if not lines:
         return project, geometry
     project = copy.deepcopy(project)
