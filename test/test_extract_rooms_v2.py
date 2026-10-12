@@ -31,6 +31,20 @@ def source(walls, leaf=False):
 
 
 class RoomsTests(unittest.TestCase):
+    def test_supported_window_edge_seal_recovers_leaked_room_only_in_barrier(self):
+        walls = [rectangle(20, 20, 80, 40), rectangle(305, 20, 380, 40),
+                 rectangle(20, 20, 30, 280), rectangle(370, 20, 380, 280),
+                 rectangle(20, 270, 380, 280)]
+        data, rgb = source(walls)
+        window = rectangle(88, 20, 297, 40)
+        window["id"] = 7
+        data["windows"] = [window]
+        result, _, inferred = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertEqual(result["diagnostics"]["window_edge_seals"][0]["window_id"], 7)
+        self.assertTrue(np.any(inferred))
+        self.assertEqual(result["windows"], [window])
+
     def test_transverse_wall_candidate_requires_arc_and_two_wall_sides(self):
         barrier = np.zeros((300, 400), np.uint8)
         cv2.rectangle(barrier, (20, 145), (150, 155), 255, -1)

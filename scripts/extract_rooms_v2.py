@@ -8,7 +8,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from classify_openings import classify_opening, structural_union
+from classify_openings import classify_opening, opening_axis, structural_union
 from door_leaf_evidence import leaf_and_arc, leaf_candidates, wall_jamb_support
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
@@ -165,6 +165,32 @@ def endpoint_wall_arc_candidates(barrier, gray, endpoints, thickness, walls):
                            "width": local_width, "length": gap, "alignment": 1.0,
                            "evidence": "door_leaf", "method": "endpoint_to_wall_arc"})
     return candidates
+
+
+def window_edge_seal(window, barrier, walls):
+    """Offer a bounded topology-only seal at supported window ends."""
+    if len(window.get("outer", [])) < 3:
+        return None
+    start, end, thickness = opening_axis(window)
+    if (np.linalg.norm(end - start) < 15 or thickness <= 0
+            or min(wall_jamb_support(start, end, thickness, walls)) < 2):
+        return None
+    horizontal = abs(end[0] - start[0]) >= abs(end[1] - start[1])
+    mask = np.zeros_like(barrier)
+    cv2.fillPoly(mask, [polygon_to_int(window["outer"])], 255)
+    kernel = np.ones((5, 11) if horizontal else (11, 5), np.uint8)
+    grown = cv2.dilate(cv2.dilate(mask, kernel), np.ones((3, 3), np.uint8))
+    return grown & cv2.bitwise_not(barrier)
+
+
+def preserves_existing_rooms(existing, proposed):
+    proposed_shapes = [Polygon(room["polygon"]) for room in proposed]
+    for room in existing:
+        shape = Polygon(room["polygon"])
+        if (not proposed_shapes
+                or max(shape.intersection(other).area for other in proposed_shapes) < shape.area * .95):
+            return False
+    return True
 
 
 def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickness=None,
@@ -509,11 +535,36 @@ def extract_rooms(data, rgb):
                    "temporary_closures": len(transverse_accepted),
                    "rejected_candidates": len(transverse_candidates) - len(transverse_accepted),
                    "accepted": bool(transverse_accepted), **diagnostics})
+    sealed_windows = []
+    considered_windows = 0
+    for window in data.get("windows", []):
+        additions = window_edge_seal(window, barrier, wall_shapes)
+        if additions is None or not np.any(additions):
+            continue
+        considered_windows += 1
+        trial = barrier | additions
+        trial_inferred = inferred | additions
+        trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
+        if (len(trial_rooms) <= len(rooms)
+                or trial_diagnostics["outside_fraction_in_structure"]
+                >= diagnostics["outside_fraction_in_structure"] - .02
+                or not preserves_existing_rooms(rooms, trial_rooms)):
+            continue
+        sealed_windows.append({"window_id": window.get("id"),
+                               "added_pixels": int(np.count_nonzero(additions))})
+        barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
+    passes.append({"name": "window_edge_seals", "rooms": len(rooms),
+                   "considered_windows": considered_windows,
+                   "accepted_windows": sealed_windows,
+                   "accepted": bool(sealed_windows), **diagnostics})
     warnings = []
     if envelope_applied:
         warnings.append("Наружный контур восстановлен предположительно только для topology; проверьте границы.")
     if closures:
         warnings.append("Границы некоторых помещений восстановлены предположительно; проверьте результат.")
+    if sealed_windows:
+        warnings.append(
+            f"Границы окон продлены только в маске помещений ({len(sealed_windows)}); проверьте восстановленные комнаты.")
     rejected_oblique = sum(
         candidate.get("reason") == "oblique_arc_not_confirmed"
         for phase in passes for candidate in phase.get("rejected_leaf_gaps", []))
@@ -560,6 +611,7 @@ def extract_rooms(data, rgb):
               "doors": data.get("doors", []), "windows": data.get("windows", []), "rooms": rooms,
               "diagnostics": {"version": 2, "passes": passes, "temporary_closures": closures,
                               "exterior_envelope": envelope,
+                              "window_edge_seals": sealed_windows,
                               "rooms_found": len(rooms), "uncertain_rooms": sum(r["uncertain"] for r in rooms),
                               "isolated_wall_enclosures": isolated_enclosures,
                               "rejected_openings": rejected_openings,
