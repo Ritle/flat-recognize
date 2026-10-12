@@ -12,7 +12,8 @@ from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from polygon_geometry import build_polygon_project, partition_rooms, requires_polygons, supported_offset_sliver
+from polygon_geometry import (align_window_boundaries, build_polygon_project, partition_rooms,
+                              requires_polygons, supported_offset_sliver)
 from validate_recognition import validate_recognition
 
 
@@ -31,6 +32,41 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_window_supported_frame_kink_is_aligned_and_reported(self):
+        room = Polygon([(0, 0), (150, 0), (150, 20), (158, 55), (150, 80),
+                        (158, 105), (150, 140), (150, 160), (0, 160)])
+        opening = {"outer": [[150, 20], [170, 20], [170, 140], [150, 140]]}
+        walls = unary_union([box(140, 0, 170, 25), box(140, 135, 170, 160)])
+        aligned, changes = align_window_boundaries([room], [opening], walls, 10)
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(len(aligned[0].exterior.coords), len(room.exterior.coords) - 3)
+        self.assertTrue(aligned[0].is_valid)
+        self.assertLess(changes[0]["area_change_px2"], 0)
+
+    def test_window_alignment_requires_wall_ends_and_does_not_cut_real_corner(self):
+        kinked = Polygon([(0, 0), (150, 0), (150, 20), (158, 55), (150, 80),
+                          (158, 105), (150, 140), (150, 160), (0, 160)])
+        opening = {"outer": [[150, 20], [170, 20], [170, 140], [150, 140]]}
+        aligned, changes = align_window_boundaries([kinked], [opening], Polygon(), 10)
+        self.assertFalse(changes)
+        self.assertEqual(aligned[0], kinked)
+        corner = Polygon([(0, 0), (150, 0), (150, 60), (100, 60),
+                          (100, 160), (0, 160)])
+        aligned, changes = align_window_boundaries([corner], [opening],
+                                                    corner.buffer(10).difference(corner), 10)
+        self.assertFalse(changes)
+        self.assertEqual(aligned[0], corner)
+
+    def test_window_alignment_does_not_expand_room_into_neighbor(self):
+        room = Polygon([(0, 0), (150, 0), (150, 20), (142, 55), (142, 105),
+                        (150, 140), (150, 160), (0, 160)])
+        neighbor = box(148, 70, 170, 90)
+        opening = {"outer": [[150, 20], [170, 20], [170, 140], [150, 140]]}
+        walls = unary_union([box(140, 0, 170, 25), box(140, 135, 170, 160)])
+        aligned, changes = align_window_boundaries([room, neighbor], [opening], walls, 10)
+        self.assertFalse(changes)
+        self.assertEqual(aligned, [room, neighbor])
+
     def test_only_short_wall_adjacent_offset_slivers_are_supported(self):
         wall = box(0, 0, 100, 10)
         self.assertTrue(supported_offset_sliver(LineString([(40, 12), (43, 12)]), wall, 10))

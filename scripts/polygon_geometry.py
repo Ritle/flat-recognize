@@ -33,6 +33,104 @@ def supported_offset_sliver(edge, walls, half_wall):
             and edge.difference(walls.buffer(half_wall)).length < 1e-4)
 
 
+def align_window_boundaries(shapes, windows, walls, half_wall):
+    """Straighten small raster kinks only where a long window supports the chord.
+
+    Room extraction can follow the two sides of a window frame instead of its
+    wall axis. Keep this correction local to the opening, preserve room topology,
+    and report every changed contour for review.
+    """
+    result = list(shapes)
+    changes = []
+    for window_index, opening in enumerate(windows):
+        points = opening.get("outer", [])
+        if len(points) < 3:
+            continue
+        window = Polygon(points)
+        if not window.is_valid or window.is_empty:
+            continue
+        x0, y0, x1, y1 = window.bounds
+        vertical = y1 - y0 > x1 - x0
+        lo, hi = (y0, y1) if vertical else (x0, x1)
+        side_lo, side_hi = (x0, x1) if vertical else (y0, y1)
+        length, width = hi - lo, side_hi - side_lo
+        if walls.is_empty or length < max(40, half_wall * 8) or length < width * 3:
+            continue
+        cap = max(half_wall * 1.5, length * .1)
+        side_margin = half_wall + 3
+        # The source contour is an inner wall face; export moves it toward the
+        # wall axis by about half a wall, where the tighter support gate runs.
+        support = unary_union([walls, window]).buffer(2 * half_wall + 3)
+        for room_index, shape in enumerate(result):
+            if not shape.is_valid or shape.interiors:
+                continue
+            ring = list(shape.exterior.coords[:-1])
+            n = len(ring)
+            if n < 4:
+                continue
+
+            def axis(point):
+                return point[1] if vertical else point[0]
+
+            def side(point):
+                return point[0] if vertical else point[1]
+
+            eligible = [i for i, point in enumerate(ring)
+                        if lo - cap <= axis(point) <= hi + cap
+                        and side_lo - side_margin <= side(point) <= side_hi + side_margin]
+            starts = sorted((i for i in eligible if abs(axis(ring[i]) - lo) <= cap),
+                            key=lambda i: abs(axis(ring[i]) - lo))[:3]
+            ends = sorted((i for i in eligible if abs(axis(ring[i]) - hi) <= cap),
+                          key=lambda i: abs(axis(ring[i]) - hi))[:3]
+            candidates = []
+            for start in starts:
+                for end in ends:
+                    if start == end:
+                        continue
+                    for step in (1, -1):
+                        chain = [start]
+                        while chain[-1] != end and len(chain) <= n:
+                            chain.append((chain[-1] + step) % n)
+                        if chain[-1] != end or not 4 <= len(chain) <= n - 1:
+                            continue
+                        coords = [ring[i] for i in chain]
+                        longitudinal = [axis(point) for point in coords]
+                        if any(b < a - half_wall for a, b in pairwise(longitudinal)):
+                            continue
+                        chord = LineString([coords[0], coords[-1]])
+                        if chord.length < length * .8 or abs(side(coords[-1]) - side(coords[0])) > chord.length * .12:
+                            continue
+                        if any(not (lo - cap <= axis(point) <= hi + cap
+                                    and side_lo - side_margin <= side(point) <= side_hi + side_margin)
+                               for point in coords):
+                            continue
+                        deviation = max(chord.distance(Point(point)) for point in coords[1:-1])
+                        if not half_wall * .4 <= deviation <= half_wall + 6:
+                            continue
+                        if chord.difference(support).length > max(2, chord.length * .05):
+                            continue
+                        if any(walls.distance(Point(point)) > side_margin for point in (coords[0], coords[-1])):
+                            continue
+                        replacement = [point for i, point in enumerate(ring) if i not in chain[1:-1]]
+                        candidate = Polygon(replacement)
+                        if (not candidate.is_valid or candidate.interiors
+                                or candidate.area <= 0 or
+                                shape.symmetric_difference(candidate).area >
+                                min(shape.area * .03, half_wall * length * 1.2)):
+                            continue
+                        if any(candidate.intersection(other).area > 1e-5
+                               for j, other in enumerate(result) if j != room_index):
+                            continue
+                        candidates.append((abs(candidate.area - shape.area), candidate, deviation))
+            if candidates:
+                _, candidate, deviation = min(candidates, key=lambda item: item[0])
+                changes.append({"room_id": room_index, "window_index": window_index,
+                                "area_change_px2": round(candidate.area - shape.area, 2),
+                                "max_deviation_px": round(deviation, 2)})
+                result[room_index] = candidate
+    return result, changes
+
+
 def partition_rooms(shapes, offset, diagnostics=None):
     """Expand to wall axes, partition contested strips, retain original interiors.
 
@@ -107,6 +205,13 @@ def partition_rooms(shapes, offset, diagnostics=None):
 def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     shapes = [Polygon(r["polygon"]) for r in source["rooms"]]
     half_wall = thickness / scale / 2
+    wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in
+                   source.get("walls", []) + source.get("reclassified_wall_support", [])]
+    openings = [Polygon(p["outer"]) for p in source.get("doors", []) + source.get("windows", [])
+                if len(p.get("outer", [])) >= 3]
+    repaired = sum(not p.is_valid for p in wall_shapes + openings)
+    walls = unary_union([p if p.is_valid else p.buffer(0) for p in wall_shapes]) if wall_shapes else GeometryCollection()
+    shapes, aligned_windows = align_window_boundaries(shapes, source.get("windows", []), walls, half_wall)
     adjustments = []
     shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments)]
     level_template = template["levels"][0]
@@ -118,12 +223,6 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     oy = cy - (bounds[1] + bounds[3]) / 2 * scale
     transform = {"scale_x": scale, "scale_y": scale, "origin_x": ox, "origin_y": oy}
 
-    wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in
-                   source.get("walls", []) + source.get("reclassified_wall_support", [])]
-    openings = [Polygon(p["outer"]) for p in source.get("doors", []) + source.get("windows", [])
-                if len(p.get("outer", [])) >= 3]
-    repaired = sum(not p.is_valid for p in wall_shapes + openings)
-    walls = unary_union([p if p.is_valid else p.buffer(0) for p in wall_shapes]) if wall_shapes else GeometryCollection()
     known = unary_union([p if p.is_valid else p.buffer(0) for p in openings]) if openings else GeometryCollection()
     support = unary_union([walls, known]).buffer(half_wall + 3)
     unknown = []
@@ -225,9 +324,14 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
               "rooms": [{"id": i, "polygon": [list(p) for p in shape.exterior.coords[:-1]]}
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
+              "aligned_window_boundaries": aligned_windows,
               "matched_closure_edges": matched_closure_edges,
               "offset_sliver_edges": offset_sliver_edges,
               "warnings": list(dict.fromkeys(adjustments)), "errors": []}
+    if aligned_windows:
+        report["warnings"].append(
+            f"Границы комнат у распознанных окон выпрямлены ({len(aligned_windows)}); "
+            "проверьте положение проёмов и форму комнат.")
     if matched_closure_edges:
         report["warnings"].append(
             f"Границы временных замыканий сопоставлены с распознанными проёмами с допуском "
