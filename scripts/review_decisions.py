@@ -76,7 +76,9 @@ def make_review_questions(classified, quality, source_sha256):
         seen.add(uid)
         classification = opening.get("classification") or {}
         if classification.get("requires_review"):
-            reasons.setdefault(uid, set()).add("classification_uncertain")
+            reason = ("door_arc_missing_jamb" if classification.get("method") == "door_arc_missing_jamb"
+                      else "classification_uncertain")
+            reasons.setdefault(uid, set()).add(reason)
         if classification.get("method") in ("user_selected", "user_ignored"):
             reasons.setdefault(uid, set()).add("user_choice")
         if uid not in reasons:

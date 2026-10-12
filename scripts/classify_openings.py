@@ -276,7 +276,14 @@ def classify_opening_with_leaf(gray, opening, walls):
     evidence = leaf_and_arc(gray, start, end, width, walls)
     if evidence is not None:
         support = wall_jamb_support(start, end, width, walls)
-        evidence = evidence | {"jamb_support": support} if min(support) >= 2 else None
+        if min(support) >= 2:
+            return "door", evidence | {"jamb_support": support}
+        if opening.get("source_class") == "door" and max(support) >= 2:
+            # A swing arc near a single jamb can also come from furniture.
+            # Surface the ambiguity without changing room topology or export.
+            return "window", evidence | {"jamb_support": support,
+                                         "missing_jamb": True}
+        evidence = None
     if evidence is None and opening.get("source_class") == "door":
         evidence = diagonal_leaf_with_jambs(gray, start, end, width, walls)
     return ("door", evidence) if evidence is not None else ("window", None)
@@ -305,11 +312,15 @@ def classify_openings(data, rgb):
         opening["orientation"] = orientation
         opening["length"] = round(length, 2)
         opening["thickness"] = round(thickness, 2)
-        fallback = evidence is not None and evidence.get("arc_confirmed") is False
+        fallback = (opening_type == "door" and evidence is not None
+                    and evidence.get("arc_confirmed") is False)
+        missing_jamb = (opening_type == "window" and evidence is not None
+                        and evidence.get("missing_jamb") is True)
         opening["classification"] = {
-            "method": "source_door_two_jamb_diagonal_leaf" if fallback else "jamb_leaf_and_arc",
-            "confirmed": evidence is not None,
-            "requires_review": fallback,
+            "method": ("source_door_two_jamb_diagonal_leaf" if fallback else
+                       "door_arc_missing_jamb" if missing_jamb else "jamb_leaf_and_arc"),
+            "confirmed": opening_type == "door" and evidence is not None,
+            "requires_review": fallback or missing_jamb,
             "evidence": evidence,
             "source_class": opening.get("source_class"),
         }

@@ -81,6 +81,10 @@ async function show(status) {
     context.renderReviewQuestions({review_questions: [question], applied_decisions: []});
     assert.equal(nodes.get('reviewPanel').style.display, 'block');
     context.renderReviewQuestions({review_questions: [{...question,
+        current: 'window', reasons: ['door_arc_missing_jamb']}], applied_decisions: []});
+    assert.match(nodes.get('reviewList').children.at(-1).children[1].textContent,
+        /похоже на дверь, но контур стены неполный/);
+    context.renderReviewQuestions({review_questions: [{...question,
         reasons: ['opening_exceeds_segment'],
         geometry: {opening_width_cm: 92, wall_length_cm: 50,
             overhang_cm: 45, wall_chain_length_cm: 100}}], applied_decisions: []});

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from classify_openings import (aligned_window_over_weak_door_arc, classify_opening,
                                classify_openings, duplicate_window_edge_strips)
+from review_decisions import make_review_questions
 
 
 def fixture(arc=True, leaf=True):
@@ -47,6 +48,14 @@ class ClassifyOpeningsTests(unittest.TestCase):
         data["walls"] = data["walls"][:1]
         result = classify_openings(data, rgb)
         self.assertEqual(result["doors"], [])
+        uncertain = result["windows"][0]["classification"]
+        self.assertEqual(uncertain["method"], "door_arc_missing_jamb")
+        self.assertFalse(uncertain["confirmed"])
+        self.assertTrue(uncertain["requires_review"])
+        self.assertEqual(uncertain["evidence"]["jamb_support"], [3, 0])
+        questions = make_review_questions(result, {"issues": []}, "test-image-hash")
+        self.assertEqual(len(questions), 1)
+        self.assertEqual(questions[0]["reasons"], ["door_arc_missing_jamb"])
 
     def test_leaf_or_arc_alone_remains_window(self):
         for arc, leaf in ((False, True), (True, False), (False, False)):
@@ -83,6 +92,7 @@ class ClassifyOpeningsTests(unittest.TestCase):
         data["walls"] = data["walls"][:1]
         result = classify_openings(data, rgb)
         self.assertEqual(result["doors"], [])
+        self.assertFalse(result["windows"][0]["classification"]["requires_review"])
 
     def test_window_on_detached_thin_furniture_line_is_rejected(self):
         def rectangle(x1, y1, x2, y2):
