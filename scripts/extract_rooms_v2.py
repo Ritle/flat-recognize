@@ -9,7 +9,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from classify_openings import classify_opening, structural_union
-from door_leaf_evidence import leaf_and_arc, leaf_candidates
+from door_leaf_evidence import leaf_and_arc, leaf_candidates, wall_jamb_support
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Polygon
@@ -113,6 +113,58 @@ def axis_pairs(barrier, thickness, extended=False, sampling_thickness=None):
                 pairs.append(({"point": a, "direction": direction, "width": width},
                               {"point": b, "direction": -direction, "width": width}))
     return pairs
+
+
+def endpoint_wall_arc_candidates(barrier, gray, endpoints, thickness, walls):
+    """Find arc-confirmed doorways ending at a transverse wall instead of a wall cap."""
+    if walls is None:
+        return []
+    height, width = barrier.shape
+    candidates = []
+    for endpoint in endpoints:
+        start = endpoint["point"]
+        direction = endpoint["direction"]
+        if max(abs(direction)) < np.cos(np.radians(12)):
+            continue
+        local_width = max(thickness, endpoint["width"])
+        maximum = min(round(local_width * 6), round(min(barrier.shape) * .16 + local_width))
+        left_wall = False
+        hit = None
+        for distance in range(1, maximum + 1):
+            point = np.rint(start + direction * distance).astype(int)
+            x, y = point
+            if not (0 <= x < width and 0 <= y < height):
+                break
+            occupied = bool(barrier[y, x])
+            if not occupied:
+                left_wall = True
+            elif left_wall:
+                hit = point.astype(float)
+                break
+        if hit is None:
+            continue
+        end = hit - direction * 2
+        gap = float(np.linalg.norm(end - start))
+        if gap < max(15, local_width * 1.5):
+            continue
+        normal = np.array([-direction[1], direction[0]])
+        wall_probe = hit + direction * max(2, round(local_width * .25))
+        offset = max(3, round(local_width * .75))
+        transverse = []
+        for sign in (-1, 1):
+            x, y = np.rint(wall_probe + normal * offset * sign).astype(int)
+            transverse.append(0 <= x < width and 0 <= y < height and bool(barrier[y, x]))
+        if not all(transverse) or min(wall_jamb_support(start, end, local_width, walls)) < 2:
+            continue
+        strip = LineString([start, end]).buffer(local_width / 2, cap_style=2)
+        if walls.intersection(strip).area > strip.area * .25:
+            continue
+        if leaf_and_arc(gray, start, end, local_width, walls) is None:
+            continue
+        candidates.append({"start": start.tolist(), "end": end.tolist(),
+                           "width": local_width, "length": gap, "alignment": 1.0,
+                           "evidence": "door_leaf", "method": "endpoint_to_wall_arc"})
+    return candidates
 
 
 def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickness=None,
@@ -435,6 +487,28 @@ def extract_rooms(data, rgb):
         if accepted:
             barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
             closures.extend(candidates)
+    endpoints, thickness = wall_endpoints(barrier)
+    transverse_candidates = endpoint_wall_arc_candidates(
+        barrier, gray, endpoints, thickness, wall_shapes)
+    transverse_candidates.sort(key=lambda candidate: candidate["length"])
+    transverse_accepted = []
+    for candidate in transverse_candidates:
+        trial, additions = apply_closures(barrier, [candidate])
+        trial_inferred = inferred | additions
+        trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
+        if (len(trial_rooms) <= len(rooms)
+                or trial_diagnostics["outside_fraction_in_structure"]
+                >= diagnostics["outside_fraction_in_structure"] - .02
+                or trial_diagnostics["interior_area_px"] < diagnostics["interior_area_px"] * .98):
+            continue
+        barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
+        closures.append(candidate)
+        transverse_accepted.append(candidate)
+    passes.append({"name": "transverse_arc", "rooms": len(rooms),
+                   "candidate_gaps": len(transverse_candidates),
+                   "temporary_closures": len(transverse_accepted),
+                   "rejected_candidates": len(transverse_candidates) - len(transverse_accepted),
+                   "accepted": bool(transverse_accepted), **diagnostics})
     warnings = []
     if envelope_applied:
         warnings.append("Наружный контур восстановлен предположительно только для topology; проверьте границы.")

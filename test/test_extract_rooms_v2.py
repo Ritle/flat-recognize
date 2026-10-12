@@ -8,7 +8,9 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from extract_rooms_v2 import axis_pairs, extract_rooms, gap_candidates
+from extract_rooms_v2 import axis_pairs, endpoint_wall_arc_candidates, extract_rooms, gap_candidates
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 
 def rectangle(x1, y1, x2, y2):
@@ -29,6 +31,45 @@ def source(walls, leaf=False):
 
 
 class RoomsTests(unittest.TestCase):
+    def test_transverse_wall_candidate_requires_arc_and_two_wall_sides(self):
+        barrier = np.zeros((300, 400), np.uint8)
+        cv2.rectangle(barrier, (20, 145), (150, 155), 255, -1)
+        cv2.rectangle(barrier, (200, 50), (210, 250), 255, -1)
+        gray = np.full_like(barrier, 255)
+        walls = unary_union([Polygon(rectangle(20, 145, 150, 155)["outer"]),
+                             Polygon(rectangle(200, 50, 210, 250)["outer"])])
+        endpoints = [{"point": np.array([150., 150.]),
+                      "direction": np.array([1., 0.]), "width": 10.}]
+        with patch("extract_rooms_v2.leaf_and_arc", return_value=None):
+            self.assertEqual(endpoint_wall_arc_candidates(
+                barrier, gray, endpoints, 10., walls), [])
+        with patch("extract_rooms_v2.leaf_and_arc", return_value={"arc_hits": 9}):
+            candidates = endpoint_wall_arc_candidates(barrier, gray, endpoints, 10., walls)
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0]["method"], "endpoint_to_wall_arc")
+        cv2.rectangle(barrier, (200, 50), (210, 250), 0, -1)
+        cv2.rectangle(barrier, (200, 145), (210, 155), 255, -1)
+        with patch("extract_rooms_v2.leaf_and_arc", return_value={"arc_hits": 9}):
+            self.assertEqual(endpoint_wall_arc_candidates(
+                barrier, gray, endpoints, 10., walls), [])
+
+    def test_transverse_arc_cannot_split_an_already_enclosed_room(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
+                 rectangle(20, 145, 150, 155), rectangle(200, 20, 210, 280)]
+        data, rgb = source(walls)
+        candidate = {"start": [150., 150.], "end": [200., 150.], "width": 10.,
+                     "length": 50., "alignment": 1., "evidence": "door_leaf",
+                     "method": "endpoint_to_wall_arc"}
+        with patch("extract_rooms_v2.endpoint_wall_arc_candidates", return_value=[candidate]):
+            result, _, _ = extract_rooms(data, rgb)
+        phase = next(p for p in result["diagnostics"]["passes"]
+                     if p["name"] == "transverse_arc")
+        self.assertFalse(phase["accepted"])
+        self.assertEqual(phase["rejected_candidates"], 1)
+        self.assertFalse(any(c["method"] == "endpoint_to_wall_arc"
+                             for c in result["diagnostics"]["temporary_closures"]))
+
     def test_axis_sampling_rows_do_not_shift_with_barrier_thickness(self):
         barrier = np.zeros((300, 400), np.uint8)
         cv2.rectangle(barrier, (20, 120), (140, 160), 255, -1)
