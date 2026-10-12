@@ -47,7 +47,7 @@ def make_review_questions(classified, quality, source_sha256):
     opening_ids = {opening.get("id") for opening in doors + windows}
     for issue in (quality or {}).get("issues", []):
         if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
-                                     "opening_exceeds_segment"):
+                                     "opening_exceeds_segment", "same_room_window_ambiguous"):
             continue
         uid = issue.get("opening_id")
         if not isinstance(uid, int):

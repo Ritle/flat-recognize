@@ -69,7 +69,8 @@ class InteriorWindowFilterTests(unittest.TestCase):
         extract.assert_not_called()
         quality = validate_recognition(rooms)
         self.assertTrue(any(issue["code"] == "same_room_window_ambiguous"
-                            and issue["severity"] == "warning" for issue in quality["issues"]))
+                            and issue["severity"] == "warning"
+                            and issue["opening_id"] == 1 for issue in quality["issues"]))
 
     def test_merged_room_does_not_remove_door_class_opening(self):
         self.rooms["rooms"][0]["polygon"] = [[20, 20], [180, 20], [180, 180],

@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from review_decisions import apply_review_decisions, make_review_questions
+from validate_recognition import validate_recognition
 
 
 def opening(uid, kind, x, review=False):
@@ -46,6 +47,20 @@ class ReviewDecisionsTest(unittest.TestCase):
         quality["issues"][0]["opening_id"] = 999
         self.assertEqual([q["opening_id"] for q in
                           make_review_questions(self.classified, quality, "a" * 64)], [1])
+
+    def test_same_room_window_warning_becomes_actionable_question(self):
+        rooms = {"rooms": [{"polygon": [[0, 0], [100, 0], [100, 80], [0, 80]]}],
+                 "doors": [], "windows": self.classified["windows"],
+                 "diagnostics": {"interior_window_filter": {
+                     "ambiguous_windows": 1,
+                     "ambiguous_candidates": [{"id": 2, "reason": "same_room_both_sides_weak_jamb_window"}]}}}
+        quality = validate_recognition(rooms)
+        self.assertEqual(quality["status"], "review")
+        questions = make_review_questions(self.classified, quality, "a" * 64)
+        window_question = next(q for q in questions if q["opening_id"] == 2)
+        self.assertEqual(window_question["reasons"], ["same_room_window_ambiguous"])
+        self.assertEqual(window_question["severity"], "review")
+        self.assertEqual(window_question["choices"], ["door", "window", "ignore"])
 
     def test_choices_change_classification_without_mutating_source(self):
         original = copy.deepcopy(self.classified)

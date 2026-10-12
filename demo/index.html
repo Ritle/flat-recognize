@@ -798,6 +798,7 @@ function renderReviewQuestions(data) {
             opening_far_from_wall: 'далеко от стены',
             opening_exceeds_segment: 'проём выходит за конец стены',
             opening_perpendicular_wall: 'поперечная привязка к стене',
+            same_room_window_ambiguous: 'по обе стороны окна распознана одна комната',
             user_choice: 'выбор пользователя'};
         label.textContent = `Сейчас: ${names[question.current] || question.current}` +
             ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
