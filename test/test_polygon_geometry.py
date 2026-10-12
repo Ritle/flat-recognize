@@ -32,6 +32,15 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_acute_raster_corner_does_not_project_beyond_wall_offset(self):
+        room = Polygon([(0, 0), (40, 0), (41, -6), (44, 1),
+                        (100, 1), (100, 100), (0, 100)])
+        expanded = partition_rooms([room], 10)[0]
+        self.assertGreater(expanded.bounds[1], -22)
+        self.assertLess(room.difference(expanded).area, 1e-5)
+        self.assertEqual(partition_rooms([box(0, 0, 100, 100)], 10)[0].bounds,
+                         (-10.0, -10.0, 110.0, 110.0))
+
     def test_window_supported_frame_kink_is_aligned_and_reported(self):
         room = Polygon([(0, 0), (150, 0), (150, 20), (158, 55), (150, 80),
                         (158, 105), (150, 140), (150, 160), (0, 160)])

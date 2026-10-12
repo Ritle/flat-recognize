@@ -142,7 +142,10 @@ def partition_rooms(shapes, offset, diagnostics=None):
         raise ValueError("Room geometry must consist of valid simple polygons without holes")
     if any(a.intersection(b).area > 1e-5 for i, a in enumerate(shapes) for b in shapes[i + 1:]):
         raise ValueError("Source room polygons overlap")
-    expanded = [p.buffer(offset, join_style=2) for p in shapes]
+    # Preserve right-angle wall corners while capping acute raster spikes:
+    # a square corner needs a mitre ratio of sqrt(2), but the default limit
+    # of five can project a shallow notch several wall widths outward.
+    expanded = [p.buffer(offset, join_style=2, mitre_limit=1.5) for p in shapes]
     lines = [p.boundary for p in shapes + expanded]
     for i, a in enumerate(expanded):
         for j in range(i + 1, len(expanded)):
