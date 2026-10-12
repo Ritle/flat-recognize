@@ -800,6 +800,18 @@ function renderReviewQuestions(data) {
             user_choice: 'выбор пользователя'};
         label.textContent = `Сейчас: ${names[question.current] || question.current}` +
             ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
+        const geometry = question.geometry;
+        if (geometry && Number.isFinite(geometry.overhang_cm) &&
+                Number.isFinite(geometry.wall_length_cm) &&
+                Number.isFinite(geometry.opening_width_cm)) {
+            label.textContent += ` · ширина ${geometry.opening_width_cm} см, участок стены ` +
+                `${geometry.wall_length_cm} см, вылет ${geometry.overhang_cm} см`;
+            if (Number.isFinite(geometry.wall_chain_length_cm) &&
+                    geometry.wall_chain_length_cm > geometry.wall_length_cm + 1) {
+                label.textContent += ` · соосное продолжение стены: ` +
+                    `${geometry.wall_chain_length_cm} см (требует проверки)`;
+            }
+        }
         const select = document.createElement('select');
         for (const [value, title] of [['', 'Оставить решение системы'],
                                        ['door', 'Дверь'], ['window', 'Окно'],

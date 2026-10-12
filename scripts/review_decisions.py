@@ -42,6 +42,7 @@ def make_review_questions(classified, quality, source_sha256):
     """Only create actionable questions; a question is never a quality approval."""
     reasons = {}
     severity = {}
+    geometry = {}
     doors, windows = classified.get("doors", []), classified.get("windows", [])
     opening_ids = {opening.get("id") for opening in doors + windows}
     for issue in (quality or {}).get("issues", []):
@@ -60,6 +61,10 @@ def make_review_questions(classified, quality, source_sha256):
             continue
         reasons.setdefault(uid, set()).add(issue["code"])
         severity[uid] = max(severity.get(uid, 0), 2 if issue.get("severity") == "error" else 1)
+        if issue["code"] == "opening_exceeds_segment":
+            geometry[uid] = {key: issue.get(key) for key in
+                             ("overhang_cm", "opening_width_cm", "wall_length_cm",
+                              "wall_chain_length_cm", "wall_chain_overhang_cm")}
     candidates = doors + windows + [opening for opening in classified.get("rejected_openings", [])
                                      if (opening.get("classification") or {}).get("method") == "user_ignored"]
     questions = []
@@ -85,6 +90,7 @@ def make_review_questions(classified, quality, source_sha256):
                            classified.get("meta", {}).get("height")],
             "current": current, "bbox": bbox, "center": center,
             "reasons": sorted(reasons[uid]),
+            "geometry": geometry.get(uid),
             "choices": ["door", "window", "ignore"],
             "severity": "error" if severity.get(uid) == 2 else "review",
         })

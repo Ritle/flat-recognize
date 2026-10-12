@@ -33,11 +33,15 @@ class ReviewDecisionsTest(unittest.TestCase):
     def test_export_overhang_question_uses_opening_id(self):
         quality = {"issues": [{"code": "opening_exceeds_segment", "severity": "error",
                                "element_uuid": "exported-window", "opening_kind": "windows",
-                               "opening_index": 1, "opening_id": 2}]}
+                               "opening_index": 1, "opening_id": 2,
+                               "overhang_cm": 25, "opening_width_cm": 100,
+                               "wall_length_cm": 60, "wall_chain_length_cm": 110,
+                               "wall_chain_overhang_cm": 0}]}
         questions = make_review_questions(self.classified, quality, "a" * 64)
         self.assertEqual(questions[0]["opening_id"], 2)
         self.assertEqual(questions[0]["reasons"], ["opening_exceeds_segment"])
         self.assertEqual(questions[0]["severity"], "error")
+        self.assertEqual(questions[0]["geometry"]["wall_chain_overhang_cm"], 0)
 
         quality["issues"][0]["opening_id"] = 999
         self.assertEqual([q["opening_id"] for q in

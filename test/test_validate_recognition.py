@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from validate_recognition import validate_recognition
+from validate_recognition import collinear_wall_span, validate_recognition
 
 
 def fixture():
@@ -26,6 +26,22 @@ def fixture():
 
 
 class QualityGateTest(unittest.TestCase):
+    def test_collinear_span_is_diagnostic_and_stops_at_junctions(self):
+        coords = {"a": (0, 0), "b": (50, 0), "c": (100, 1), "d": (50, 40)}
+        segments = {"s0": {"uuid": "s0", "start": "a", "end": "b"},
+                    "s1": {"uuid": "s1", "start": "b", "end": "c"}}
+        span = collinear_wall_span(segments, coords, "s0", 90, 90)
+        self.assertEqual(span["wall_chain_segments"], ["s0", "s1"])
+        self.assertEqual(span["wall_chain_overhang_cm"], 0)
+        coords["e"] = (150, 9)
+        segments["s2"] = {"uuid": "s2", "start": "c", "end": "e"}
+        self.assertEqual(collinear_wall_span(segments, coords, "s0", 90, 90)
+                         ["wall_chain_segments"], ["s0", "s1"])
+        segments["s2"] = {"uuid": "s2", "start": "b", "end": "d"}
+        span = collinear_wall_span(segments, coords, "s0", 90, 90)
+        self.assertEqual(span["wall_chain_segments"], ["s0"])
+        self.assertEqual(span["wall_chain_overhang_cm"], 40)
+
     def test_clean_good_and_scale_warning(self):
         r = validate_recognition(*fixture())
         self.assertEqual(r["status"], "good")
@@ -85,6 +101,9 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(overhang["severity"], "error")
         self.assertEqual(overhang["opening_id"], 42)
         self.assertEqual(overhang["element_uuid"], "doorItem")
+        self.assertEqual(overhang["wall_length_cm"], 100)
+        self.assertEqual(overhang["opening_width_cm"], 60)
+        self.assertEqual(overhang["wall_chain_segments"], ["s0"])
 
     def test_perpendicular_binding_blocks_export_with_opening_location(self):
         rooms, project, bindings = fixture()

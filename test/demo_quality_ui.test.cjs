@@ -80,7 +80,14 @@ async function show(status) {
         center: [20, 30], image_size: [100, 80]};
     context.renderReviewQuestions({review_questions: [question], applied_decisions: []});
     assert.equal(nodes.get('reviewPanel').style.display, 'block');
-    const select = nodes.get('reviewList').children[0].children[2];
+    context.renderReviewQuestions({review_questions: [{...question,
+        reasons: ['opening_exceeds_segment'],
+        geometry: {opening_width_cm: 92, wall_length_cm: 50,
+            overhang_cm: 45, wall_chain_length_cm: 100}}], applied_decisions: []});
+    const row = nodes.get('reviewList').children.at(-1);
+    assert.match(row.children[1].textContent, /ширина 92 см/);
+    assert.match(row.children[1].textContent, /требует проверки/);
+    const select = row.children[2];
     select.value = 'window';
     let submitted;
     context.captureReview = (file, payload) => { submitted = {file, payload}; };

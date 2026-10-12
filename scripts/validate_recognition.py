@@ -15,6 +15,57 @@ def finite(value):
         return False
 
 
+def collinear_wall_span(segments, coords, wall_id, position, width):
+    """Measure an opening against degree-two collinear continuations, without changing geometry."""
+    segment = segments[wall_id]
+    start, end = segment["start"], segment["end"]
+    length = math.dist(coords[start], coords[end])
+    incident = {uid: [] for uid in coords}
+    for candidate in segments.values():
+        a, b = candidate.get("start"), candidate.get("end")
+        if a in incident and b in incident and a != b:
+            incident[a].append((b, candidate["uuid"]))
+            incident[b].append((a, candidate["uuid"]))
+
+    def extension(previous, current):
+        added = 0.0
+        chain = []
+        seen = {wall_id}
+        base = (coords[current][0] - coords[previous][0],
+                coords[current][1] - coords[previous][1])
+        base_length = math.hypot(*base)
+        cosine = math.cos(math.radians(5))
+        while len(incident[current]) == 2:
+            other = next(((point, uid) for point, uid in incident[current]
+                          if point != previous), None)
+            if other is None or other[1] in seen:
+                break
+            point, uid = other
+            incoming = (coords[current][0] - coords[previous][0],
+                        coords[current][1] - coords[previous][1])
+            outgoing = (coords[point][0] - coords[current][0],
+                        coords[point][1] - coords[current][1])
+            a, b = math.hypot(*incoming), math.hypot(*outgoing)
+            if (a <= 1e-6 or b <= 1e-6 or base_length <= 1e-6
+                    or sum(x * y for x, y in zip(incoming, outgoing)) < a * b * cosine
+                    or sum(x * y for x, y in zip(base, outgoing)) < base_length * b * cosine):
+                break
+            added += b
+            chain.append(uid)
+            seen.add(uid)
+            previous, current = current, point
+        return added, chain
+
+    before, before_ids = extension(end, start)
+    after, after_ids = extension(start, end)
+    center = length * position / 100
+    overhang = max(0, width / 2 - (before + center),
+                   width / 2 - (after + length - center))
+    return {"wall_chain_length_cm": round(before + length + after, 2),
+            "wall_chain_overhang_cm": round(overhang, 2),
+            "wall_chain_segments": before_ids[::-1] + [wall_id] + after_ids}
+
+
 def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry=None):
     issues = []
     metrics = {}
@@ -236,9 +287,15 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                         overhang = max(0, half - center, center + half - length)
                         if overhang > 5:
                             severe = overhang > max(20, size["x"] * .25)
+                            chain = collinear_wall_span(segments, coords, wall_id,
+                                                        position, size["x"])
                             issue("opening_exceeds_segment", "error" if severe else "warning",
                                   f"Проём {uid} выходит за конец стены; проверьте ширину и привязку.",
                                   overhang_cm=round(overhang, 2), severe=severe,
+                                  wall_length_cm=round(length, 2),
+                                  opening_width_cm=round(size["x"], 2),
+                                  wall_position_percent=position, wall_uuid=wall_id,
+                                  **chain,
                                   element_uuid=uid, **bindings_by_element.get(uid, {}))
                 materials = element.get("materials", [])
                 if not isinstance(materials, list) or any(not isinstance(m, dict) or m.get("itemUuid") != uid for m in materials):
