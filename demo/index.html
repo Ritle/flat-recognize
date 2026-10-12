@@ -795,6 +795,7 @@ function renderReviewQuestions(data) {
         const names = {door: 'дверь', window: 'окно', ignore: 'не проём'};
         const reasons = {classification_uncertain: 'неуверенная классификация',
             opening_far_from_wall: 'далеко от стены',
+            opening_exceeds_segment: 'проём выходит за конец стены',
             opening_perpendicular_wall: 'поперечная привязка к стене',
             user_choice: 'выбор пользователя'};
         label.textContent = `Сейчас: ${names[question.current] || question.current}` +

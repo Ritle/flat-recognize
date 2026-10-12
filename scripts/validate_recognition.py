@@ -117,6 +117,18 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
               f"Пользователь уточнил проёмы ({len(review_decisions)}); проверьте итоговую геометрию.")
 
     exported = {"doorItem": 0, "windowItem": 0}
+    bindings_by_element = {}
+    if isinstance(bindings, dict):
+        for opening_kind, index_key in (("doors", "door"), ("windows", "window")):
+            rows = bindings.get(opening_kind)
+            if isinstance(rows, list):
+                for row in rows:
+                    if isinstance(row, dict) and isinstance(row.get("element_uuid"), str):
+                        bindings_by_element[row["element_uuid"]] = {
+                            "opening_kind": opening_kind,
+                            "opening_index": row.get(index_key),
+                            "opening_id": row.get("opening_id"),
+                        }
     all_segments = {}
     all_segment_coords = {}
     if project is not None:
@@ -226,7 +238,8 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                             severe = overhang > max(20, size["x"] * .25)
                             issue("opening_exceeds_segment", "error" if severe else "warning",
                                   f"Проём {uid} выходит за конец стены; проверьте ширину и привязку.",
-                                  overhang_cm=round(overhang, 2), severe=severe)
+                                  overhang_cm=round(overhang, 2), severe=severe,
+                                  element_uuid=uid, **bindings_by_element.get(uid, {}))
                 materials = element.get("materials", [])
                 if not isinstance(materials, list) or any(not isinstance(m, dict) or m.get("itemUuid") != uid for m in materials):
                     issue("material_reference", "error", f"Материалы проёма {uid} ссылаются на другой объект.")
@@ -268,6 +281,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                             issue("opening_perpendicular_wall", "error",
                                   f"Проём {key} {opening_index} привязан к поперечной стене; проверьте классификацию и геометрию.",
                                   opening_kind=key, opening_index=opening_index, wall_uuid=wall_id,
+                                  opening_id=binding.get("opening_id"),
                                   pixel_center=binding.get("pixel_center"))
                     thickness = segment.get("thickness", 20)
                     threshold = max(20, thickness * 1.5) if finite(thickness) else 30
@@ -277,6 +291,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                               f"Проём {key} находится далеко от стены ({distance:g} см).",
                               distance_cm=distance, threshold_cm=threshold, severe=severe,
                               opening_kind=key, opening_index=opening_index, wall_uuid=wall_id,
+                              opening_id=binding.get("opening_id"),
                               pixel_center=binding.get("pixel_center"))
     errors = list(dict.fromkeys(i["message"] for i in issues if i["severity"] == "error"))
     warnings = list(dict.fromkeys(i["message"] for i in issues if i["severity"] != "error"))

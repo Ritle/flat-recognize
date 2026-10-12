@@ -542,6 +542,8 @@ def main():
         window_template,
         "--output",
         final_json,
+        "--bindings-output",
+        opening_bindings_json,
     ]
 
     if args.window_height is not None:

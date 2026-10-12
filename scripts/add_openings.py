@@ -649,6 +649,8 @@ def main():
 
         door_bindings.append({
             "door": index + 1,
+            "opening_id": opening.get("id"),
+            "element_uuid": door_uuid,
             "pixel_center": binding["pixel_center"],
             "wall_uuid": segment["uuid"],
             "position_percent": round(
@@ -694,6 +696,7 @@ def main():
 
         window_bindings.append({
             "window": index + 1,
+            "opening_id": opening.get("id"),
 
             "pixel_center":
                 binding["pixel_center"],

@@ -78,10 +78,13 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "review")
         project["levels"][0]["elements"][0]["wall"]["position"] = 1
         project["levels"][0]["elements"][0]["size"]["x"] = 60
+        bindings["doors"][0].update(door=1, opening_id=42, element_uuid="doorItem")
         result = validate_recognition(rooms, project, bindings)
         self.assertEqual(result["status"], "invalid")
-        self.assertTrue(any(i["code"] == "opening_exceeds_segment" and i["severity"] == "error"
-                            for i in result["issues"]))
+        overhang = next(i for i in result["issues"] if i["code"] == "opening_exceeds_segment")
+        self.assertEqual(overhang["severity"], "error")
+        self.assertEqual(overhang["opening_id"], 42)
+        self.assertEqual(overhang["element_uuid"], "doorItem")
 
     def test_perpendicular_binding_blocks_export_with_opening_location(self):
         rooms, project, bindings = fixture()

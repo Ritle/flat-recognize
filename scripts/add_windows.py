@@ -62,6 +62,12 @@ def main():
     )
 
     parser.add_argument(
+        "--bindings-output",
+        type=Path,
+        help="Enrich opening binding diagnostics with exported window UUIDs"
+    )
+
+    parser.add_argument(
         "--window-height",
         type=float,
         default=None,
@@ -118,6 +124,17 @@ def main():
         raise RuntimeError("window_bindings.json must contain a windows array")
     if not bindings:
         print("WARNING: No windows recognized; preserving project without window additions")
+
+    diagnostic_bindings = None
+    diagnostic_windows = None
+    if args.bindings_output:
+        diagnostic_bindings = json.loads(args.bindings_output.read_text(encoding="utf-8"))
+        diagnostic_windows = diagnostic_bindings.get("windows")
+        if not isinstance(diagnostic_windows, list) or len(diagnostic_windows) != len(bindings):
+            raise RuntimeError("Opening binding diagnostics do not match window bindings")
+        if any(row.get("window") != binding.get("window")
+               for row, binding in zip(diagnostic_windows, bindings)):
+            raise RuntimeError("Opening binding diagnostics have changed window order")
 
     # --------------------------------------------------
     # Existing wall UUIDs
@@ -222,6 +239,9 @@ def main():
         window["uuid"] = (
             window_uuid
         )
+
+        if diagnostic_windows is not None:
+            diagnostic_windows[index - 1]["element_uuid"] = window_uuid
 
         # The clone's materials must reference this window, not the template.
         for material in window.get("materials", []):
@@ -465,6 +485,12 @@ def main():
             f,
             indent=2,
             ensure_ascii=False
+        )
+
+    if args.bindings_output:
+        args.bindings_output.write_text(
+            json.dumps(diagnostic_bindings, indent=2, ensure_ascii=False),
+            encoding="utf-8",
         )
 
     # --------------------------------------------------

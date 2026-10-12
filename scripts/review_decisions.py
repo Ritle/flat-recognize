@@ -43,17 +43,21 @@ def make_review_questions(classified, quality, source_sha256):
     reasons = {}
     severity = {}
     doors, windows = classified.get("doors", []), classified.get("windows", [])
+    opening_ids = {opening.get("id") for opening in doors + windows}
     for issue in (quality or {}).get("issues", []):
-        if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall"):
+        if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
+                                     "opening_exceeds_segment"):
             continue
-        kind = issue.get("opening_kind")
-        if kind not in ("doors", "windows"):
-            kind = "doors" if "doors" in issue.get("message", "") else "windows"
-        index = issue.get("opening_index")
-        openings = doors if kind == "doors" else windows
-        if not isinstance(index, int) or index < 1 or index > len(openings):
+        uid = issue.get("opening_id")
+        if not isinstance(uid, int):
+            kind = issue.get("opening_kind")
+            index = issue.get("opening_index")
+            openings = doors if kind == "doors" else windows if kind == "windows" else []
+            if not isinstance(index, int) or index < 1 or index > len(openings):
+                continue
+            uid = openings[index - 1].get("id")
+        if uid not in opening_ids:
             continue
-        uid = openings[index - 1].get("id")
         reasons.setdefault(uid, set()).add(issue["code"])
         severity[uid] = max(severity.get(uid, 0), 2 if issue.get("severity") == "error" else 1)
     candidates = doors + windows + [opening for opening in classified.get("rejected_openings", [])

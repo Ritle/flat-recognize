@@ -30,6 +30,19 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertEqual(questions[0]["center"], [44, 30])
         self.assertEqual(questions[0]["image_size"], [100, 80])
 
+    def test_export_overhang_question_uses_opening_id(self):
+        quality = {"issues": [{"code": "opening_exceeds_segment", "severity": "error",
+                               "element_uuid": "exported-window", "opening_kind": "windows",
+                               "opening_index": 1, "opening_id": 2}]}
+        questions = make_review_questions(self.classified, quality, "a" * 64)
+        self.assertEqual(questions[0]["opening_id"], 2)
+        self.assertEqual(questions[0]["reasons"], ["opening_exceeds_segment"])
+        self.assertEqual(questions[0]["severity"], "error")
+
+        quality["issues"][0]["opening_id"] = 999
+        self.assertEqual([q["opening_id"] for q in
+                          make_review_questions(self.classified, quality, "a" * 64)], [1])
+
     def test_choices_change_classification_without_mutating_source(self):
         original = copy.deepcopy(self.classified)
         questions = make_review_questions(self.classified, self.quality, "a" * 64)
