@@ -55,6 +55,23 @@ class OpeningBindingSelectionTests(unittest.TestCase):
         self.assertEqual(result["selection"], "nearest")
         self.assertGreater(result["overhang"], 5)
 
+    def test_equally_plausible_alternatives_are_left_for_review(self):
+        segments = [segment("short", 0, 0, 70, 0),
+                    segment("upper", -20, 2, 100, 2),
+                    segment("lower", -20, -2, 100, -2)]
+        result = choose_segment_binding(segments, 35, 0, 90, "horizontal")
+        self.assertEqual(result["segment"]["uuid"], "short")
+        self.assertEqual(result["selection"], "ambiguous")
+        self.assertEqual(result["alternative_wall_uuids"], ["lower", "upper"])
+        self.assertGreater(result["overhang"], 5)
+
+    def test_alternative_must_contain_exported_width(self):
+        segments = [segment("short", 0, 0, 70, 0),
+                    segment("almost", -7, 2, 77, 2)]
+        result = choose_segment_binding(segments, 35, 0, 90, "horizontal")
+        self.assertEqual(result["segment"]["uuid"], "short")
+        self.assertEqual(result["selection"], "nearest")
+
 
 if __name__ == "__main__":
     unittest.main()

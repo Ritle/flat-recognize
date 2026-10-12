@@ -118,7 +118,7 @@ def point_to_segment(px, py, ax, ay, bx, by):
 
 
 def choose_segment_binding(segments, wx, wy, required_width, orientation):
-    """Prefer a nearby aligned segment that can contain the whole opening."""
+    """Rebind only when one nearby aligned segment can contain the opening."""
     candidates = []
     for item in segments:
         dx, dy = item["bx"] - item["ax"], item["by"] - item["ay"]
@@ -140,15 +140,18 @@ def choose_segment_binding(segments, wx, wy, required_width, orientation):
         nearest["selection"] = "nearest"
         return nearest
     feasible = [candidate for candidate in candidates
-                if (candidate["aligned"] and candidate["overhang"] <= 5
+                if (candidate["aligned"] and candidate["overhang"] <= 1
                     and candidate["distance"] <= nearest["distance"] + max(3, required_width * .05)
                     and candidate["distance"] <= max(20, candidate["segment"].get("thickness", 20) * 1.5))]
-    if feasible:
-        chosen = min(feasible, key=lambda candidate: candidate["distance"])
+    if len(feasible) == 1:
+        chosen = feasible[0]
         chosen["selection"] = "span_aware"
         chosen["nearest_distance"] = nearest["distance"]
         return chosen
-    nearest["selection"] = "nearest"
+    nearest["selection"] = "ambiguous" if feasible else "nearest"
+    if feasible:
+        nearest["alternative_wall_uuids"] = sorted(
+            candidate["segment"]["uuid"] for candidate in feasible)
     return nearest
 
 
@@ -666,6 +669,7 @@ def main():
                 2
             ),
             "selection": binding["selection"],
+            "alternative_wall_uuids": binding.get("alternative_wall_uuids", []),
             "orientation": binding["orientation"],
         })
 
@@ -734,6 +738,7 @@ def main():
                 ),
 
             "selection": binding["selection"],
+            "alternative_wall_uuids": binding.get("alternative_wall_uuids", []),
 
             "orientation":
                 binding["orientation"],
