@@ -152,6 +152,15 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
             issue("same_room_window_ambiguous", "warning",
                   "У некоторых окон по обе стороны одна распознанная комната; проверьте проёмы и границы помещений.")
     if isinstance(interior_filter, dict):
+        if interior_filter.get("method") == "reviewed_window_uncertainty":
+            for key, description in (("deep_interior_candidates", "находится глубоко внутри комнаты"),
+                                     ("perpendicular_endcaps", "похоже на неподтверждённый край другого окна")):
+                for candidate in interior_filter.get(key, []):
+                    if isinstance(candidate, dict) and isinstance(candidate.get("id"), int):
+                        issue("reviewed_window_unsupported", "warning",
+                              f"Оконный проём {candidate['id']} {description}; проверьте его после уточнения.",
+                              opening_id=candidate["id"], opening_kind="windows",
+                              reason=candidate.get("reason"))
         for candidate in interior_filter.get("parallel_window_candidates", []):
             if isinstance(candidate, dict) and isinstance(candidate.get("id"), int):
                 issue("parallel_window_ambiguous", "warning",

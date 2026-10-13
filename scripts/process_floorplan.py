@@ -438,6 +438,7 @@ def main():
                                   "Rooms rechecked after window filtering")
 
         if args.review_decisions:
+            pre_review_rooms = rooms_json
             reviewed = OUTPUT / f"{stem}_reviewed_classified.json"
             reviewed_dir = OUTPUT / f"{stem}_reviewed"
             run_command("Apply user opening choices",
@@ -449,6 +450,9 @@ def main():
                         [python, SCRIPTS / "extract_rooms_v2.py", image, classified_json,
                          "--output-dir", reviewed_dir])
             rooms_json = require_file(reviewed_dir / f"{stem}_rooms.json", "Reviewed rooms")
+            run_command("Recheck remaining windows after user choices",
+                        [python, SCRIPTS / "recheck_reviewed_rooms.py", image,
+                         classified_json, pre_review_rooms, rooms_json])
             rooms_overlay = reviewed_dir / f"{stem}_rooms_overlay.png"
             barrier_image = reviewed_dir / f"{stem}_barrier.png"
 

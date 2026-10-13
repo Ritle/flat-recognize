@@ -131,7 +131,7 @@ def without_windows(classified, candidates):
     return result
 
 
-def filter_interior_windows(classified, rooms, rgb):
+def interior_window_candidates(classified, rooms, rgb):
     height, width = rgb.shape[:2]
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     for name, data in (("classified", classified), ("rooms", rooms)):
@@ -165,6 +165,34 @@ def filter_interior_windows(classified, rooms, rgb):
                          "interior_distance_px": deep_rooms[0][1] if deep_rooms else None,
                          "across_distance_px": max(12, wall_width * 2) if across_room is not None else None,
                          "jamb_support": support, "door_leaf_arc": False, "reason": reason})
+    return candidates, wall_shapes
+
+
+def reviewed_window_report(classified, rooms, rgb):
+    """Re-evaluate uncertainty after explicit choices without rejecting any choice."""
+    candidates, wall_shapes = interior_window_candidates(classified, rooms, rgb)
+    windows = classified.get("windows", [])
+    endcaps = perpendicular_weak_endcaps(windows, wall_shapes)
+    endcap_ids = {item["id"] for item in endcaps}
+    across = [item for item in candidates
+              if item["reason"] == "same_room_both_sides_weak_jamb_window"
+              and item["id"] not in endcap_ids]
+    deep = [item for item in candidates
+            if item["reason"] == "deep_interior_weak_jamb_window"
+            and item["id"] not in endcap_ids]
+    return {"version": 4, "method": "reviewed_window_uncertainty",
+            "examined_windows": len(windows), "rejected_windows": 0,
+            "candidates": [], "ambiguous_windows": len(across),
+            "ambiguous_candidates": across, "deep_interior_candidates": deep,
+            "perpendicular_endcaps": endcaps,
+            "parallel_window_candidates": parallel_weak_window_pairs(
+                [window for window in windows if window.get("id") not in endcap_ids],
+                wall_shapes),
+            "topology_stable": None}
+
+
+def filter_interior_windows(classified, rooms, rgb):
+    candidates, wall_shapes = interior_window_candidates(classified, rooms, rgb)
 
     filtered_classified = copy.deepcopy(classified)
     filtered_rooms = copy.deepcopy(rooms)

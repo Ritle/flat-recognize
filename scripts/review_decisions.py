@@ -49,7 +49,7 @@ def make_review_questions(classified, quality, source_sha256):
     for issue in (quality or {}).get("issues", []):
         if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
                                      "opening_exceeds_segment", "same_room_window_ambiguous",
-                                     "parallel_window_ambiguous"):
+                                     "parallel_window_ambiguous", "reviewed_window_unsupported"):
             continue
         uid = issue.get("opening_id")
         if not isinstance(uid, int):

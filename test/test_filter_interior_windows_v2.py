@@ -9,6 +9,8 @@ from shapely.geometry import Polygon
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from filter_interior_windows_v2 import filter_interior_windows, parallel_weak_window_pairs
+from recheck_reviewed_rooms import recheck_reviewed_rooms
+from review_decisions import make_review_questions
 from validate_recognition import validate_recognition
 
 
@@ -89,6 +91,39 @@ class InteriorWindowFilterTests(unittest.TestCase):
         quality = validate_recognition(rooms)
         self.assertTrue(any(issue["code"] == "same_room_window_ambiguous"
                             and issue["severity"] == "warning"
+                            and issue["opening_id"] == 1 for issue in quality["issues"]))
+
+    def test_review_recomputes_uncertainty_for_remaining_windows(self):
+        self.rooms["rooms"][0]["polygon"] = [[20, 20], [180, 20], [180, 180],
+                                             [20, 180], [20, 101], [120, 101],
+                                             [120, 95], [20, 95]]
+        previous = copy.deepcopy(self.rooms)
+        previous["diagnostics"]["interior_window_filter"] = {
+            "ambiguous_windows": 1, "ambiguous_candidates": [{"id": 999}]}
+        previous["diagnostics"]["opening_recovery"] = {"candidates": 2}
+        previous["reclassified_wall_support"] = [{"source_opening_id": 9,
+                                                   "outer": [[0, 0], [1, 0], [1, 1]]}]
+        reviewed = copy.deepcopy(self.rooms)
+        result = recheck_reviewed_rooms(self.classified, previous, reviewed, self.rgb)
+        report = result["diagnostics"]["interior_window_filter"]
+        self.assertEqual([candidate["id"] for candidate in report["ambiguous_candidates"]], [1])
+        self.assertEqual(result["diagnostics"]["opening_recovery"], {"candidates": 2})
+        self.assertEqual(result["reclassified_wall_support"],
+                         previous["reclassified_wall_support"])
+        quality = validate_recognition(result)
+        self.assertEqual(quality["status"], "review")
+        self.assertIn(1, [question["opening_id"] for question in
+                          make_review_questions(self.classified, quality, "a" * 64)])
+        self.assertNotIn(999, [question["opening_id"] for question in
+                               make_review_questions(self.classified, quality, "a" * 64)])
+
+    def test_review_surfaces_new_deep_interior_window(self):
+        reviewed = copy.deepcopy(self.rooms)
+        result = recheck_reviewed_rooms(self.classified, self.rooms, reviewed, self.rgb)
+        report = result["diagnostics"]["interior_window_filter"]
+        self.assertEqual([candidate["id"] for candidate in report["deep_interior_candidates"]], [1])
+        quality = validate_recognition(result)
+        self.assertTrue(any(issue["code"] == "reviewed_window_unsupported"
                             and issue["opening_id"] == 1 for issue in quality["issues"]))
 
     def test_merged_room_does_not_remove_door_class_opening(self):
