@@ -189,6 +189,11 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
         issue("approximate_scale", "info", f"Масштаб {scale:g} см/пиксель задан без проверки по известной длине; физические размеры приблизительны.")
     metrics.update(rooms=len(source_rooms), detected_doors=len(doors), detected_windows=len(windows))
     review_decisions = rooms.get("review_decisions", []) if isinstance(rooms, dict) else []
+    topology_only = rooms.get("topology_only_openings", []) if isinstance(rooms, dict) else []
+    if isinstance(topology_only, list) and topology_only:
+        issue("topology_only_openings", "warning",
+              f"Повторные оконные слои использованы для построения комнат, но исключены из проекта "
+              f"({len(topology_only)}); проверьте проёмы и контуры.")
     if isinstance(review_decisions, list) and review_decisions:
         metrics["user_review_choices"] = len(review_decisions)
         issue("user_review_applied", "warning",

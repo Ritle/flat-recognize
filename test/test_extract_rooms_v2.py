@@ -45,6 +45,23 @@ class RoomsTests(unittest.TestCase):
         self.assertTrue(np.any(inferred))
         self.assertEqual(result["windows"], [window])
 
+    def test_topology_only_window_closes_mask_without_becoming_exported_window(self):
+        walls = [rectangle(20, 20, 80, 40), rectangle(305, 20, 380, 40),
+                 rectangle(20, 20, 30, 280), rectangle(370, 20, 380, 280),
+                 rectangle(20, 270, 380, 280)]
+        data, rgb = source(walls)
+        window = rectangle(88, 20, 297, 40)
+        window["id"] = 7
+        data["topology_only_openings"] = [window]
+        data["rejected_openings"] = [{**window,
+                                      "reject_reason": ["duplicate_parallel_window_layer"]}]
+        result, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertEqual(result["windows"], [])
+        self.assertEqual(result["topology_only_openings"], [window])
+        self.assertFalse(any("изолированных тонких линиях" in warning
+                             for warning in result["diagnostics"]["warnings"]))
+
     def test_transverse_wall_candidate_requires_arc_and_two_wall_sides(self):
         barrier = np.zeros((300, 400), np.uint8)
         cv2.rectangle(barrier, (20, 145), (150, 155), 255, -1)

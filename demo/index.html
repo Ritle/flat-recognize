@@ -792,7 +792,8 @@ function renderReviewQuestions(data) {
         locate.textContent = `Показать проём №${question.opening_id}`;
         locate.onclick = () => highlightQuestion(question, data.original_url);
         const label = document.createElement('span');
-        const names = {door: 'дверь', window: 'окно', ignore: 'не проём'};
+        const names = {door: 'дверь', window: 'окно', ignore: 'не проём',
+            topology_only: 'только граница комнаты'};
         const reasons = {classification_uncertain: 'неуверенная классификация',
             door_arc_missing_jamb: 'похоже на дверь, но контур стены неполный',
             opening_far_from_wall: 'далеко от стены',
@@ -800,6 +801,7 @@ function renderReviewQuestions(data) {
             opening_perpendicular_wall: 'поперечная привязка к стене',
             same_room_window_ambiguous: 'по обе стороны окна распознана одна комната',
             reviewed_window_unsupported: 'окно с недостаточной опорой на стены',
+            duplicate_parallel_window_layer: 'повторный параллельный слой окна',
             parallel_window_ambiguous: 'пересекается с параллельным кандидатом без двух подтверждённых косяков',
             user_choice: 'выбор пользователя'};
         label.textContent = `Сейчас: ${names[question.current] || question.current}` +

@@ -92,6 +92,29 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertTrue(reviewed["windows"][0]["classification"]["user_confirmed"])
         self.assertEqual(len(make_review_questions(reviewed, {}, "a" * 64)), 2)
 
+    def test_duplicate_window_layer_can_be_restored_or_ignored(self):
+        layer = opening(3, "window", 55, True)
+        layer["classification"] = {"method": "duplicate_parallel_window_layer",
+                                   "requires_review": True, "paired_with": 2}
+        self.classified["topology_only_openings"] = [layer]
+        self.classified["rejected_openings"] = [copy.deepcopy(layer)]
+        questions = make_review_questions(self.classified, self.quality, "a" * 64)
+        question = next(item for item in questions if item["opening_id"] == 3)
+        self.assertEqual(question["current"], "topology_only")
+        self.assertEqual(question["paired_with"], [2])
+        payload = {"version": 1, "image_sha256": "a" * 64,
+                   "answers": [{"opening_id": 3, "fingerprint": question["fingerprint"],
+                                "choice": "window"}]}
+        restored = apply_review_decisions(self.classified, payload, "a" * 64)
+        self.assertEqual([item["id"] for item in restored["windows"]], [2, 3])
+        self.assertEqual(restored["topology_only_openings"], [])
+        self.assertEqual(restored["rejected_openings"], [])
+        payload["answers"][0]["choice"] = "ignore"
+        ignored = apply_review_decisions(self.classified, payload, "a" * 64)
+        self.assertEqual([item["id"] for item in ignored["windows"]], [2])
+        self.assertEqual(ignored["topology_only_openings"], [])
+        self.assertEqual([item["id"] for item in ignored["rejected_openings"]], [3])
+
     def test_stale_and_repeated_choices_are_rejected(self):
         q = make_review_questions(self.classified, self.quality, "a" * 64)[0]
         answer = {"opening_id": q["opening_id"], "fingerprint": q["fingerprint"],

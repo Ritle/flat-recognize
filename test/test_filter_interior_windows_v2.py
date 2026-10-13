@@ -8,7 +8,9 @@ import numpy as np
 from shapely.geometry import Polygon
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from filter_interior_windows_v2 import filter_interior_windows, parallel_weak_window_pairs
+from filter_interior_windows_v2 import (duplicate_parallel_window_layers,
+                                        filter_interior_windows,
+                                        parallel_weak_window_pairs)
 from recheck_reviewed_rooms import recheck_reviewed_rooms
 from review_decisions import make_review_questions
 from validate_recognition import validate_recognition
@@ -21,6 +23,31 @@ def window(uid, x1, y1, x2, y2):
 
 
 class InteriorWindowFilterTests(unittest.TestCase):
+    def test_parallel_window_layers_collapse_only_near_identical_thin_spans(self):
+        first = window(1, 20, 30, 100, 42)
+        second = window(2, 23, 39, 97, 59)
+        distant = window(3, 20, 75, 100, 87)
+        duplicates = duplicate_parallel_window_layers([first, second, distant])
+        self.assertEqual([(item["id"], item["paired_with"]) for item in duplicates],
+                         [(2, 1)])
+
+    def test_duplicate_layer_stays_in_room_mask_but_not_exported_windows(self):
+        first = window(1, 20, 30, 100, 42)
+        second = window(2, 23, 39, 97, 59)
+        self.classified["windows"] = [first, second]
+        self.classified["openings"] = copy.deepcopy([first, second])
+        self.rooms["windows"] = copy.deepcopy([first, second])
+        with patch("filter_interior_windows_v2.wall_jamb_support", return_value=[3, 3]):
+            classified, rooms, report = filter_interior_windows(
+                self.classified, self.rooms, self.rgb)
+        self.assertEqual([item["id"] for item in classified["windows"]], [1])
+        self.assertEqual([item["id"] for item in rooms["windows"]], [1])
+        self.assertEqual([item["id"] for item in classified["topology_only_openings"]], [2])
+        self.assertEqual([item["id"] for item in rooms["topology_only_openings"]], [2])
+        self.assertEqual(report["rejected_windows"], 1)
+        self.assertEqual(report["duplicate_parallel_layers"][0]["paired_with"], 1)
+        self.assertEqual(validate_recognition(rooms)["status"], "review")
+
     def test_parallel_candidates_with_weak_jambs_are_review_only(self):
         first = window(1, 20, 30, 100, 42)
         second = window(2, 25, 38, 95, 50)

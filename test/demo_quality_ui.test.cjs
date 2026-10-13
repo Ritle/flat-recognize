@@ -96,6 +96,11 @@ async function show(status) {
     assert.match(nodes.get('reviewList').children.at(-1).children[1].textContent,
         /проём №7/);
     context.renderReviewQuestions({review_questions: [{...question,
+        current: 'topology_only', reasons: ['duplicate_parallel_window_layer'],
+        paired_with: [7]}], applied_decisions: []});
+    assert.match(nodes.get('reviewList').children.at(-1).children[1].textContent,
+        /только граница комнаты.*повторный параллельный слой окна/);
+    context.renderReviewQuestions({review_questions: [{...question,
         reasons: ['opening_exceeds_segment'],
         geometry: {opening_width_cm: 92, wall_length_cm: 50,
             overhang_cm: 45, wall_chain_length_cm: 100}}], applied_decisions: []});

@@ -453,7 +453,8 @@ def extract_rooms(data, rgb):
         fill_polygon(mask, polygon)
         walls |= mask
     openings = np.zeros_like(walls)
-    for opening in data.get("doors", []) + data.get("windows", []):
+    topology_only = data.get("topology_only_openings", [])
+    for opening in data.get("doors", []) + data.get("windows", []) + topology_only:
         if len(opening.get("outer", [])) >= 3:
             cv2.fillPoly(openings, [polygon_to_int(opening["outer"])], 255)
     barrier = walls | cv2.dilate(openings, np.ones((5, 5), np.uint8))
@@ -537,7 +538,7 @@ def extract_rooms(data, rgb):
                    "accepted": bool(transverse_accepted), **diagnostics})
     sealed_windows = []
     considered_windows = 0
-    for window in data.get("windows", []):
+    for window in data.get("windows", []) + topology_only:
         additions = window_edge_seal(window, barrier, wall_shapes)
         if additions is None or not np.any(additions):
             continue
@@ -565,6 +566,10 @@ def extract_rooms(data, rgb):
     if sealed_windows:
         warnings.append(
             f"Границы окон продлены только в маске помещений ({len(sealed_windows)}); проверьте восстановленные комнаты.")
+    if topology_only:
+        warnings.append(
+            f"Слои повторных окон оставлены только в маске помещений ({len(topology_only)}); "
+            "проверьте проёмы и границы комнат.")
     rejected_oblique = sum(
         candidate.get("reason") == "oblique_arc_not_confirmed"
         for phase in passes for candidate in phase.get("rejected_leaf_gaps", []))
@@ -585,6 +590,7 @@ def extract_rooms(data, rgb):
     rejected_openings = len(data.get("rejected_openings", []))
     automatic_rejections = sum(
         (opening.get("classification") or {}).get("method") != "user_ignored"
+        and "duplicate_parallel_window_layer" not in opening.get("reject_reason", [])
         for opening in data.get("rejected_openings", []))
     if automatic_rejections:
         warnings.append(
@@ -608,7 +614,8 @@ def extract_rooms(data, rgb):
     result = {"meta": data.get("meta", {}),
               "review_decisions": data.get("review_decisions", []),
               "walls": data.get("walls", []),
-              "doors": data.get("doors", []), "windows": data.get("windows", []), "rooms": rooms,
+              "doors": data.get("doors", []), "windows": data.get("windows", []),
+              "topology_only_openings": topology_only, "rooms": rooms,
               "diagnostics": {"version": 2, "passes": passes, "temporary_closures": closures,
                               "exterior_envelope": envelope,
                               "window_edge_seals": sealed_windows,

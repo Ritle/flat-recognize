@@ -45,7 +45,8 @@ def make_review_questions(classified, quality, source_sha256):
     geometry = {}
     paired_with = {}
     doors, windows = classified.get("doors", []), classified.get("windows", [])
-    opening_ids = {opening.get("id") for opening in doors + windows}
+    topology_only = classified.get("topology_only_openings", [])
+    opening_ids = {opening.get("id") for opening in doors + windows + topology_only}
     for issue in (quality or {}).get("issues", []):
         if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
                                      "opening_exceeds_segment", "same_room_window_ambiguous",
@@ -70,8 +71,9 @@ def make_review_questions(classified, quality, source_sha256):
         if issue["code"] == "parallel_window_ambiguous":
             paired_with[uid] = [partner for partner in issue.get("paired_with", [])
                                 if isinstance(partner, int) and partner in opening_ids]
-    candidates = doors + windows + [opening for opening in classified.get("rejected_openings", [])
+    candidates = doors + windows + topology_only + [opening for opening in classified.get("rejected_openings", [])
                                      if (opening.get("classification") or {}).get("method") == "user_ignored"]
+    topology_ids = {opening.get("id") for opening in topology_only}
     questions = []
     seen = set()
     for opening in candidates:
@@ -81,15 +83,21 @@ def make_review_questions(classified, quality, source_sha256):
         seen.add(uid)
         classification = opening.get("classification") or {}
         if classification.get("requires_review"):
-            reason = ("door_arc_missing_jamb" if classification.get("method") == "door_arc_missing_jamb"
+            method = classification.get("method")
+            reason = (method if method in ("door_arc_missing_jamb",
+                                          "duplicate_parallel_window_layer")
                       else "classification_uncertain")
             reasons.setdefault(uid, set()).add(reason)
+        if classification.get("method") == "duplicate_parallel_window_layer":
+            partner = classification.get("paired_with")
+            paired_with[uid] = [partner] if isinstance(partner, int) else []
         if classification.get("method") in ("user_selected", "user_ignored"):
             reasons.setdefault(uid, set()).add("user_choice")
         if uid not in reasons:
             continue
         bbox, center = opening_location(opening)
-        current = "ignore" if classification.get("method") == "user_ignored" else opening.get("type")
+        current = ("topology_only" if uid in topology_ids else
+                   "ignore" if classification.get("method") == "user_ignored" else opening.get("type"))
         questions.append({
             "id": f"opening:{uid}", "kind": "opening", "opening_id": uid,
             "fingerprint": opening_fingerprint(opening), "image_sha256": source_sha256,
@@ -115,7 +123,8 @@ def apply_review_decisions(classified, decisions, source_sha256):
     if not isinstance(answers, list) or len(answers) > MAX_ANSWERS:
         raise ValueError("Invalid number of review answers")
     data = copy.deepcopy(classified)
-    openings = data.get("doors", []) + data.get("windows", [])
+    topology_only = data.get("topology_only_openings", [])
+    openings = data.get("doors", []) + data.get("windows", []) + topology_only
     by_id = {opening.get("id"): opening for opening in openings}
     if len(by_id) != len(openings):
         raise ValueError("Opening IDs must be unique")
@@ -131,6 +140,7 @@ def apply_review_decisions(classified, decisions, source_sha256):
             raise ValueError("Review answer refers to a changed or missing opening")
         selected[uid] = choice
     rejected = data.setdefault("rejected_openings", [])
+    rejected[:] = [opening for opening in rejected if opening.get("id") not in selected]
     for uid, choice in selected.items():
         opening = by_id[uid]
         previous = copy.deepcopy(opening.get("classification"))
@@ -143,9 +153,14 @@ def apply_review_decisions(classified, decisions, source_sha256):
         }
         if choice == "ignore":
             rejected.append(opening)
-    accepted = [opening for opening in openings if opening["type"] != "ignore"]
+    topology_ids = {opening.get("id") for opening in topology_only}
+    accepted = [opening for opening in openings
+                if opening["type"] != "ignore"
+                and (opening.get("id") not in topology_ids or opening.get("id") in selected)]
     data["doors"] = [opening for opening in accepted if opening["type"] == "door"]
     data["windows"] = [opening for opening in accepted if opening["type"] == "window"]
+    data["topology_only_openings"] = [opening for opening in topology_only
+                                      if opening.get("id") not in selected]
     data["openings"] = accepted
     data["review_decisions"] = [{"opening_id": uid, "choice": choice}
                                 for uid, choice in selected.items()]

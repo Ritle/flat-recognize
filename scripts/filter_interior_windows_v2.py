@@ -118,6 +118,48 @@ def parallel_weak_window_pairs(windows, wall_shapes):
     return list(ambiguous.values())
 
 
+def duplicate_parallel_window_layers(windows):
+    """Collapse near-identical thin panes, keeping the narrower source opening."""
+    geometry = [opening_geometry(window) for window in windows]
+    redundant = []
+    removed = set()
+    priority = sorted(range(len(windows)),
+                      key=lambda index: (geometry[index][-2], windows[index].get("id", index)))
+    for offset, index in enumerate(priority):
+        if index in removed:
+            continue
+        first = geometry[index]
+        for other in priority[offset + 1:]:
+            if other in removed:
+                continue
+            second = geometry[other]
+            if first[-1] != second[-1] or min(first[-3], second[-3]) < 12:
+                continue
+            if (max(first[-2] / first[-3], second[-2] / second[-3]) > .3
+                    or min(first[-3], second[-3]) / max(first[-3], second[-3]) < .85):
+                continue
+            vertical = first[-1] == "vertical"
+            axis = (1, 3) if vertical else (0, 2)
+            transverse = (0, 2) if vertical else (1, 3)
+            overlap = max(0, min(first[axis[1]], second[axis[1]])
+                          - max(first[axis[0]], second[axis[0]]))
+            shortest = min(first[-3], second[-3])
+            gap = max(0, first[transverse[0]] - second[transverse[1]],
+                      second[transverse[0]] - first[transverse[1]])
+            offset_normal = abs(sum(first[i] - second[i] for i in transverse) / 2)
+            if (overlap / shortest < .9
+                    or gap > max(4, min(first[-2], second[-2]) * .5)
+                    or offset_normal > max(first[-2], second[-2]) * 1.75):
+                continue
+            removed.add(other)
+            redundant.append({"id": windows[other].get("id"),
+                              "bbox": windows[other].get("bbox"),
+                              "paired_with": windows[index].get("id"),
+                              "axial_overlap_ratio": round(overlap / shortest, 3),
+                              "reason": "duplicate_parallel_window_layer"})
+    return redundant
+
+
 def without_windows(classified, candidates):
     result = copy.deepcopy(classified)
     reasons = {candidate["id"]: candidate["reason"] for candidate in candidates}
@@ -260,6 +302,35 @@ def filter_interior_windows(classified, rooms, rgb):
             "контуры комнат пересчитаны и требуют проверки." if report["topology_stable"] else
             f"Отклонено оконных кандидатов без опоры на стены: {len(rejected)}; "
             "повторное выделение изменило контуры комнат, экспорт заблокирован.")
+    duplicates = duplicate_parallel_window_layers(filtered_classified.get("windows", []))
+    if duplicates:
+        source_windows = {window.get("id"): window
+                          for window in filtered_classified["windows"]}
+        filtered_classified = without_windows(filtered_classified, duplicates)
+        topology_only = []
+        for item in duplicates:
+            opening = copy.deepcopy(source_windows[item["id"]])
+            opening["classification"] = {
+                "method": "duplicate_parallel_window_layer",
+                "confirmed": False, "requires_review": True,
+                "paired_with": item["paired_with"],
+                "previous": opening.get("classification"),
+                "source_class": opening.get("source_class"),
+            }
+            topology_only.append(opening)
+        filtered_classified.setdefault("topology_only_openings", []).extend(topology_only)
+        filtered_rooms.setdefault("topology_only_openings", []).extend(copy.deepcopy(topology_only))
+        removed_ids = {item["id"] for item in duplicates}
+        filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
+                                     if window.get("id") not in removed_ids]
+        report["rejected_windows"] += len(duplicates)
+        report["candidates"].extend(duplicates)
+        report["ambiguous_candidates"] = [item for item in report["ambiguous_candidates"]
+                                          if item["id"] not in removed_ids]
+        report["ambiguous_windows"] = len(report["ambiguous_candidates"])
+        report["parallel_window_candidates"] = parallel_weak_window_pairs(
+            filtered_classified["windows"], wall_shapes)
+    report["duplicate_parallel_layers"] = duplicates
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
     return filtered_classified, filtered_rooms, report
 
