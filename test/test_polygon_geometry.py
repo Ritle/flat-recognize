@@ -32,6 +32,19 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_window_alignment_interpolates_ends_inside_long_edges(self):
+        room = Polygon([(0, 0), (150, 0), (150, 20), (158, 55),
+                        (150, 80), (158, 105), (150, 140), (150, 160), (0, 160)])
+        window = {"outer": [[150, 40], [170, 40], [170, 120], [150, 120]]}
+        walls = unary_union([box(140, 0, 170, 28), box(140, 132, 170, 160)])
+        aligned, changes = align_window_boundaries([room], [window], walls, 10)
+        self.assertEqual(len(changes), 1)
+        self.assertGreater(room.symmetric_difference(aligned[0]).area, 100)
+        self.assertTrue(aligned[0].is_valid)
+        unsupported, changes = align_window_boundaries([room], [window], Polygon(), 10)
+        self.assertEqual(changes, [])
+        self.assertEqual(unsupported, [room])
+
     def test_acute_raster_corner_does_not_project_beyond_wall_offset(self):
         room = Polygon([(0, 0), (40, 0), (41, -6), (44, 1),
                         (100, 1), (100, 100), (0, 100)])

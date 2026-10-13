@@ -75,6 +75,28 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
             def side(point):
                 return point[0] if vertical else point[1]
 
+            # The ends of a window often fall inside long contour edges.
+            # Supply exact candidate points without altering the source shape;
+            # only an accepted, supported straightening keeps these vertices.
+            split_ring = []
+            for i, point in enumerate(ring):
+                following = ring[(i + 1) % n]
+                split_ring.append(point)
+                span = axis(following) - axis(point)
+                if abs(span) < 1e-6:
+                    continue
+                crossings = []
+                for target in (lo, hi):
+                    fraction = (target - axis(point)) / span
+                    if 1e-6 < fraction < 1 - 1e-6:
+                        crossing = (point[0] + (following[0] - point[0]) * fraction,
+                                    point[1] + (following[1] - point[1]) * fraction)
+                        if side_lo - side_margin <= side(crossing) <= side_hi + side_margin:
+                            crossings.append((fraction, crossing))
+                split_ring.extend(crossing for _, crossing in sorted(crossings))
+            ring = split_ring
+            n = len(ring)
+
             eligible = [i for i, point in enumerate(ring)
                         if lo - cap <= axis(point) <= hi + cap
                         and side_lo - side_margin <= side(point) <= side_hi + side_margin]
