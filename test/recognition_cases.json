@@ -61,6 +61,37 @@
       "image": "exmpls/plannn.jpg.webp",
       "ground_truth": "test/ground_truth/complex-hatched.json",
       "tags": ["hatching", "text", "furniture", "balcony", "open_zones", "non_rectangular", "webp"]
+    },
+    {
+      "id": "gray-dimensions-furnished",
+      "image": "exmpls/1ca80e3e1c696019aee166021f0a37bb.jpg",
+      "tags": ["gray_walls", "dimensions", "furniture", "open_zones", "jpeg"]
+    },
+    {
+      "id": "gray-furnished-swing-arcs",
+      "image": "exmpls/7c76ea78e0f8a6a39239fb0da151d30e.jpg",
+      "tags": ["gray_walls", "furniture", "door_arcs", "open_zones", "jpeg"]
+    },
+    {
+      "id": "tiny-watermarked-plan",
+      "image": "exmpls/black-white-floor-plan-modern-260nw-2242409277.webp",
+      "tags": ["small_resolution", "watermark", "margins", "webp"]
+    },
+    {
+      "id": "black-white-furnished",
+      "image": "exmpls/i (43).webp",
+      "tags": ["black_white", "furniture", "thin_lines", "open_zones", "webp"]
+    },
+    {
+      "id": "checkerboard-background-plan",
+      "image": "exmpls/png-transparent-floor-plan-residential-area-land-lot-design-angle-white-text.png",
+      "tags": ["checkerboard_background", "text", "furniture", "thin_lines", "png"],
+      "notes": "The checkerboard is baked into the indexed PNG; it is not transparency."
+    },
+    {
+      "id": "large-margin-thin-walls",
+      "image": "exmpls/widen_1280_crop_1080_870_0_0_q90_2710002_4cb04a35e645fb5d67513fb52.jpeg",
+      "tags": ["large_margin", "thin_lines", "furniture", "door_arcs", "jpeg"]
     }
   ]
 }
