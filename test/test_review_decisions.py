@@ -115,6 +115,17 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertEqual(ignored["topology_only_openings"], [])
         self.assertEqual([item["id"] for item in ignored["rejected_openings"]], [3])
 
+    def test_one_sided_endcap_is_an_actionable_question(self):
+        fragment = opening(3, "window", 55, True)
+        fragment["classification"] = {"method": "one_sided_window_endcap",
+                                      "requires_review": True, "paired_with": 2}
+        self.classified["topology_only_openings"] = [fragment]
+        question = next(item for item in make_review_questions(
+            self.classified, self.quality, "a" * 64) if item["opening_id"] == 3)
+        self.assertEqual(question["current"], "topology_only")
+        self.assertEqual(question["reasons"], ["one_sided_window_endcap"])
+        self.assertEqual(question["paired_with"], [2])
+
     def test_stale_and_repeated_choices_are_rejected(self):
         q = make_review_questions(self.classified, self.quality, "a" * 64)[0]
         answer = {"opening_id": q["opening_id"], "fingerprint": q["fingerprint"],

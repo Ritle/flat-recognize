@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from filter_interior_windows_v2 import (duplicate_parallel_window_layers,
                                         filter_interior_windows,
+                                        one_sided_window_endcaps,
                                         parallel_weak_window_pairs)
 from recheck_reviewed_rooms import recheck_reviewed_rooms
 from review_decisions import make_review_questions
@@ -47,6 +48,34 @@ class InteriorWindowFilterTests(unittest.TestCase):
         self.assertEqual(report["rejected_windows"], 1)
         self.assertEqual(report["duplicate_parallel_layers"][0]["paired_with"], 1)
         self.assertEqual(validate_recognition(rooms)["status"], "review")
+
+    def test_short_one_sided_endcap_is_topology_only(self):
+        parent = window(4, 20, 30, 120, 50)
+        fragment = window(3, 119, 44, 124, 72)
+        self.classified["windows"] = [parent, fragment]
+        self.classified["openings"] = copy.deepcopy([parent, fragment])
+        self.rooms["windows"] = copy.deepcopy([parent, fragment])
+        self.rooms["rooms"][0]["polygon"] = [[20, 50], [180, 50],
+                                             [180, 180], [20, 180]]
+        def support(start, end, width, walls):
+            return [3, 3] if abs(end[0] - start[0]) > abs(end[1] - start[1]) else [3, 0]
+        with patch("filter_interior_windows_v2.wall_jamb_support", side_effect=support):
+            classified, rooms, report = filter_interior_windows(
+                self.classified, self.rooms, self.rgb)
+        self.assertEqual([item["id"] for item in report["one_sided_window_endcaps"]], [3])
+        self.assertEqual([item["id"] for item in classified["windows"]], [4])
+        self.assertEqual([item["id"] for item in rooms["topology_only_openings"]], [3])
+        self.assertEqual(classified["topology_only_openings"][0]["classification"]["method"],
+                         "one_sided_window_endcap")
+        self.assertEqual(validate_recognition(rooms)["status"], "review")
+
+    def test_real_corner_window_is_not_rejected_as_short_endcap(self):
+        parent = window(4, 20, 30, 120, 50)
+        corner = window(3, 119, 44, 129, 104)
+        def support(start, end, width, walls):
+            return [3, 3] if abs(end[0] - start[0]) > abs(end[1] - start[1]) else [3, 0]
+        with patch("filter_interior_windows_v2.wall_jamb_support", side_effect=support):
+            self.assertEqual(one_sided_window_endcaps([parent, corner], Polygon()), [])
 
     def test_parallel_candidates_with_weak_jambs_are_review_only(self):
         first = window(1, 20, 30, 100, 42)

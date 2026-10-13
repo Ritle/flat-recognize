@@ -192,7 +192,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     topology_only = rooms.get("topology_only_openings", []) if isinstance(rooms, dict) else []
     if isinstance(topology_only, list) and topology_only:
         issue("topology_only_openings", "warning",
-              f"Повторные оконные слои использованы для построения комнат, но исключены из проекта "
+              f"Неподтверждённые оконные кандидаты использованы для построения комнат, но исключены из проекта "
               f"({len(topology_only)}); проверьте проёмы и контуры.")
     if isinstance(review_decisions, list) and review_decisions:
         metrics["user_review_choices"] = len(review_decisions)

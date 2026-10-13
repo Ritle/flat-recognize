@@ -85,10 +85,12 @@ def make_review_questions(classified, quality, source_sha256):
         if classification.get("requires_review"):
             method = classification.get("method")
             reason = (method if method in ("door_arc_missing_jamb",
-                                          "duplicate_parallel_window_layer")
+                                          "duplicate_parallel_window_layer",
+                                          "one_sided_window_endcap")
                       else "classification_uncertain")
             reasons.setdefault(uid, set()).add(reason)
-        if classification.get("method") == "duplicate_parallel_window_layer":
+        if classification.get("method") in ("duplicate_parallel_window_layer",
+                                            "one_sided_window_endcap"):
             partner = classification.get("paired_with")
             paired_with[uid] = [partner] if isinstance(partner, int) else []
         if classification.get("method") in ("user_selected", "user_ignored"):

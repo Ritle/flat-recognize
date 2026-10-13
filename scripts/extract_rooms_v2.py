@@ -568,7 +568,7 @@ def extract_rooms(data, rgb):
             f"Границы окон продлены только в маске помещений ({len(sealed_windows)}); проверьте восстановленные комнаты.")
     if topology_only:
         warnings.append(
-            f"Слои повторных окон оставлены только в маске помещений ({len(topology_only)}); "
+            f"Неподтверждённые оконные кандидаты оставлены только в маске помещений ({len(topology_only)}); "
             "проверьте проёмы и границы комнат.")
     rejected_oblique = sum(
         candidate.get("reason") == "oblique_arc_not_confirmed"
@@ -590,7 +590,8 @@ def extract_rooms(data, rgb):
     rejected_openings = len(data.get("rejected_openings", []))
     automatic_rejections = sum(
         (opening.get("classification") or {}).get("method") != "user_ignored"
-        and "duplicate_parallel_window_layer" not in opening.get("reject_reason", [])
+        and not {"duplicate_parallel_window_layer", "one_sided_window_endcap"}.intersection(
+            opening.get("reject_reason", []))
         for opening in data.get("rejected_openings", []))
     if automatic_rejections:
         warnings.append(

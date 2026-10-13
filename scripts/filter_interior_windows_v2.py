@@ -160,6 +160,43 @@ def duplicate_parallel_window_layers(windows):
     return redundant
 
 
+def one_sided_window_endcaps(windows, wall_shapes):
+    """Find a thin perpendicular fragment at a confirmed long window endpoint."""
+    geometry = [opening_geometry(window) for window in windows]
+    support = [wall_jamb_support(*opening_axis(window), wall_shapes) for window in windows]
+    candidates = []
+    for index, candidate in enumerate(geometry):
+        x1, y1, x2, y2, length, thickness, orientation = candidate
+        if min(support[index]) != 0 or max(support[index]) < 2:
+            continue
+        for parent_index, parent in enumerate(geometry):
+            if index == parent_index or min(support[parent_index]) < 2:
+                continue
+            px1, py1, px2, py2, parent_length, parent_thickness, parent_orientation = parent
+            if (orientation == parent_orientation or parent_length < length * 3
+                    or thickness > parent_thickness * .5):
+                continue
+            if orientation == "vertical":
+                endpoint_gap = min(abs((x1 + x2) / 2 - px1),
+                                   abs((x1 + x2) / 2 - px2))
+                crossed = min(y2, py2) - max(y1, py1)
+            else:
+                endpoint_gap = min(abs((y1 + y2) / 2 - py1),
+                                   abs((y1 + y2) / 2 - py2))
+                crossed = min(x2, px2) - max(x1, px1)
+            if (endpoint_gap > max(12, parent_thickness * .75)
+                    or crossed < max(4, min(thickness, parent_thickness) * .15)):
+                continue
+            candidates.append({"id": windows[index].get("id"),
+                               "bbox": windows[index].get("bbox"),
+                               "paired_with": windows[parent_index].get("id"),
+                               "jamb_support": support[index],
+                               "endpoint_gap_px": round(endpoint_gap, 2),
+                               "reason": "one_sided_window_endcap"})
+            break
+    return candidates
+
+
 def without_windows(classified, candidates):
     result = copy.deepcopy(classified)
     reasons = {candidate["id"]: candidate["reason"] for candidate in candidates}
@@ -302,16 +339,22 @@ def filter_interior_windows(classified, rooms, rgb):
             "контуры комнат пересчитаны и требуют проверки." if report["topology_stable"] else
             f"Отклонено оконных кандидатов без опоры на стены: {len(rejected)}; "
             "повторное выделение изменило контуры комнат, экспорт заблокирован.")
-    duplicates = duplicate_parallel_window_layers(filtered_classified.get("windows", []))
-    if duplicates:
+    endcaps_one_sided = one_sided_window_endcaps(
+        filtered_classified.get("windows", []), wall_shapes)
+    endcap_ids = {item["id"] for item in endcaps_one_sided}
+    duplicates = duplicate_parallel_window_layers(
+        [window for window in filtered_classified.get("windows", [])
+         if window.get("id") not in endcap_ids])
+    demoted = endcaps_one_sided + duplicates
+    if demoted:
         source_windows = {window.get("id"): window
                           for window in filtered_classified["windows"]}
-        filtered_classified = without_windows(filtered_classified, duplicates)
+        filtered_classified = without_windows(filtered_classified, demoted)
         topology_only = []
-        for item in duplicates:
+        for item in demoted:
             opening = copy.deepcopy(source_windows[item["id"]])
             opening["classification"] = {
-                "method": "duplicate_parallel_window_layer",
+                "method": item["reason"],
                 "confirmed": False, "requires_review": True,
                 "paired_with": item["paired_with"],
                 "previous": opening.get("classification"),
@@ -320,17 +363,18 @@ def filter_interior_windows(classified, rooms, rgb):
             topology_only.append(opening)
         filtered_classified.setdefault("topology_only_openings", []).extend(topology_only)
         filtered_rooms.setdefault("topology_only_openings", []).extend(copy.deepcopy(topology_only))
-        removed_ids = {item["id"] for item in duplicates}
+        removed_ids = {item["id"] for item in demoted}
         filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]
                                      if window.get("id") not in removed_ids]
-        report["rejected_windows"] += len(duplicates)
-        report["candidates"].extend(duplicates)
+        report["rejected_windows"] += len(demoted)
+        report["candidates"].extend(demoted)
         report["ambiguous_candidates"] = [item for item in report["ambiguous_candidates"]
                                           if item["id"] not in removed_ids]
         report["ambiguous_windows"] = len(report["ambiguous_candidates"])
         report["parallel_window_candidates"] = parallel_weak_window_pairs(
             filtered_classified["windows"], wall_shapes)
     report["duplicate_parallel_layers"] = duplicates
+    report["one_sided_window_endcaps"] = endcaps_one_sided
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
     return filtered_classified, filtered_rooms, report
 
