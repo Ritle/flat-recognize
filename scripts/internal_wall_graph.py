@@ -11,7 +11,7 @@ import uuid
 import cv2
 import numpy as np
 from extract_rooms_v2 import skeletonize
-from polygon_geometry import parts
+from polygon_geometry import parts, straighten_shared_door_kinks
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon
 from shapely.ops import nearest_points, polygonize, unary_union
 
@@ -340,6 +340,21 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
         area["connectors"] = cycle
     level["segments"] = segments
     report["split_existing_segments"] = len(used_originals)
+    structural = [Polygon(item["outer"], item.get("holes", [])).buffer(0)
+                  for item in source.get("walls", []) + source.get("reclassified_wall_support", [])]
+    wall_shapes = unary_union(structural) if structural else GeometryCollection()
+    door_changes = straighten_shared_door_kinks(
+        nodes, segments, level["areas"], source.get("doors", []), wall_shapes,
+        thickness / sx / 2, sx, transform["origin_x"], transform["origin_y"])
+    if door_changes:
+        geometry.setdefault("aligned_door_boundaries", []).extend(door_changes)
+        current = {node["uuid"]: ((node["x"] - transform["origin_x"]) / sx,
+                                   (node["y"] - transform["origin_y"]) / sy) for node in nodes}
+        geometry["rooms"] = [{"id": i, "polygon": [list(current[uid]) for uid in area["connectors"]]}
+                             for i, area in enumerate(level["areas"])]
+        geometry["warnings"].append(
+            f"Малые изгибы общих границ комнат у подтверждённых дверей выпрямлены ({len(door_changes)}); "
+            "проверьте привязку дверей и форму помещений.")
     if report["added_segments"]:
         geometry["warnings"].append("Внутренние стены восстановлены по сегментации; проверьте перегородки и соединения.")
     return project, geometry

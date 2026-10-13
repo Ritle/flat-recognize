@@ -13,7 +13,8 @@ from shapely.ops import unary_union
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from polygon_geometry import (align_window_boundaries, build_polygon_project, partition_rooms,
-                              requires_polygons, supported_offset_sliver)
+                              requires_polygons, straighten_shared_door_kinks,
+                              supported_offset_sliver)
 from validate_recognition import validate_recognition
 
 
@@ -32,6 +33,51 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_arc_door_straightens_only_supported_shared_degree_two_kink(self):
+        points = [(0, 0), (100, 0), (100, 50), (55, 50.8), (0, 50),
+                  (100, 100), (0, 100)]
+        nodes = [{"uuid": f"c{i}", "x": x, "y": y, "adjacency": []}
+                 for i, (x, y) in enumerate(points)]
+        edges = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 0),
+                 (2, 5), (5, 6), (6, 4)]
+        segments = [{"uuid": f"s{i}", "start": f"c{a}", "end": f"c{b}"}
+                    for i, (a, b) in enumerate(edges)]
+        areas = [{"connectors": ["c0", "c1", "c2", "c3", "c4"], "area_value": 0},
+                 {"connectors": ["c4", "c3", "c2", "c5", "c6"], "area_value": 0}]
+        door = {"id": 8, "outer": [[15, 45], [85, 45], [85, 55], [15, 55]],
+                "length": 70, "classification": {"method": "recovered_leaf_and_arc",
+                                                 "evidence": {"arc_hits": 8}}}
+        original = copy.deepcopy((nodes, segments, areas))
+        original_union = unary_union([Polygon([points[int(uid[1:])] for uid in area["connectors"]])
+                                      for area in areas])
+        changes = straighten_shared_door_kinks(nodes, segments, areas, [door],
+                                                box(0, 45, 100, 55), 10, 1, 0, 0)
+        self.assertEqual(changes[0]["removed_connector"], "c3")
+        self.assertEqual(len(segments), len(edges) - 1)
+        self.assertFalse(any(node["uuid"] == "c3" for node in nodes))
+        current = {node["uuid"]: (node["x"], node["y"]) for node in nodes}
+        new_shapes = [Polygon([current[uid] for uid in area["connectors"]]) for area in areas]
+        self.assertLess(original_union.symmetric_difference(unary_union(new_shapes)).area, 1e-5)
+        self.assertLess(new_shapes[0].intersection(new_shapes[1]).area, 1e-5)
+        self.assertEqual([round(area["area_value"], 3) for area in areas],
+                         [round(shape.area, 3) for shape in new_shapes])
+
+        no_support = straighten_shared_door_kinks(
+            *copy.deepcopy(original),
+            [door], Polygon(), 10, 1, 0, 0)
+        self.assertEqual(no_support, [])
+        unsupported_door = copy.deepcopy(door)
+        unsupported_door["classification"]["evidence"]["arc_hits"] = 2
+        self.assertEqual(straighten_shared_door_kinks(
+            *copy.deepcopy(original), [unsupported_door], box(0, 45, 100, 55),
+            10, 1, 0, 0), [])
+        junction_nodes, junction_segments, junction_areas = copy.deepcopy(original)
+        junction_nodes.append({"uuid": "c7", "x": 55, "y": 20, "adjacency": []})
+        junction_segments.append({"uuid": "s8", "start": "c3", "end": "c7"})
+        self.assertEqual(straighten_shared_door_kinks(
+            junction_nodes, junction_segments, junction_areas, [door],
+            box(0, 45, 100, 55), 10, 1, 0, 0), [])
+
     def test_window_alignment_interpolates_ends_inside_long_edges(self):
         room = Polygon([(0, 0), (150, 0), (150, 20), (158, 55),
                         (150, 80), (158, 105), (150, 140), (150, 160), (0, 160)])

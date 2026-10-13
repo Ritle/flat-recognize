@@ -33,6 +33,113 @@ def supported_offset_sliver(edge, walls, half_wall):
             and edge.difference(walls.buffer(half_wall)).length < 1e-4)
 
 
+def straighten_shared_door_kinks(nodes, segments, areas, doors, walls, half_wall, scale, ox, oy):
+    """Remove a tiny degree-two bend only when a confirmed door needs its full span.
+
+    Both adjacent rooms must share the same two wall endpoints. Replacing their
+    common bent edge then changes ownership of a tiny strip, not the floorplan
+    footprint or its room topology.
+    """
+    changes = []
+    if walls.is_empty:
+        return changes
+    for door in doors:
+        classification = door.get("classification") or {}
+        evidence = classification.get("evidence") or {}
+        if (classification.get("method") not in ("jamb_leaf_and_arc", "recovered_leaf_and_arc")
+                or evidence.get("arc_hits", 0) < 5 or len(door.get("outer", [])) < 3):
+            continue
+        opening = Polygon(door["outer"])
+        if not opening.is_valid or opening.is_empty:
+            continue
+        x0, y0, x1, y1 = opening.bounds
+        horizontal = x1 - x0 >= y1 - y0
+        width = float(door.get("length") or max(x1 - x0, y1 - y0)) * 1.12
+        center = Point(sum(p[0] for p in door["outer"]) / len(door["outer"]),
+                       sum(p[1] for p in door["outer"]) / len(door["outer"]))
+        coordinates = {node["uuid"]: ((node["x"] - ox) / scale,
+                                      (node["y"] - oy) / scale) for node in nodes}
+        incident = {uid: [] for uid in coordinates}
+        for segment in segments:
+            incident[segment["start"]].append(segment)
+            incident[segment["end"]].append(segment)
+        support = unary_union([walls, opening]).buffer(half_wall + 3)
+        for uid, attached in incident.items():
+            if len(attached) != 2 or not opening.buffer(half_wall * .4).covers(Point(coordinates[uid])):
+                continue
+            ends = [segment["end"] if segment["start"] == uid else segment["start"]
+                    for segment in attached]
+            a, p, b = (coordinates[ends[0]], coordinates[uid], coordinates[ends[1]])
+            chord = LineString([a, b])
+            if (chord.length < width - 2 or chord.length > width / 1.12 + 3 * half_wall
+                    or chord.distance(center) > half_wall * 1.5):
+                continue
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            if ((horizontal and abs(dy) > abs(dx) * .27)
+                    or (not horizontal and abs(dx) > abs(dy) * .27)):
+                continue
+            deviation = chord.distance(Point(p))
+            if not 1e-4 < deviation <= min(3, half_wall * .4):
+                continue
+            first = (p[0] - a[0], p[1] - a[1])
+            second = (b[0] - p[0], b[1] - p[1])
+            lengths = math.hypot(*first), math.hypot(*second)
+            if (min(lengths) < half_wall * .5
+                    or sum(x * y for x, y in zip(first, second)) /
+                    (lengths[0] * lengths[1]) < math.cos(math.radians(10))):
+                continue
+            position = chord.project(center)
+            overhang = max(0, width / 2 - position, position + width / 2 - chord.length)
+            def fits(segment):
+                line = LineString([coordinates[segment["start"]], coordinates[segment["end"]]])
+                offset = line.project(center)
+                return max(0, width / 2 - offset, offset + width / 2 - line.length) <= 5
+
+            if overhang > 5 or any(fits(segment) for segment in attached):
+                continue
+            if (chord.difference(support).length > max(2, chord.length * .05)
+                    or any(walls.distance(Point(point)) > half_wall * .5 + 2
+                           for point in (a, b))):
+                continue
+            affected = [i for i, area in enumerate(areas) if uid in area["connectors"]]
+            if len(affected) != 2:
+                continue
+            old_shapes, new_shapes = [], []
+            for index in affected:
+                cycle = areas[index]["connectors"]
+                k = cycle.index(uid)
+                if {cycle[k - 1], cycle[(k + 1) % len(cycle)]} != set(ends):
+                    break
+                old_shapes.append(Polygon([coordinates[item] for item in cycle]))
+                new_shapes.append(Polygon([coordinates[item] for item in cycle if item != uid]))
+            if (len(new_shapes) != 2 or any(not shape.is_valid or shape.area <= 0 for shape in new_shapes)
+                    or new_shapes[0].intersection(new_shapes[1]).area > 1e-5
+                    or unary_union(old_shapes).symmetric_difference(unary_union(new_shapes)).area > 1e-4
+                    or any(a.symmetric_difference(b).area > min(a.area * .01, half_wall * width)
+                           for a, b in zip(old_shapes, new_shapes))):
+                continue
+            survivor = attached[0]
+            survivor["start"], survivor["end"] = ends
+            survivor["left"], survivor["right"] = (int(item[1:]) for item in ends)
+            segments.remove(attached[1])
+            nodes[:] = [node for node in nodes if node["uuid"] != uid]
+            for index, shape in zip(affected, new_shapes):
+                areas[index]["connectors"].remove(uid)
+                areas[index]["area_value"] = round(shape.area * scale ** 2, 4)
+            changes.append({"door_id": door.get("id"), "removed_connector": uid,
+                            "area_ids": affected, "deviation_px": round(deviation, 2),
+                            "wall_length_px": round(chord.length, 2)})
+            break
+    if changes:
+        by_id = {node["uuid"]: node for node in nodes}
+        for node in nodes:
+            node["adjacency"] = []
+        for segment in segments:
+            by_id[segment["start"]]["adjacency"].append(segment["end"])
+            by_id[segment["end"]]["adjacency"].append(segment["start"])
+    return changes
+
+
 def align_window_boundaries(shapes, windows, walls, half_wall):
     """Straighten small raster kinks only where a long window supports the chord.
 
@@ -342,6 +449,12 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
         area.update(uuid=str(uuid.uuid4()), name=f"Room {index + 1}", data="", connectors=cycle,
                     area_value=round(shape.area * scale ** 2, 4))
         areas.append(area)
+    aligned_doors = straighten_shared_door_kinks(
+        nodes, segments, areas, source.get("doors", []), walls, half_wall, scale, ox, oy)
+    if aligned_doors:
+        positions = {node["uuid"]: ((node["x"] - ox) / scale,
+                                     (node["y"] - oy) / scale) for node in nodes}
+        shapes = [Polygon([positions[uid] for uid in area["connectors"]]) for area in areas]
     project = copy.deepcopy(template)
     project["editable"] = True
     project["levels"][0].update(height=height, connectors=nodes, segments=segments, areas=areas, elements=[], tapes=[])
@@ -350,6 +463,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
               "aligned_window_boundaries": aligned_windows,
+              "aligned_door_boundaries": aligned_doors,
               "matched_closure_edges": matched_closure_edges,
               "offset_sliver_edges": offset_sliver_edges,
               "warnings": list(dict.fromkeys(adjustments)), "errors": []}
@@ -357,6 +471,10 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
         report["warnings"].append(
             f"Границы комнат у распознанных окон выпрямлены ({len(aligned_windows)}); "
             "проверьте положение проёмов и форму комнат.")
+    if aligned_doors:
+        report["warnings"].append(
+            f"Малые изгибы общих границ комнат у подтверждённых дверей выпрямлены ({len(aligned_doors)}); "
+            "проверьте привязку дверей и форму помещений.")
     if matched_closure_edges:
         report["warnings"].append(
             f"Границы временных замыканий сопоставлены с распознанными проёмами с допуском "
