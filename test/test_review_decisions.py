@@ -62,6 +62,20 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertEqual(window_question["severity"], "review")
         self.assertEqual(window_question["choices"], ["door", "window", "ignore"])
 
+    def test_parallel_window_warning_becomes_actionable_question(self):
+        self.classified["windows"].append(opening(3, "window", 55))
+        rooms = {"rooms": [{"polygon": [[0, 0], [100, 0], [100, 80], [0, 80]]}],
+                 "doors": [], "windows": self.classified["windows"],
+                 "diagnostics": {"interior_window_filter": {
+                     "parallel_window_candidates": [
+                         {"id": 2, "paired_with": [3], "jamb_support": [2, 0]}]}}}
+        quality = validate_recognition(rooms)
+        self.assertEqual(quality["status"], "review")
+        questions = make_review_questions(self.classified, quality, "a" * 64)
+        self.assertEqual([q["opening_id"] for q in questions], [1, 2])
+        self.assertEqual(questions[1]["reasons"], ["parallel_window_ambiguous"])
+        self.assertEqual(questions[1]["paired_with"], [3])
+
     def test_choices_change_classification_without_mutating_source(self):
         original = copy.deepcopy(self.classified)
         questions = make_review_questions(self.classified, self.quality, "a" * 64)

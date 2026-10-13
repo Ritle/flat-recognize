@@ -43,11 +43,13 @@ def make_review_questions(classified, quality, source_sha256):
     reasons = {}
     severity = {}
     geometry = {}
+    paired_with = {}
     doors, windows = classified.get("doors", []), classified.get("windows", [])
     opening_ids = {opening.get("id") for opening in doors + windows}
     for issue in (quality or {}).get("issues", []):
         if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
-                                     "opening_exceeds_segment", "same_room_window_ambiguous"):
+                                     "opening_exceeds_segment", "same_room_window_ambiguous",
+                                     "parallel_window_ambiguous"):
             continue
         uid = issue.get("opening_id")
         if not isinstance(uid, int):
@@ -65,6 +67,9 @@ def make_review_questions(classified, quality, source_sha256):
             geometry[uid] = {key: issue.get(key) for key in
                              ("overhang_cm", "opening_width_cm", "wall_length_cm",
                               "wall_chain_length_cm", "wall_chain_overhang_cm")}
+        if issue["code"] == "parallel_window_ambiguous":
+            paired_with[uid] = [partner for partner in issue.get("paired_with", [])
+                                if isinstance(partner, int) and partner in opening_ids]
     candidates = doors + windows + [opening for opening in classified.get("rejected_openings", [])
                                      if (opening.get("classification") or {}).get("method") == "user_ignored"]
     questions = []
@@ -93,6 +98,7 @@ def make_review_questions(classified, quality, source_sha256):
             "current": current, "bbox": bbox, "center": center,
             "reasons": sorted(reasons[uid]),
             "geometry": geometry.get(uid),
+            "paired_with": paired_with.get(uid, []),
             "choices": ["door", "window", "ignore"],
             "severity": "error" if severity.get(uid) == 2 else "review",
         })

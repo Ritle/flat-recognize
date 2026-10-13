@@ -82,6 +82,42 @@ def perpendicular_weak_endcaps(windows, wall_shapes):
     return candidates
 
 
+def parallel_weak_window_pairs(windows, wall_shapes):
+    """Surface overlapping parallel candidates with incomplete jambs for review."""
+    geometry = [opening_geometry(window) for window in windows]
+    support = [wall_jamb_support(*opening_axis(window), wall_shapes) for window in windows]
+    ambiguous = {}
+    for i, first in enumerate(geometry):
+        for j in range(i + 1, len(geometry)):
+            second = geometry[j]
+            if first[-1] != second[-1]:
+                continue
+            vertical = first[-1] == "vertical"
+            axis = (1, 3) if vertical else (0, 2)
+            transverse = (0, 2) if vertical else (1, 3)
+            overlap = max(0, min(first[axis[1]], second[axis[1]])
+                          - max(first[axis[0]], second[axis[0]]))
+            shorter = min(first[axis[1]] - first[axis[0]],
+                          second[axis[1]] - second[axis[0]])
+            if shorter <= 0 or overlap / shorter < .75:
+                continue
+            gap = max(0, first[transverse[0]] - second[transverse[1]],
+                      second[transverse[0]] - first[transverse[1]])
+            if gap > max(4, min(first[-2], second[-2]) * .5):
+                continue
+            for index, partner in ((i, j), (j, i)):
+                if min(support[index]) >= 2:
+                    continue
+                uid = windows[index].get("id")
+                if not isinstance(uid, int):
+                    continue
+                ambiguous.setdefault(uid, {"id": uid, "bbox": windows[index].get("bbox"),
+                                           "paired_with": [], "jamb_support": support[index],
+                                           "reason": "parallel_weak_jamb_window_pair"})
+                ambiguous[uid]["paired_with"].append(windows[partner].get("id"))
+    return list(ambiguous.values())
+
+
 def without_windows(classified, candidates):
     result = copy.deepcopy(classified)
     reasons = {candidate["id"]: candidate["reason"] for candidate in candidates}
@@ -148,6 +184,11 @@ def filter_interior_windows(classified, rooms, rgb):
     rejected = deep + endcaps
     report.update(rejected_windows=len(rejected), candidates=rejected,
                   ambiguous_windows=len(across), ambiguous_candidates=across)
+    rejected_ids = {candidate["id"] for candidate in rejected}
+    report["parallel_window_candidates"] = parallel_weak_window_pairs(
+        [window for window in classified.get("windows", [])
+         if window.get("id") not in rejected_ids],
+        wall_shapes)
     if rejected:
         filtered_classified = without_windows(filtered_classified, rejected)
         rebuilt, _, _ = extract_rooms(filtered_classified, rgb)

@@ -5,9 +5,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+from shapely.geometry import Polygon
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from filter_interior_windows_v2 import filter_interior_windows
+from filter_interior_windows_v2 import filter_interior_windows, parallel_weak_window_pairs
 from validate_recognition import validate_recognition
 
 
@@ -18,6 +19,24 @@ def window(uid, x1, y1, x2, y2):
 
 
 class InteriorWindowFilterTests(unittest.TestCase):
+    def test_parallel_candidates_with_weak_jambs_are_review_only(self):
+        first = window(1, 20, 30, 100, 42)
+        second = window(2, 25, 38, 95, 50)
+        separate = window(3, 120, 30, 180, 42)
+        with patch("filter_interior_windows_v2.wall_jamb_support",
+                   side_effect=[[2, 0], [2, 1], [0, 0]]):
+            candidates = parallel_weak_window_pairs(
+                [first, second, separate], Polygon())
+        self.assertEqual([(item["id"], item["paired_with"]) for item in candidates],
+                         [(1, [2]), (2, [1])])
+
+    def test_parallel_pair_with_two_supported_jambs_stays_unflagged(self):
+        first = window(1, 20, 30, 100, 42)
+        second = window(2, 25, 38, 95, 50)
+        with patch("filter_interior_windows_v2.wall_jamb_support",
+                   side_effect=[[2, 2], [2, 3]]):
+            self.assertEqual(parallel_weak_window_pairs([first, second], Polygon()), [])
+
     def setUp(self):
         self.rgb = np.full((200, 200, 3), 255, np.uint8)
         interior = window(1, 70, 95, 110, 101)

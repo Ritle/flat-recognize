@@ -151,6 +151,14 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
         else:
             issue("same_room_window_ambiguous", "warning",
                   "У некоторых окон по обе стороны одна распознанная комната; проверьте проёмы и границы помещений.")
+    if isinstance(interior_filter, dict):
+        for candidate in interior_filter.get("parallel_window_candidates", []):
+            if isinstance(candidate, dict) and isinstance(candidate.get("id"), int):
+                issue("parallel_window_ambiguous", "warning",
+                      f"Оконный проём {candidate['id']} пересекается с параллельным кандидатом "
+                      "и не имеет двух подтверждённых косяков; проверьте оба проёма.",
+                      opening_id=candidate["id"], opening_kind="windows",
+                      paired_with=candidate.get("paired_with", []))
     diagnostic_warnings = diagnostics.get("warnings", [])
     for warning in diagnostic_warnings if isinstance(diagnostic_warnings, list) else []:
         if geometry and geometry.get("adapter") == "polygon" and warning == "Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.":

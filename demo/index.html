@@ -799,9 +799,13 @@ function renderReviewQuestions(data) {
             opening_exceeds_segment: 'проём выходит за конец стены',
             opening_perpendicular_wall: 'поперечная привязка к стене',
             same_room_window_ambiguous: 'по обе стороны окна распознана одна комната',
+            parallel_window_ambiguous: 'пересекается с параллельным кандидатом без двух подтверждённых косяков',
             user_choice: 'выбор пользователя'};
         label.textContent = `Сейчас: ${names[question.current] || question.current}` +
             ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
+        if (Array.isArray(question.paired_with) && question.paired_with.length) {
+            label.textContent += ` · проверьте также проём №${question.paired_with.join(', №')}`;
+        }
         const geometry = question.geometry;
         if (geometry && Number.isFinite(geometry.overhang_cm) &&
                 Number.isFinite(geometry.wall_length_cm) &&
