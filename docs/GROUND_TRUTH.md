@@ -93,7 +93,7 @@ contains `ground_truth`. Its accuracy artifact is diagnostic: it does not
 change `good`, `review` or `invalid` and cannot allow export.
 
 Current coverage is intentionally limited. Source-image geometry was manually
-traced by Codex on 2026-10-08 and 2026-10-09 for six plans and has not been
+traced by Codex on 2026-10-08, 2026-10-09 and 2026-10-14 for nine plans and has not been
 independently reviewed:
 
 | Plan | Geometric coverage | Initial observation |
@@ -104,6 +104,9 @@ independently reviewed:
 | `colored-walls` | 5 windows | Initially 3 of 8 matched (5 false, 2 missed); after edge-strip deduplication 3 of 7 matched (4 false, 2 missed). |
 | `open-zones` | 2 doors and 6 top-facade windows, scoped | Doors 2/0/0; windows improved from 5/5/1 to 5/1/1 TP/FP/FN inside annotated regions after perpendicular-endcap filtering. |
 | `complex-hatched` | 2 central doors and 4 side-facade windows, scoped | Doors 2/0/0; windows improved from 2/0/2 to 4/0/0 TP/FP/FN inside annotated regions after weak-arc reclassification. |
+| `heavy-black-walls` | 1 bathroom door and 2 north-facade windows, scoped | Door 1/0/0; windows 2/2/0 initially and 2/0/0 after one-sided candidate review. |
+| `dense-hatched-multizone` | 1 northwest door and 3 west-facade windows, scoped | Door 0/0/1; windows 3/0/0. Other densely hatched rooms and openings are unannotated. |
+| `l-shaped-diagonal-bath` | 2 doors and 3 north-facade windows, scoped | Doors 2/0/0; windows 3/0/0. The balcony and diagonal bathroom opening are unannotated. |
 
 On `open-zones`, four unsupported vertical window candidates cross longer,
 wall-supported horizontal windows. The filter records their IDs and parent

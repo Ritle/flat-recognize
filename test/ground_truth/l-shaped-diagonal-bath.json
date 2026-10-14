@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/217698108_w640_h640_pereplanirovka-kvartiry.webp",
+    "width": 1280,
+    "height": 1046,
+    "sha256": "1bb9309628e7113b61fd9f8dddf0ba029a017a19265effccc2bab58ddb8f9c39"
+  },
+  "coverage": {"doors": "geometry", "windows": "geometry"},
+  "annotation_regions": {
+    "doors": [[230, 535, 325, 610], [798, 805, 925, 970]],
+    "windows": [[300, 170, 1060, 230]]
+  },
+  "doors": [
+    {"id": "bedroom-door", "span": [[252, 578], [306, 578]]},
+    {"id": "entry-door", "span": [[840, 885], [907, 885]]}
+  ],
+  "windows": [
+    {"id": "north-bedroom", "span": [[318, 209], [437, 209]]},
+    {"id": "north-living", "span": [[634, 209], [780, 209]]},
+    {"id": "north-kitchen", "span": [[923, 209], [1044, 209]]}
+  ],
+  "notes": "Partial geometry traced from source image by Codex on 2026-10-14; not independently reviewed. Only listed regions are scored. Balcony, side windows and diagonal bathroom opening remain outside scope."
+}

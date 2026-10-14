@@ -86,7 +86,8 @@ def make_review_questions(classified, quality, source_sha256):
             method = classification.get("method")
             reason = (method if method in ("door_arc_missing_jamb",
                                           "duplicate_parallel_window_layer",
-                                          "one_sided_window_endcap")
+                                          "one_sided_window_endcap",
+                                          "one_sided_unconfirmed_window")
                       else "classification_uncertain")
             reasons.setdefault(uid, set()).add(reason)
         if classification.get("method") in ("duplicate_parallel_window_layer",

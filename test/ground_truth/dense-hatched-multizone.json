@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/jpg_1000_12a11baf-3cb2-4e8a-b1d3-afe772caf624.jpg",
+    "width": 940,
+    "height": 569,
+    "sha256": "adf9daa5281600267c94642f4ab38059a9f4763526d2c3a9aa0afe48c5a6a6b7"
+  },
+  "coverage": {"doors": "geometry", "windows": "geometry"},
+  "annotation_regions": {
+    "doors": [[300, 145, 365, 205]],
+    "windows": [[0, 60, 55, 500]]
+  },
+  "doors": [
+    {"id": "northwest-bedroom-door", "span": [[320, 177], [355, 177]]}
+  ],
+  "windows": [
+    {"id": "west-upper", "span": [[28, 74], [28, 158]]},
+    {"id": "west-middle", "span": [[28, 226], [28, 318]]},
+    {"id": "west-lower", "span": [[28, 395], [28, 477]]}
+  ],
+  "notes": "Partial geometry traced from source image by Codex on 2026-10-14; not independently reviewed. Only the west facade and one unambiguous swing-door area are scored. Other facade and interior objects remain outside scope."
+}

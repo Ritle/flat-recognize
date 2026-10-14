@@ -197,6 +197,35 @@ def one_sided_window_endcaps(windows, wall_shapes):
     return candidates
 
 
+def one_sided_unconfirmed_windows(windows, wall_shapes):
+    """Keep interior windows with one missing jamb available for review.
+
+    A model label alone is not enough to confirm an unsupported window.  This
+    leaves recovered and facade candidates alone; a real interior window can
+    have a poorly segmented jamb, so candidates stay available for review.
+    """
+    candidates = []
+    exterior = wall_shapes.convex_hull.boundary if not wall_shapes.is_empty else None
+    for window in windows:
+        classification = window.get("classification") or {}
+        if (window.get("source_class") not in ("door", "window")
+                or classification.get("method") not in ("jamb_leaf_and_arc",
+                                                         "door_arc_missing_jamb")):
+            continue
+        support = wall_jamb_support(*opening_axis(window), wall_shapes)
+        if min(support) == 0 and max(support) >= 2:
+            # Exterior bays can lose a jamb during segmentation.  Keep those
+            # candidates as windows rather than hiding a likely real facade.
+            start, end, width = opening_axis(window)
+            center = Point((start + end) / 2)
+            if exterior is not None and exterior.distance(center) <= max(12, width * 1.5):
+                continue
+            candidates.append({"id": window.get("id"), "bbox": window.get("bbox"),
+                               "paired_with": None, "jamb_support": support,
+                               "reason": "one_sided_unconfirmed_window"})
+    return candidates
+
+
 def without_windows(classified, candidates):
     result = copy.deepcopy(classified)
     reasons = {candidate["id"]: candidate["reason"] for candidate in candidates}
@@ -345,7 +374,11 @@ def filter_interior_windows(classified, rooms, rgb):
     duplicates = duplicate_parallel_window_layers(
         [window for window in filtered_classified.get("windows", [])
          if window.get("id") not in endcap_ids])
-    demoted = endcaps_one_sided + duplicates
+    already_demoted = {item["id"] for item in endcaps_one_sided + duplicates}
+    one_sided = one_sided_unconfirmed_windows(
+        [window for window in filtered_classified.get("windows", [])
+         if window.get("id") not in already_demoted], wall_shapes)
+    demoted = endcaps_one_sided + duplicates + one_sided
     if demoted:
         source_windows = {window.get("id"): window
                           for window in filtered_classified["windows"]}
@@ -355,7 +388,7 @@ def filter_interior_windows(classified, rooms, rgb):
             opening = copy.deepcopy(source_windows[item["id"]])
             opening["classification"] = {
                 "method": item["reason"],
-                "confirmed": False, "requires_review": True,
+                "confirmed": False, "requires_review": True, "state": "uncertain",
                 "paired_with": item["paired_with"],
                 "previous": opening.get("classification"),
                 "source_class": opening.get("source_class"),
@@ -375,6 +408,7 @@ def filter_interior_windows(classified, rooms, rgb):
             filtered_classified["windows"], wall_shapes)
     report["duplicate_parallel_layers"] = duplicates
     report["one_sided_window_endcaps"] = endcaps_one_sided
+    report["one_sided_unconfirmed_windows"] = one_sided
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
     return filtered_classified, filtered_rooms, report
 

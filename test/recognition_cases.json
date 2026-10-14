@@ -96,16 +96,19 @@
     {
       "id": "heavy-black-walls",
       "image": "exmpls/982866c7a53c4f093b4ebed5ded1e748.jpg",
+      "ground_truth": "test/ground_truth/heavy-black-walls.json",
       "tags": ["thick_walls", "furniture", "dimensions", "door_arcs", "open_zones", "jpeg"]
     },
     {
       "id": "dense-hatched-multizone",
       "image": "exmpls/jpg_1000_12a11baf-3cb2-4e8a-b1d3-afe772caf624.jpg",
+      "ground_truth": "test/ground_truth/dense-hatched-multizone.json",
       "tags": ["hatching", "furniture", "small_rooms", "door_arcs", "non_rectangular", "jpeg"]
     },
     {
       "id": "l-shaped-diagonal-bath",
       "image": "exmpls/217698108_w640_h640_pereplanirovka-kvartiry.webp",
+      "ground_truth": "test/ground_truth/l-shaped-diagonal-bath.json",
       "tags": ["non_rectangular", "diagonal", "open_zones", "thick_walls", "margins", "webp"]
     }
   ]

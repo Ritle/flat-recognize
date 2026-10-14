@@ -11,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from filter_interior_windows_v2 import (duplicate_parallel_window_layers,
                                         filter_interior_windows,
                                         one_sided_window_endcaps,
+                                        one_sided_unconfirmed_windows,
                                         parallel_weak_window_pairs)
 from recheck_reviewed_rooms import recheck_reviewed_rooms
-from review_decisions import make_review_questions
+from review_decisions import (apply_review_decisions, make_review_questions,
+                              opening_fingerprint)
 from validate_recognition import validate_recognition
 
 
@@ -24,6 +26,57 @@ def window(uid, x1, y1, x2, y2):
 
 
 class InteriorWindowFilterTests(unittest.TestCase):
+    def test_exterior_one_sided_window_is_kept_for_incomplete_facade_jamb(self):
+        facade = window(1, 70, 10, 110, 16)
+        interior = window(2, 70, 95, 110, 101)
+        for item in (facade, interior):
+            item["source_class"] = "window"
+            item["classification"] = {"method": "jamb_leaf_and_arc"}
+        with patch("filter_interior_windows_v2.wall_jamb_support", return_value=[3, 0]):
+            candidates = one_sided_unconfirmed_windows(
+                [facade, interior], Polygon([(10, 10), (190, 10),
+                                             (190, 190), (10, 190)]))
+        self.assertEqual([item["id"] for item in candidates], [2])
+
+    def test_one_sided_door_sourced_window_waits_for_review(self):
+        candidate = window(2, 70, 20, 110, 26)
+        candidate["source_class"] = "door"
+        candidate["classification"] = {"method": "jamb_leaf_and_arc",
+                                        "confirmed": False, "requires_review": False}
+        self.classified["windows"] = [candidate]
+        self.classified["openings"] = copy.deepcopy([candidate])
+        self.rooms["windows"] = [candidate]
+        with patch("filter_interior_windows_v2.wall_jamb_support", return_value=[3, 0]), \
+             patch("filter_interior_windows_v2.extract_rooms") as extract:
+            classified, rooms, report = filter_interior_windows(
+                self.classified, self.rooms, self.rgb)
+        extract.assert_not_called()
+        self.assertEqual(classified["windows"], [])
+        self.assertEqual(rooms["windows"], [])
+        self.assertEqual([item["id"] for item in classified["topology_only_openings"]], [2])
+        self.assertEqual(report["one_sided_unconfirmed_windows"][0]["jamb_support"], [3, 0])
+        self.assertEqual(rooms["topology_only_openings"][0]["classification"]["state"],
+                         "uncertain")
+        questions = make_review_questions(classified, {"issues": []}, "a" * 64)
+        self.assertEqual(questions[0]["reasons"], ["one_sided_unconfirmed_window"])
+        self.assertEqual(questions[0]["current"], "topology_only")
+        reviewed = apply_review_decisions(classified, {
+            "version": 1, "image_sha256": "a" * 64,
+            "answers": [{"opening_id": 2, "choice": "window",
+                         "fingerprint": opening_fingerprint(candidate)}]}, "a" * 64)
+        self.assertEqual([item["id"] for item in reviewed["windows"]], [2])
+
+    def test_two_jamb_candidate_stays_exportable(self):
+        candidate = window(2, 70, 20, 110, 26)
+        candidate["source_class"] = "window"
+        candidate["classification"] = {"method": "jamb_leaf_and_arc"}
+        self.classified["windows"] = [candidate]
+        self.classified["openings"] = copy.deepcopy([candidate])
+        self.rooms["windows"] = [candidate]
+        with patch("filter_interior_windows_v2.wall_jamb_support", return_value=[3, 3]):
+            classified, _, _ = filter_interior_windows(self.classified, self.rooms, self.rgb)
+        self.assertEqual([item["id"] for item in classified["windows"]], [2])
+
     def test_parallel_window_layers_collapse_only_near_identical_thin_spans(self):
         first = window(1, 20, 30, 100, 42)
         second = window(2, 23, 39, 97, 59)

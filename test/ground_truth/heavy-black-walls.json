@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "image": {
+    "file": "exmpls/982866c7a53c4f093b4ebed5ded1e748.jpg",
+    "width": 1003,
+    "height": 854,
+    "sha256": "d5b82fb9c0b0d850116b6f858758818ccde95aacdafa2e4fd35cdc6a71952928"
+  },
+  "coverage": {"doors": "geometry", "windows": "geometry"},
+  "annotation_regions": {
+    "doors": [[275, 585, 340, 705]],
+    "windows": [[160, 35, 815, 120], [120, 160, 480, 480]]
+  },
+  "doors": [
+    {"id": "bathroom-door", "span": [[305, 611], [305, 681]]}
+  ],
+  "windows": [
+    {"id": "north-left", "span": [[193, 71], [346, 71]]},
+    {"id": "north-right", "span": [[559, 71], [796, 71]]}
+  ],
+  "notes": "Partial geometry traced from source image by Codex on 2026-10-14; not independently reviewed. Only listed regions are scored. The apparent glazed internal partition and other ambiguous openings remain outside scope."
+}
