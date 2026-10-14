@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from filter_interior_windows_v2 import (duplicate_parallel_window_layers,
                                         filter_interior_windows,
+                                        no_jamb_unconfirmed_windows,
                                         one_sided_window_endcaps,
                                         one_sided_unconfirmed_windows,
                                         parallel_weak_window_pairs)
@@ -26,6 +27,42 @@ def window(uid, x1, y1, x2, y2):
 
 
 class InteriorWindowFilterTests(unittest.TestCase):
+    def test_zero_jamb_interior_model_window_waits_for_review(self):
+        candidate = window(3, 70, 95, 110, 101)
+        candidate["source_class"] = "window"
+        candidate["classification"] = {"method": "jamb_leaf_and_arc"}
+        self.classified["windows"] = [candidate]
+        self.classified["openings"] = copy.deepcopy([candidate])
+        self.rooms["rooms"] = []
+        self.rooms["windows"] = [candidate]
+        shape = Polygon([(10, 10), (190, 10), (190, 190), (10, 190)])
+        with patch("filter_interior_windows_v2.structural_union", return_value=shape), \
+             patch("filter_interior_windows_v2.wall_jamb_support", return_value=[0, 0]):
+            classified, rooms, report = filter_interior_windows(
+                self.classified, self.rooms, self.rgb)
+        self.assertEqual(classified["windows"], [])
+        self.assertEqual(rooms["windows"], [])
+        self.assertEqual([item["id"] for item in classified["topology_only_openings"]], [3])
+        self.assertEqual(report["no_jamb_unconfirmed_windows"][0]["jamb_support"], [0, 0])
+        questions = make_review_questions(classified, {"issues": []}, "a" * 64)
+        self.assertEqual(questions[0]["reasons"], ["no_jamb_unconfirmed_window"])
+        reviewed = apply_review_decisions(classified, {
+            "version": 1, "image_sha256": "a" * 64,
+            "answers": [{"opening_id": 3, "choice": "window",
+                         "fingerprint": opening_fingerprint(candidate)}]}, "a" * 64)
+        self.assertEqual([item["id"] for item in reviewed["windows"]], [3])
+
+    def test_zero_jamb_facade_and_door_sourced_windows_are_kept(self):
+        facade = window(1, 70, 10, 110, 16)
+        facade["source_class"] = "window"
+        facade["classification"] = {"method": "jamb_leaf_and_arc"}
+        door_sourced = window(2, 70, 95, 110, 101)
+        door_sourced["source_class"] = "door"
+        door_sourced["classification"] = {"method": "jamb_leaf_and_arc"}
+        shape = Polygon([(10, 10), (190, 10), (190, 190), (10, 190)])
+        with patch("filter_interior_windows_v2.wall_jamb_support", return_value=[0, 0]):
+            self.assertEqual(no_jamb_unconfirmed_windows([facade, door_sourced], shape), [])
+
     def test_exterior_one_sided_window_is_kept_for_incomplete_facade_jamb(self):
         facade = window(1, 70, 10, 110, 16)
         interior = window(2, 70, 95, 110, 101)

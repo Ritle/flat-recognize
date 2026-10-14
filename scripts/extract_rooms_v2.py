@@ -591,7 +591,7 @@ def extract_rooms(data, rgb):
     automatic_rejections = sum(
         (opening.get("classification") or {}).get("method") != "user_ignored"
         and not {"duplicate_parallel_window_layer", "one_sided_window_endcap",
-                 "one_sided_unconfirmed_window"}.intersection(
+                 "one_sided_unconfirmed_window", "no_jamb_unconfirmed_window"}.intersection(
             opening.get("reject_reason", []))
         for opening in data.get("rejected_openings", []))
     if automatic_rejections:
