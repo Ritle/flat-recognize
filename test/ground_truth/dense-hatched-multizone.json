@@ -8,11 +8,11 @@
   },
   "coverage": {"doors": "geometry", "windows": "geometry"},
   "annotation_regions": {
-    "doors": [[300, 145, 365, 205]],
+    "doors": [[270, 175, 340, 225]],
     "windows": [[0, 60, 55, 500]]
   },
   "doors": [
-    {"id": "northwest-bedroom-door", "span": [[320, 177], [355, 177]]}
+    {"id": "northwest-bedroom-door", "span": [[287, 203], [324, 203]]}
   ],
   "windows": [
     {"id": "west-upper", "span": [[28, 74], [28, 158]]},
