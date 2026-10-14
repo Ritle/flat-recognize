@@ -34,6 +34,7 @@ SUFFIXES = (
     "_segmentation_fused.png",
     "_closures.png",
     "_opening_bindings.json",
+    "_opening_preflight.json",
     "_geometry.json", "_export_overlay.png",
     "_recovered_classified.json", "_rooms_recovered.json", "_opening_recovery.json",
     "_opening_recovery_overlay.png",

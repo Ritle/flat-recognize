@@ -697,7 +697,11 @@ async function showResult(data) {
         review: 'Результат требует ручной проверки',
         invalid: 'Экспорт заблокирован: проект структурно некорректен'
     };
-    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []),
+    const suspectBindings = data.opening_preflight?.summary?.suspect || 0;
+    const bindingNote = suspectBindings > 0
+        ? `Предварительная проверка: подозрительных привязок проёмов — ${suspectBindings}.`
+        : null;
+    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote,
         ...(data.warnings || [])].filter(Boolean).join('\n');
     warnings.classList.toggle('invalid', quality?.status === 'invalid');
     warnings.style.display = warnings.textContent ? 'block' : 'none';

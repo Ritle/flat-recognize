@@ -13,7 +13,7 @@ SCRIPTS = ROOT / "scripts"
 OUTPUT = ROOT / "output"
 
 
-def run_command(title, command):
+def run_command(title, command, required=True):
     print()
     print("=" * 70)
     print(title)
@@ -32,19 +32,20 @@ def run_command(title, command):
 
     if result.returncode != 0:
         print()
-        print(
-            f"ERROR: stage failed: {title}"
-        )
+        print(f"{'ERROR' if required else 'WARNING'}: stage failed: {title}")
         print(
             f"Exit code: {result.returncode}"
         )
-        sys.exit(result.returncode)
+        if required:
+            sys.exit(result.returncode)
+        return False
 
     print()
     print(
         f"OK: {title} "
         f"({elapsed:.1f} sec)"
     )
+    return True
 
 
 def require_file(path, description):
@@ -301,7 +302,9 @@ def main():
         f"{stem}_window_bindings.json"
     )
     opening_bindings_json = OUTPUT / f"{stem}_opening_bindings.json"
+    opening_preflight_json = OUTPUT / f"{stem}_opening_preflight.json"
     geometry_report = OUTPUT / f"{stem}_geometry.json"
+    opening_preflight_json.unlink(missing_ok=True)
     export_overlay = OUTPUT / f"{stem}_export_overlay.png"
 
     if args.output:
@@ -493,6 +496,11 @@ def main():
         project_json,
         "Project geometry JSON"
     )
+    if args.pipeline_v2:
+        run_command("V2 - Audit opening-to-wall fit",
+                    [python, SCRIPTS / "audit_opening_bindings.py",
+                     classified_json, project_json, geometry_report,
+                     "--output", opening_preflight_json], required=False)
     validation_command.extend(["--geometry", geometry_report])
     run_command("Quality gate - Export geometry", validation_command + ["--project", project_json])
 

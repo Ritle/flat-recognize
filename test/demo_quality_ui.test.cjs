@@ -46,6 +46,12 @@ async function show(status) {
     assert.equal(fetches, 1);
     await show('invalid'); // Prior successful JSON/link must be cleared.
     assert.equal(fetches, 1); // Never fetch a blocked or null JSON URL.
+    await context.showResult({quality: {status: 'invalid', errors: []}, warnings: [],
+        opening_preflight: {status: 'audited', summary: {examined: 5, suspect: 2}},
+        stats: {rooms: 0, walls: 0, doors: 0, windows: 0}, seconds: 1,
+        filename: 'plan.png', job_id: 'sample-job', images: {}, original_url: '/original'});
+    assert.match(nodes.get('recognitionWarnings').textContent,
+        /подозрительных привязок проёмов — 2/);
     await show('review'); // Review restores export controls.
     assert.equal(fetches, 2);
     assert.match(nodes.get('recognitionWarnings').textContent, /ручной проверки/);

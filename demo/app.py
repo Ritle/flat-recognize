@@ -329,6 +329,13 @@ async def recognize(
     binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
+    preflight_path = OUTPUT_DIR / f"{job_id}_opening_preflight.json"
+    opening_preflight = None
+    if preflight_path.exists():
+        shutil.copy2(preflight_path, job_dir / "opening_preflight.json")
+        preflight_data = json.loads(preflight_path.read_text(encoding="utf-8"))
+        opening_preflight = {"status": preflight_data.get("status"),
+                             "summary": preflight_data.get("summary", {})}
     geometry_path = OUTPUT_DIR / f"{job_id}_geometry.json"
     if geometry_path.exists():
         shutil.copy2(geometry_path, job_dir / "geometry.json")
@@ -432,6 +439,7 @@ async def recognize(
         "quality": quality,
         "inference": inference,
         "review_questions": review_questions,
+        "opening_preflight": opening_preflight,
         "applied_decisions": applied_decisions,
         "image_sha256": source_hash,
     }
@@ -455,6 +463,9 @@ async def recognize(
             f"/api/jobs/{job_id}/image/original"
         ),
         "quality_url": f"/api/jobs/{job_id}/quality",
+        "opening_preflight_url": (
+            f"/api/jobs/{job_id}/opening-preflight"
+        ) if opening_preflight is not None else None,
         "download_url": (
             f"/api/jobs/{job_id}/download"
         ) if quality["export_allowed"] else None,
@@ -483,6 +494,15 @@ async def job_quality(job_id: str):
     path = JOBS_DIR / job_id / "quality.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Quality report not found")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/jobs/{job_id}/opening-preflight")
+async def job_opening_preflight(job_id: str):
+    validate_job_id(job_id)
+    path = JOBS_DIR / job_id / "opening_preflight.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Opening preflight report not found")
     return json.loads(path.read_text(encoding="utf-8"))
 
 

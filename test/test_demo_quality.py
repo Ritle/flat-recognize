@@ -22,6 +22,16 @@ from test.test_validate_recognition import fixture
 
 
 class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
+    async def test_opening_preflight_is_available_for_invalid_job(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(api, "JOBS_DIR", Path(temp)):
+            job_id = str(uuid.uuid4())
+            job = Path(temp) / job_id
+            job.mkdir()
+            report = {"status": "audited", "summary": {"examined": 5, "suspect": 2},
+                      "openings": [{"opening_id": 9, "reasons": ["exceeds_segment"]}]}
+            (job / "opening_preflight.json").write_text(json.dumps(report), encoding="utf-8")
+            self.assertEqual(await api.job_opening_preflight(job_id), report)
+
     async def test_review_question_can_be_submitted_for_same_image(self):
         source = b"source image"
         classified = {"meta": {"width": 100, "height": 80}, "walls": [],
@@ -43,6 +53,10 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 suffix = "_reviewed_classified.json" if review_decisions else "_classified.json"
                 (output / f"{stem}{suffix}").write_text(json.dumps(result), encoding="utf-8")
                 (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
+                (output / f"{stem}_opening_preflight.json").write_text(json.dumps({
+                    "status": "audited", "summary": {"examined": 1, "suspect": 1},
+                    "openings": [{"opening_id": 3, "reasons": ["far_from_wall"]}]}),
+                    encoding="utf-8")
                 project_path.with_suffix(".quality.json").write_text(json.dumps(quality), encoding="utf-8")
                 return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
 
@@ -51,6 +65,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 first = await api.recognize(UploadFile(filename="test.png", file=io.BytesIO(source)), False, None)
                 question = first["review_questions"][0]
                 self.assertEqual(question["opening_id"], 3)
+                self.assertEqual(first["opening_preflight"]["summary"]["suspect"], 1)
+                self.assertEqual(first["opening_preflight_url"],
+                                 f"/api/jobs/{first['job_id']}/opening-preflight")
                 payload = {"version": 1, "image_sha256": first["image_sha256"],
                            "answers": [{"opening_id": 3, "fingerprint": question["fingerprint"],
                                         "choice": "window"}]}
