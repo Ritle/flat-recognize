@@ -134,9 +134,26 @@ def line_description(points):
 def prediction_span(item):
     shape = polygon(item)
     rectangle = shape.minimum_rotated_rectangle
-    points = list(rectangle.exterior.coords) if not rectangle.is_empty else []
-    edges = [(points[i], points[i + 1]) for i in range(max(0, len(points) - 1))]
-    return max(edges, key=lambda edge: LineString(edge).length) if edges else []
+    if rectangle.is_empty or rectangle.geom_type != "Polygon":
+        return []
+    points = [np.asarray(point, dtype=float) for point in list(rectangle.exterior.coords)[:4]]
+    if len(points) != 4:
+        return []
+    index = max(range(4), key=lambda i: np.linalg.norm(points[(i + 1) % 4] - points[i]))
+    # Either long rectangle edge is an arbitrary wall face. Match the opening
+    # axis halfway between those faces, so polygon thickness cannot shift the
+    # measured center to one side of the annotated span.
+    start = (points[index] + points[(index + 3) % 4]) / 2
+    end = (points[(index + 1) % 4] + points[(index + 2) % 4]) / 2
+    return [start.tolist(), end.tolist()]
+
+
+def prediction_thickness(item):
+    rectangle = polygon(item).minimum_rotated_rectangle
+    if rectangle.is_empty or rectangle.geom_type != "Polygon":
+        return None
+    points = list(rectangle.exterior.coords)
+    return min(LineString([points[i], points[i + 1]]).length for i in range(4))
 
 
 def angle_difference(a, b):
@@ -175,6 +192,7 @@ def evaluate_openings(expected, predicted, tolerance):
         "truth": expected[i].get("id", str(i)),
         "prediction": j,
         "score": round(score, 4),
+        "predicted_thickness_px": round(prediction_thickness(predicted[j]), 2),
     } for i, j, score in matches]
     return result
 

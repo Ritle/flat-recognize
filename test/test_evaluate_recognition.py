@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from evaluate_recognition import evaluate, validate_ground_truth
+from evaluate_recognition import evaluate, prediction_span, validate_ground_truth
 
 
 def rectangle(x1, y1, x2, y2):
@@ -13,6 +13,33 @@ def rectangle(x1, y1, x2, y2):
 
 
 class EvaluateRecognitionTests(unittest.TestCase):
+    def test_thick_opening_is_matched_by_centerline_not_one_rectangle_edge(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"windows": "geometry"},
+                 "windows": [{"id": "w", "span": [[40, 15], [60, 15]]}],
+                 "tolerance": {"opening_center_px": 2}}
+        found = {"meta": {"width": 100, "height": 80},
+                 "windows": [rectangle(40, 10, 60, 20)]}
+        result = evaluate(truth, found)["metrics"]["windows"]
+        self.assertEqual((result["true_positive"], result["false_positive"],
+                          result["false_negative"]), (1, 0, 0))
+        self.assertEqual(result["matches"][0]["predicted_thickness_px"], 10)
+        span = prediction_span(found["windows"][0])
+        self.assertAlmostEqual(sum(point[1] for point in span) / 2, 15)
+
+    def test_rotated_opening_uses_middle_of_both_long_edges(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 100},
+                 "coverage": {"doors": "geometry"},
+                 "doors": [{"id": "d", "span": [[37, 43], [57, 63]]}],
+                 "tolerance": {"opening_center_px": 2}}
+        found = {"meta": {"width": 100, "height": 100},
+                 "doors": [{"outer": [[40, 40], [60, 60], [54, 66], [34, 46]],
+                            "holes": []}]}
+        result = evaluate(truth, found)["metrics"]["doors"]
+        self.assertEqual((result["true_positive"], result["false_positive"],
+                          result["false_negative"]), (1, 0, 0))
+        self.assertAlmostEqual(result["matches"][0]["predicted_thickness_px"], 8.49, places=2)
+
     def test_count_only_does_not_treat_missing_geometry_as_empty(self):
         truth = {
             "version": 1,

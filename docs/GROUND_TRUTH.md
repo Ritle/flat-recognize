@@ -102,7 +102,7 @@ independently reviewed:
 | `clean-diagonal` | 6 rooms, 6 doors, 7 windows | All matched; mean room IoU 0.9000. |
 | `small-furnished` | 2 windows | Initially 2 of 10 predictions matched; subsequent structural review reduced false candidates from 8 to 0 without missing either annotated window. |
 | `colored-walls` | 5 windows | Initially 3 of 8 matched (5 false, 2 missed); after edge-strip deduplication 3 of 7 matched (4 false, 2 missed). |
-| `open-zones` | 2 doors and 6 top-facade windows, scoped | Doors 2/0/0; windows improved from 5/5/1 to 5/1/1 TP/FP/FN inside annotated regions after perpendicular-endcap filtering. |
+| `open-zones` | 2 doors and 6 top-facade windows, scoped | Doors 2/0/0. Window recognition after perpendicular-endcap filtering was initially scored 5/1/1 TP/FP/FN; centerline-based evaluation of the same predictions scores 6/0/0. The newly matched polygon is about 89 px thick and the project remains `invalid`. |
 | `complex-hatched` | 2 central doors and 4 side-facade windows, scoped | Doors 2/0/0; windows improved from 2/0/2 to 4/0/0 TP/FP/FN inside annotated regions after weak-arc reclassification. |
 | `heavy-black-walls` | 1 bathroom door and 2 north-facade windows, scoped | Door 1/0/0; windows 2/2/0 initially and 2/0/0 after one-sided candidate review. |
 | `dense-hatched-multizone` | 1 northwest door and 3 west-facade windows, scoped | Door 1/0/0; windows 3/0/0. Other densely hatched rooms and openings are unannotated. |
