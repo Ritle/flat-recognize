@@ -15,6 +15,17 @@ def finite(value):
         return False
 
 
+def original_classification_method(opening):
+    """A type choice does not repair the geometry of a recovered opening."""
+    classification = opening.get("classification")
+    while isinstance(classification, dict):
+        method = classification.get("method")
+        if method != "user_selected":
+            return method
+        classification = classification.get("previous")
+    return None
+
+
 def collinear_wall_span(segments, coords, wall_id, position, width):
     """Measure an opening against degree-two collinear continuations, without changing geometry."""
     segment = segments[wall_id]
@@ -183,6 +194,14 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     windows = objects(rooms, "windows", "recognition")
     if not windows:
         issue("no_windows", "warning", "Окна не распознаны; проверьте проёмы на исходном изображении.")
+    for window in windows:
+        if original_classification_method(window) == "topology_recovered_thick_window":
+            issue("thick_window_geometry_unresolved",
+                  "error" if bindings is not None else "warning",
+                  f"Окно {window.get('id')}: толстый контур восстановлен для замыкания комнаты, "
+                  "но положение и форма окна для экспорта не подтверждены.",
+                  opening_id=window.get("id"), opening_kind="windows",
+                  thickness_px=window.get("thickness"), length_px=window.get("length"))
     if not finite(scale) or scale <= 0:
         issue("invalid_scale", "error", "Масштаб должен быть положительным конечным числом.")
     else:

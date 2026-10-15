@@ -50,7 +50,8 @@ def make_review_questions(classified, quality, source_sha256):
     for issue in (quality or {}).get("issues", []):
         if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
                                      "opening_exceeds_segment", "same_room_window_ambiguous",
-                                     "parallel_window_ambiguous", "reviewed_window_unsupported"):
+                                     "parallel_window_ambiguous", "reviewed_window_unsupported",
+                                     "thick_window_geometry_unresolved"):
             continue
         uid = issue.get("opening_id")
         if not isinstance(uid, int):
@@ -88,7 +89,8 @@ def make_review_questions(classified, quality, source_sha256):
                                           "duplicate_parallel_window_layer",
                                           "one_sided_window_endcap",
                                           "one_sided_unconfirmed_window",
-                                          "no_jamb_unconfirmed_window")
+                                          "no_jamb_unconfirmed_window",
+                                          "topology_recovered_thick_window")
                       else "classification_uncertain")
             reasons.setdefault(uid, set()).add(reason)
         if classification.get("method") in ("duplicate_parallel_window_layer",

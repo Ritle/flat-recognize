@@ -57,6 +57,30 @@ class QualityGateTest(unittest.TestCase):
         self.assertTrue(result["export_allowed"])
         self.assertEqual(result["metrics"]["user_review_choices"], 1)
 
+    def test_thick_topology_window_stays_invalid_after_type_confirmation(self):
+        rooms, project, bindings = fixture()
+        recovered = {"method": "topology_recovered_thick_window", "requires_review": True}
+        rooms["windows"][0].update(id=20, length=161, thickness=89,
+                                   classification=recovered)
+        room_check = validate_recognition(rooms)
+        self.assertEqual(room_check["status"], "review")
+        self.assertTrue(any(i["code"] == "thick_window_geometry_unresolved"
+                            and i["severity"] == "warning" for i in room_check["issues"]))
+
+        final = validate_recognition(rooms, project, bindings)
+        self.assertEqual(final["status"], "invalid")
+        self.assertFalse(final["export_allowed"])
+        issue = next(i for i in final["issues"]
+                     if i["code"] == "thick_window_geometry_unresolved")
+        self.assertEqual((issue["opening_id"], issue["thickness_px"]), (20, 89))
+
+        rooms["windows"][0]["classification"] = {
+            "method": "user_selected", "user_confirmed": True, "previous": recovered}
+        confirmed = validate_recognition(rooms, project, bindings)
+        self.assertEqual(confirmed["status"], "invalid")
+        self.assertIn("thick_window_geometry_unresolved",
+                      [i["code"] for i in confirmed["issues"]])
+
     def test_invalid_source(self):
         for polygons, code in (([], "no_rooms"),
                                ([[[0, 0], [100, 100], [100, 0], [0, 100]]], "invalid_polygon"),

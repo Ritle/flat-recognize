@@ -48,6 +48,23 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertEqual([q["opening_id"] for q in
                           make_review_questions(self.classified, quality, "a" * 64)], [1])
 
+    def test_thick_window_question_keeps_geometry_reason_after_type_choice(self):
+        recovered = {"method": "topology_recovered_thick_window", "requires_review": True}
+        self.classified["windows"][0]["classification"] = recovered
+        quality = {"issues": [{"code": "thick_window_geometry_unresolved",
+                               "severity": "error", "opening_id": 2,
+                               "opening_kind": "windows"}]}
+        question = next(q for q in make_review_questions(self.classified, quality, "a" * 64)
+                        if q["opening_id"] == 2)
+        self.assertEqual(question["severity"], "error")
+        self.assertEqual(question["reasons"], ["thick_window_geometry_unresolved",
+                                               "topology_recovered_thick_window"])
+        self.classified["windows"][0]["classification"] = {
+            "method": "user_selected", "previous": recovered}
+        question = next(q for q in make_review_questions(self.classified, quality, "a" * 64)
+                        if q["opening_id"] == 2)
+        self.assertIn("thick_window_geometry_unresolved", question["reasons"])
+
     def test_same_room_window_warning_becomes_actionable_question(self):
         rooms = {"rooms": [{"polygon": [[0, 0], [100, 0], [100, 80], [0, 80]]}],
                  "doors": [], "windows": self.classified["windows"],
