@@ -68,7 +68,8 @@ async function show(status) {
     assert.equal(nodes.get('tabs').children[0].textContent, 'Окна по топологии');
     nodes.get('tabs').children[0].onclick();
     assert.match(nodes.get('preview').src, /^\/topology-windows\?t=/);
-    assert.match(nodes.get('imageCaption').textContent, /Требует проверки/);
+    assert.match(nodes.get('imageCaption').textContent, /жёлтая линия — возможная ось рамы/);
+    assert.match(nodes.get('imageCaption').textContent, /Экспорт такого окна заблокирован/);
     nodes.get('tabs').children = [];
     context.setupImages({images: {interior_windows: '/interior-windows'}});
     assert.equal(nodes.get('tabs').children[0].textContent, 'Отклонённые окна');

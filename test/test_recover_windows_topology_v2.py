@@ -7,7 +7,8 @@ from unittest.mock import patch
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from recover_windows_topology_v2 import eligible_candidates, preserve_rooms, recover_windows
+from recover_windows_topology_v2 import (eligible_candidates, preserve_rooms,
+                                         raster_frame_axis, recover_windows)
 
 
 def candidate(uid, x1, x2, thickness=24):
@@ -37,9 +38,36 @@ class TopologyWindowRecoveryTests(unittest.TestCase):
         self.classified = {"meta": {"width": 600, "height": 400},
                            "openings": [], "doors": [], "windows": []}
 
+    def test_unique_pair_of_raster_rails_suggests_axis_without_changing_polygon(self):
+        gray = np.full((100, 160), 255, dtype=np.uint8)
+        gray[20, 20:141] = 0
+        gray[80, 20:141] = 0
+        gray[45, 20:141] = 0
+        gray[51, 20:141] = 0
+        opening = {"bbox": [20, 20, 140, 80]}
+        evidence = raster_frame_axis(gray, opening)
+        self.assertEqual(evidence["span"], [[20, 48], [140, 48]])
+        self.assertEqual(evidence["rails_px"], [45, 51])
+        self.assertEqual(evidence["minimum_support"], 1)
+
+        gray[56, 20:141] = 0
+        self.assertIsNone(raster_frame_axis(gray, opening))
+
+    def test_vertical_frame_axis_requires_two_long_rails(self):
+        gray = np.full((160, 100), 255, dtype=np.uint8)
+        opening = {"bbox": [20, 20, 80, 140]}
+        gray[20:141, 45] = 0
+        gray[20:141, 51] = 0
+        self.assertEqual(raster_frame_axis(gray, opening)["span"],
+                         [[48, 20], [48, 140]])
+        gray[20:141, 51] = 255
+        self.assertIsNone(raster_frame_axis(gray, opening))
+
     def test_two_windows_required_to_recover_room(self):
         small = room(50, 50, 150, 150)
         large = room(200, 50, 500, 350)
+        self.rgb[29, 80:161] = 0
+        self.rgb[34, 80:161] = 0
 
         def extract(data, _):
             count = len(data["windows"])
@@ -57,6 +85,10 @@ class TopologyWindowRecoveryTests(unittest.TestCase):
         self.assertEqual(result["windows"][0]["type"], "window")
         self.assertTrue(result["windows"][0]["classification"]["requires_review"])
         self.assertNotIn("reject_reason", result["windows"][0])
+        self.assertEqual(result["windows"][0]["recovery"]["raster_axis_evidence"]["span"],
+                         [[80, 31.5], [160, 31.5]])
+        self.assertEqual(report["candidates"][0]["raster_axis_evidence"]["rails_px"],
+                         [29, 34])
         self.assertEqual(self.classified, original)
 
     def test_candidate_filters_exclude_furniture_and_known_opening_overlap(self):

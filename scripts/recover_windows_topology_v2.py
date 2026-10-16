@@ -10,6 +10,7 @@ import argparse
 import copy
 import itertools
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,64 @@ from extract_rooms_v2 import extract_rooms
 from PIL import Image, ImageDraw
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
+
+
+def raster_frame_axis(gray, candidate):
+    """Suggest an axis only for a unique pair of long, close raster rails.
+
+    The broad segmentation mask still closes rooms. This evidence is never
+    substituted for the source polygon or used to approve export.
+    """
+    bounds = candidate.get("bbox")
+    if not isinstance(bounds, list) or len(bounds) != 4:
+        return None
+    x0, y0, x1, y1 = (float(value) for value in bounds)
+    if not all(math.isfinite(value) for value in (x0, y0, x1, y1)):
+        return None
+    horizontal = x1 - x0 >= y1 - y0
+    long_lo, long_hi = (x0, x1) if horizontal else (y0, y1)
+    side_lo, side_hi = (y0, y1) if horizontal else (x0, x1)
+    length, thickness = long_hi - long_lo, side_hi - side_lo
+    if length < 30 or thickness < 8:
+        return None
+    height, width = gray.shape
+    long_limit, side_limit = (width, height) if horizontal else (height, width)
+    sample_lo = max(0, math.ceil(long_lo + length * .2))
+    sample_hi = min(long_limit, math.floor(long_hi - length * .2) + 1)
+    transverse_lo = max(0, math.floor(side_lo))
+    transverse_hi = min(side_limit, math.ceil(side_hi) + 1)
+    if sample_hi - sample_lo < 20 or transverse_hi - transverse_lo < 8:
+        return None
+    raster = gray[transverse_lo:transverse_hi, sample_lo:sample_hi] if horizontal else \
+        gray[sample_lo:sample_hi, transverse_lo:transverse_hi].T
+    support = np.mean(raster < 140, axis=1)
+    rows = np.flatnonzero(support >= .75)
+    if len(rows) < 2:
+        return None
+    bands = []
+    for group in np.split(rows, np.flatnonzero(np.diff(rows) > 1) + 1):
+        if len(group) <= max(3, thickness * .08):
+            bands.append((transverse_lo + float(np.mean(group)),
+                          float(np.max(support[group]))))
+    pairs = []
+    for (a, support_a), (b, support_b) in zip(bands, bands[1:]):
+        separation = b - a
+        center = (a + b) / 2
+        if (3 <= separation <= min(18, thickness * .25)
+                and side_lo + thickness * .2 <= center <= side_hi - thickness * .2):
+            pairs.append((a, b, support_a, support_b))
+    if len(pairs) != 1:
+        return None
+    a, b, support_a, support_b = pairs[0]
+    center = (a + b) / 2
+    span = ([[round(long_lo, 2), round(center, 2)],
+             [round(long_hi, 2), round(center, 2)]] if horizontal else
+            [[round(center, 2), round(long_lo, 2)],
+             [round(center, 2), round(long_hi, 2)]])
+    return {"method": "paired_raster_rails", "span": span,
+            "extent_basis": "segmentation_bbox",
+            "rails_px": [round(a, 2), round(b, 2)],
+            "minimum_support": round(min(support_a, support_b), 3)}
 
 
 def eligible_candidates(prediction, classified, height, width):
@@ -61,7 +120,7 @@ def preserve_rooms(before, after):
     return True
 
 
-def with_windows(classified, candidates, indices):
+def with_windows(classified, candidates, indices, axis_evidence=None):
     result = copy.deepcopy(classified)
     existing_ids = [item.get("id") for item in result.get("openings", [])]
     next_id = max([uid for uid in existing_ids if isinstance(uid, int)] + [-1]) + 1
@@ -74,6 +133,8 @@ def with_windows(classified, candidates, indices):
                                          "source_class": candidate["source_class"]},
                          recovery={"method": "topology_recovered_thick_window",
                                    "requires_review": True})
+        if axis_evidence and axis_evidence[index] is not None:
+            candidate["recovery"]["raster_axis_evidence"] = axis_evidence[index]
         next_id += 1
         result.setdefault("windows", []).append(candidate)
         result.setdefault("openings", []).append(copy.deepcopy(candidate))
@@ -87,10 +148,14 @@ def recover_windows(prediction, classified, rgb):
         if (meta.get("width"), meta.get("height")) != (width, height):
             raise ValueError("Window recovery coordinates must match the raster")
     candidates = eligible_candidates(prediction, classified, height, width)
+    gray = np.asarray(Image.fromarray(rgb).convert("L")) if candidates else None
+    axis_evidence = [raster_frame_axis(gray, candidate) for candidate in candidates]
     report = {"version": 1, "method": "topology_guided_thick_window",
               "eligible": len(candidates), "recovered_windows": 0,
-              "candidates": [{"source_id": x.get("id"), "bbox": x.get("bbox")}
-                             for x in candidates], "trials": [], "requires_review": False}
+              "candidates": [{"source_id": x.get("id"), "bbox": x.get("bbox"),
+                              "raster_axis_evidence": axis_evidence[index]}
+                             for index, x in enumerate(candidates)],
+              "trials": [], "requires_review": False}
     if not candidates:
         return copy.deepcopy(classified), report
     if len(candidates) > 4:
@@ -106,7 +171,7 @@ def recover_windows(prediction, classified, rgb):
     for count in range(1, len(candidates) + 1):
         passing = []
         for indices in itertools.combinations(range(len(candidates)), count):
-            trial_classified = with_windows(classified, candidates, indices)
+            trial_classified = with_windows(classified, candidates, indices, axis_evidence)
             trial, _, _ = extract_rooms(trial_classified, rgb)
             diagnostics = trial["diagnostics"]
             outside = diagnostics["outside_fraction_in_structure"]
@@ -123,7 +188,7 @@ def recover_windows(prediction, classified, rgb):
                 passing.append((outside, indices))
         if passing:
             _, selected = min(passing)
-            result = with_windows(classified, candidates, selected)
+            result = with_windows(classified, candidates, selected, axis_evidence)
             report.update(recovered_windows=len(selected), selected_indices=list(selected),
                           requires_review=True)
             return result, report
@@ -153,6 +218,9 @@ def main():
         if item.get("classification", {}).get("method") == "topology_recovered_thick_window":
             points = [tuple(p) for p in item["outer"]]
             draw.line(points + points[:1], fill="cyan", width=4)
+            evidence = (item.get("recovery") or {}).get("raster_axis_evidence")
+            if evidence:
+                draw.line([tuple(point) for point in evidence["span"]], fill="yellow", width=3)
     image.save(args.output_dir / (stem + "_topology_windows_overlay.png"))
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
