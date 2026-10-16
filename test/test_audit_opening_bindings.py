@@ -46,6 +46,28 @@ class OpeningBindingAuditTests(unittest.TestCase):
         self.assertEqual(report["status"], "skipped")
         self.assertEqual(report["reason"], "exact_pixel_to_world_transform_unavailable")
 
+    def test_raster_span_is_counterfactual_and_keeps_primary_quality_result(self):
+        window = opening(19, [50, 60], [20, 50, 80, 70])
+        window["recovery"] = {"raster_axis_evidence": {
+            "extent_basis": "raster_clear_bay", "span": [[25, 40], [75, 40]]}}
+        classified = {"doors": [], "windows": [window]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        report = audit_opening_bindings(classified, project(), geometry)
+        row = report["openings"][0]
+        self.assertEqual(row["distance_to_wall_cm"], 60)
+        self.assertEqual(row["reasons"], ["far_from_wall"])
+        alternative = row["raster_span_on_current_walls"]
+        self.assertEqual(alternative["distance_to_wall_cm"], 40)
+        self.assertEqual(alternative["width_cm"], 50)
+        self.assertEqual(alternative["reasons"], ["far_from_wall"])
+        self.assertEqual(report["summary"]["suspect"], 1)
+        self.assertEqual(window["center"], [50, 60])
+
+        window["recovery"]["raster_axis_evidence"]["extent_basis"] = "segmentation_bbox"
+        row = audit_opening_bindings(classified, project(), geometry)["openings"][0]
+        self.assertNotIn("raster_span_on_current_walls", row)
+
     def test_invalid_candidate_is_reported_without_stopping_audit(self):
         data = {"doors": [{"id": 1}],
                 "windows": [opening(2, [50, 0], [40, -2, 60, 2])]}

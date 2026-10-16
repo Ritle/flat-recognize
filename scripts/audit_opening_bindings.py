@@ -13,6 +13,55 @@ from add_openings import (choose_segment_binding, door_width_cm, get_center,
                           get_opening_length_px, opening_orientation)
 
 
+def raster_span_on_current_walls(opening, segments, transform):
+    """Counterfactual binding; never changes the opening or project."""
+    recovery = opening.get("recovery")
+    evidence = recovery.get("raster_axis_evidence") if isinstance(recovery, dict) else None
+    if not isinstance(evidence, dict):
+        return None
+    if evidence.get("extent_basis") != "raster_clear_bay":
+        return None
+    try:
+        (x0, y0), (x1, y1) = evidence["span"]
+        x0, y0, x1, y1 = (float(value) for value in (x0, y0, x1, y1))
+        if not all(math.isfinite(value) for value in (x0, y0, x1, y1)):
+            return None
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        if max(dx, dy) <= 0 or min(dx, dy) > max(dx, dy) * .27:
+            return None
+        orientation = "horizontal" if dx >= dy else "vertical"
+        px, py = (x0 + x1) / 2, (y0 + y1) / 2
+        sx, sy, ox, oy = transform
+        width = max(dx, dy) * (sx if orientation == "horizontal" else sy)
+        binding = choose_segment_binding(segments, ox + px * sx, oy + py * sy,
+                                         width, orientation)
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return None
+    result = {"span": evidence["span"], "width_cm": round(width, 2),
+              "wall_uuid": None, "distance_to_wall_cm": None,
+              "overhang_cm": None, "aligned": None, "reasons": []}
+    if binding is None:
+        result["reasons"].append("no_wall_segments")
+        return result
+    segment = binding["segment"]
+    thickness = segment.get("thickness", 20)
+    thickness = float(thickness) if isinstance(thickness, (int, float)) else 20.0
+    if not math.isfinite(thickness) or thickness <= 0:
+        thickness = 20.0
+    result.update(wall_uuid=segment.get("uuid"),
+                  distance_to_wall_cm=round(binding["distance"], 2),
+                  overhang_cm=round(binding["overhang"], 2),
+                  aligned=bool(binding["aligned"]),
+                  selection=binding.get("selection"))
+    if not binding["aligned"]:
+        result["reasons"].append("misaligned_wall")
+    if binding["distance"] > max(20, thickness * 1.5):
+        result["reasons"].append("far_from_wall")
+    if binding["overhang"] > 5:
+        result["reasons"].append("exceeds_segment")
+    return result
+
+
 def audit_opening_bindings(classified, project, geometry):
     report = {"version": 1, "method": "polygon_segment_preflight",
               "status": "skipped", "reason": None, "openings": [],
@@ -84,6 +133,11 @@ def audit_opening_bindings(classified, project, geometry):
                     row["reasons"].append("far_from_wall")
                 if binding["overhang"] > 5:
                     row["reasons"].append("exceeds_segment")
+            if kind == "windows":
+                alternative = raster_span_on_current_walls(
+                    opening, segments, (sx, sy, ox, oy))
+                if alternative is not None:
+                    row["raster_span_on_current_walls"] = alternative
             report["openings"].append(row)
     report["summary"] = {"examined": len(report["openings"]),
                          "suspect": sum(bool(row["reasons"]) for row in report["openings"]),
