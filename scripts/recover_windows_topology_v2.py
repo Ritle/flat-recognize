@@ -20,6 +20,53 @@ from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 
+def raster_clear_bay(gray, horizontal, long_lo, long_hi, side_lo, side_hi, rails):
+    """Bound a rail pair by a clear bay with dark jambs on both sides."""
+    height, width = gray.shape
+    long_limit, side_limit = (width, height) if horizontal else (height, width)
+    length, thickness = long_hi - long_lo, side_hi - side_lo
+    margin = min(24, max(8, length * .15))
+    first = max(0, math.floor(long_lo - margin))
+    last = min(long_limit, math.ceil(long_hi + margin) + 1)
+    center = (long_lo + long_hi) / 2
+    options = []
+    for side_name, start, end in (("before_rails", side_lo + 3, rails[0] - 3),
+                                  ("after_rails", rails[1] + 3, side_hi - 3)):
+        start = max(0, math.ceil(start))
+        end = min(side_limit, math.floor(end) + 1)
+        if end - start < max(6, thickness * .12):
+            continue
+        raster = gray[start:end, first:last] if horizontal else gray[first:last, start:end].T
+        darkness = np.mean(raster < 140, axis=0)
+        clear = np.flatnonzero(darkness < .25)
+        for group in np.split(clear, np.flatnonzero(np.diff(clear) > 1) + 1):
+            if len(group) < length * .55:
+                continue
+            left, right = int(group[0]), int(group[-1])
+            if left == 0 or right == len(darkness) - 1:
+                continue
+            a, b = first + left, first + right + 1
+            if not a <= center <= b:
+                continue
+            left_jamb = float(np.max(darkness[max(0, left - 3):left]))
+            right_jamb = float(np.max(darkness[right + 1:min(len(darkness), right + 4)]))
+            if min(left_jamb, right_jamb) < .65:
+                continue
+            options.append({"start": a, "end": b, "side": side_name,
+                            "jamb_support": [round(left_jamb, 3), round(right_jamb, 3)]})
+    if not options:
+        return None
+    options.sort(key=lambda option: option["end"] - option["start"], reverse=True)
+    best = options[0]
+    if len(options) > 1:
+        second = options[1]
+        if (second["end"] - second["start"] > (best["end"] - best["start"]) * .9
+                and max(abs(best["start"] - second["start"]),
+                        abs(best["end"] - second["end"])) > max(4, length * .03)):
+            return None
+    return best
+
+
 def raster_frame_axis(gray, candidate):
     """Suggest an axis only for a unique pair of long, close raster rails.
 
@@ -68,12 +115,15 @@ def raster_frame_axis(gray, candidate):
         return None
     a, b, support_a, support_b = pairs[0]
     center = (a + b) / 2
-    span = ([[round(long_lo, 2), round(center, 2)],
-             [round(long_hi, 2), round(center, 2)]] if horizontal else
-            [[round(center, 2), round(long_lo, 2)],
-             [round(center, 2), round(long_hi, 2)]])
+    bay = raster_clear_bay(gray, horizontal, long_lo, long_hi, side_lo, side_hi, (a, b))
+    extent_lo, extent_hi = (bay["start"], bay["end"]) if bay else (long_lo, long_hi)
+    span = ([[round(extent_lo, 2), round(center, 2)],
+             [round(extent_hi, 2), round(center, 2)]] if horizontal else
+            [[round(center, 2), round(extent_lo, 2)],
+             [round(center, 2), round(extent_hi, 2)]])
     return {"method": "paired_raster_rails", "span": span,
-            "extent_basis": "segmentation_bbox",
+            "extent_basis": "raster_clear_bay" if bay else "segmentation_bbox",
+            "bay_evidence": bay,
             "rails_px": [round(a, 2), round(b, 2)],
             "minimum_support": round(min(support_a, support_b), 3)}
 

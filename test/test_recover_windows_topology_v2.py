@@ -47,11 +47,39 @@ class TopologyWindowRecoveryTests(unittest.TestCase):
         opening = {"bbox": [20, 20, 140, 80]}
         evidence = raster_frame_axis(gray, opening)
         self.assertEqual(evidence["span"], [[20, 48], [140, 48]])
+        self.assertEqual(evidence["extent_basis"], "segmentation_bbox")
         self.assertEqual(evidence["rails_px"], [45, 51])
         self.assertEqual(evidence["minimum_support"], 1)
 
         gray[56, 20:141] = 0
         self.assertIsNone(raster_frame_axis(gray, opening))
+
+    def test_clear_bay_with_two_jambs_narrows_wide_segmentation_extent(self):
+        gray = np.full((100, 160), 255, dtype=np.uint8)
+        gray[45, 20:141] = 0
+        gray[51, 20:141] = 0
+        gray[23:42, 20:40] = 0
+        gray[23:42, 120:140] = 0
+        opening = {"bbox": [20, 20, 140, 80]}
+        evidence = raster_frame_axis(gray, opening)
+        self.assertEqual(evidence["span"], [[40, 48], [120, 48]])
+        self.assertEqual(evidence["extent_basis"], "raster_clear_bay")
+        self.assertEqual(evidence["bay_evidence"]["side"], "before_rails")
+
+        gray[23:42, 120:140] = 255
+        evidence = raster_frame_axis(gray, opening)
+        self.assertEqual(evidence["extent_basis"], "segmentation_bbox")
+
+    def test_disagreeing_bays_do_not_claim_precise_extent(self):
+        gray = np.full((100, 160), 255, dtype=np.uint8)
+        gray[45, 20:141] = 0
+        gray[51, 20:141] = 0
+        gray[23:42, 20:40] = 0
+        gray[23:42, 120:140] = 0
+        gray[54:77, 20:50] = 0
+        gray[54:77, 130:140] = 0
+        evidence = raster_frame_axis(gray, {"bbox": [20, 20, 140, 80]})
+        self.assertEqual(evidence["extent_basis"], "segmentation_bbox")
 
     def test_vertical_frame_axis_requires_two_long_rails(self):
         gray = np.full((160, 100), 255, dtype=np.uint8)
@@ -62,6 +90,16 @@ class TopologyWindowRecoveryTests(unittest.TestCase):
                          [[48, 20], [48, 140]])
         gray[20:141, 51] = 255
         self.assertIsNone(raster_frame_axis(gray, opening))
+
+    def test_vertical_clear_bay_narrows_extent(self):
+        gray = np.full((160, 100), 255, dtype=np.uint8)
+        gray[20:141, 45] = 0
+        gray[20:141, 51] = 0
+        gray[20:40, 23:42] = 0
+        gray[120:140, 23:42] = 0
+        evidence = raster_frame_axis(gray, {"bbox": [20, 20, 80, 140]})
+        self.assertEqual(evidence["span"], [[48, 40], [48, 120]])
+        self.assertEqual(evidence["extent_basis"], "raster_clear_bay")
 
     def test_two_windows_required_to_recover_room(self):
         small = room(50, 50, 150, 150)
