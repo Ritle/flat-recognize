@@ -178,6 +178,42 @@ class EvaluateRecognitionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "outside annotation_regions"):
             validate_ground_truth(truth)
 
+    def test_partial_room_negative_regions_count_only_enclosed_false_rooms(self):
+        truth = {"version": 1, "image": {"width": 200, "height": 100},
+                 "coverage": {"rooms": "geometry"}, "rooms": [],
+                 "annotation_regions": {"rooms": [[100, 0, 160, 100]]}}
+        recognition = {"meta": {"width": 200, "height": 100}, "rooms": [
+            rectangle(0, 0, 80, 100),    # Outside the reviewed region.
+            rectangle(110, 20, 130, 40),  # Furniture enclosure inside it.
+            rectangle(80, 50, 120, 90),   # Only half lies inside.
+        ]}
+        metrics = evaluate(truth, recognition)["metrics"]["rooms"]
+        self.assertEqual((metrics["predicted"], metrics["false_positive"]), (2, 2))
+        self.assertEqual(metrics["scoped_prediction_indices"], [1, 2])
+        self.assertEqual(metrics["unmatched_predictions"], [1, 2])
+        self.assertEqual(metrics["excluded_prediction_count"], 1)
+
+    def test_partial_room_truth_must_be_inside_reviewed_region(self):
+        truth = {"version": 1, "image": {"width": 200, "height": 100},
+                 "coverage": {"rooms": "geometry"},
+                 "annotation_regions": {"rooms": [[100, 0, 160, 100]]},
+                 "rooms": [{"id": "r1", "polygon": [[90, 10], [130, 10],
+                                                       [130, 50], [90, 50]]}]}
+        with self.assertRaisesRegex(ValueError, "outside annotation_regions"):
+            validate_ground_truth(truth)
+
+    def test_partial_room_matches_keep_original_prediction_index(self):
+        truth = {"version": 1, "image": {"width": 200, "height": 100},
+                 "coverage": {"rooms": "geometry"},
+                 "annotation_regions": {"rooms": [[100, 0, 160, 100]]},
+                 "rooms": [{"id": "r1", "polygon": [[110, 10], [140, 10],
+                                                       [140, 60], [110, 60]]}]}
+        recognition = {"meta": {"width": 200, "height": 100}, "rooms": [
+            rectangle(0, 0, 80, 100), rectangle(110, 10, 140, 60)]}
+        metrics = evaluate(truth, recognition)["metrics"]["rooms"]
+        self.assertEqual((metrics["true_positive"], metrics["false_positive"]), (1, 0))
+        self.assertEqual(metrics["matches"][0]["prediction"], 1)
+
     def test_equal_counts_with_false_positive_and_miss_are_not_exact(self):
         truth = {"version": 1, "image": {"width": 100, "height": 80},
                  "coverage": {"windows": "geometry"},

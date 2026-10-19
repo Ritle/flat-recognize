@@ -13,13 +13,22 @@ pixels before resize or letterbox. Every category declares its coverage:
 An empty array with `geometry` coverage means that the image is confirmed to
 contain no objects of that category. It is different from an omitted category.
 
-For a complex image, `annotation_regions` may restrict `doors` or `windows`
-geometry to fully inspected source-image rectangles `[x1, y1, x2, y2]`. Only
-predictions whose opening-span centers fall in those rectangles are scored.
-Every annotated span center must also lie inside its category's rectangles.
+For a complex image, `annotation_regions` may restrict `rooms`, `doors` or
+`windows` geometry to fully inspected source-image rectangles
+`[x1, y1, x2, y2]`. Room predictions are scored when at least half their
+polygon area lies inside the union of reviewed rectangles; each annotated
+room must lie at least 99% inside them. A reviewed furniture region with
+`rooms: []` therefore measures false rooms without claiming that the rest of
+the plan has no rooms. Door/window predictions are scored when their span
+centers fall inside the rectangles. Every annotated opening span center must
+also lie inside its category's rectangles.
 Metrics label this as `scope: annotation_regions`, record original prediction
 indices, and never claim accuracy for the rest of the image. Do not place a
 region boundary through an opening whose status is uncertain.
+
+`open-zones` has two partial negative room regions around built-in furniture.
+This is a regression target for false room detection, not a complete room
+annotation for the image.
 
 ## Format
 

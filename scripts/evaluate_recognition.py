@@ -15,7 +15,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Polygon, box as shapely_box
 from shapely.ops import unary_union
 
 CATEGORIES = ("rooms", "walls", "doors", "windows", "junctions")
@@ -313,8 +313,8 @@ def validate_ground_truth(data):
     if unknown:
         raise ValueError(f"Unknown coverage categories: {sorted(unknown)}")
     regions = data.get("annotation_regions", {})
-    if not isinstance(regions, dict) or set(regions) - {"doors", "windows"}:
-        raise ValueError("annotation_regions supports only doors and windows")
+    if not isinstance(regions, dict) or set(regions) - {"rooms", "doors", "windows"}:
+        raise ValueError("annotation_regions supports only rooms, doors and windows")
     for category, boxes in regions.items():
         if coverage.get(category) != "geometry" or not isinstance(boxes, list) or not boxes:
             raise ValueError(f"annotation_regions.{category} needs geometry coverage and boxes")
@@ -359,6 +359,10 @@ def validate_ground_truth(data):
                 shape = Polygon(outer, holes)
                 if not shape.is_valid or shape.area <= 0:
                     raise ValueError(f"{label} has an invalid or empty polygon")
+                if category in regions:
+                    annotated = unary_union([shapely_box(*bounds) for bounds in regions[category]])
+                    if shape.difference(annotated).area > shape.area * .01:
+                        raise ValueError(f"{label} is outside annotation_regions")
             elif category == "walls":
                 points(item.get("centerline"), f"{label}.centerline", 2)
                 thickness = item.get("thickness_px")
@@ -412,8 +416,24 @@ def evaluate(ground_truth, recognition):
                 "exact": len(predicted) == expected,
             }
         elif category == "rooms":
-            result["metrics"][category] = {
-                "coverage": "geometry", **evaluate_rooms(ground_truth[category], predicted, tolerance)}
+            regions = ground_truth.get("annotation_regions", {}).get(category)
+            if regions:
+                annotated = unary_union([shapely_box(*bounds) for bounds in regions])
+                indices = [index for index, item in enumerate(predicted)
+                           if (shape := polygon(item)).area > 0
+                           and shape.intersection(annotated).area >= shape.area * .5]
+                metrics = evaluate_rooms(ground_truth[category],
+                                         [predicted[index] for index in indices], tolerance)
+                metrics.update(scope="annotation_regions", annotation_regions=regions,
+                               scoped_prediction_indices=indices,
+                               excluded_prediction_count=len(predicted) - len(indices))
+                metrics["unmatched_predictions"] = [
+                    indices[index] for index in metrics["unmatched_predictions"]]
+                for match in metrics["matches"]:
+                    match["prediction"] = indices[match["prediction"]]
+            else:
+                metrics = evaluate_rooms(ground_truth[category], predicted, tolerance)
+            result["metrics"][category] = {"coverage": "geometry", **metrics}
         elif category == "walls":
             result["metrics"][category] = {
                 "coverage": "geometry", **evaluate_walls(ground_truth[category], predicted)}
