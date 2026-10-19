@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from audit_opening_bindings import audit_opening_bindings
+from shapely.geometry import Polygon
 from process_floorplan import run_command
 
 
@@ -67,6 +68,59 @@ class OpeningBindingAuditTests(unittest.TestCase):
         window["recovery"]["raster_axis_evidence"]["extent_basis"] = "segmentation_bbox"
         row = audit_opening_bindings(classified, project(), geometry)["openings"][0]
         self.assertNotIn("raster_span_on_current_walls", row)
+
+    def test_thick_flanking_wall_is_reported_without_changing_primary_binding(self):
+        window = opening(19, [50, 60], [20, 50, 80, 70])
+        window["recovery"] = {"raster_axis_evidence": {
+            "extent_basis": "raster_clear_bay", "span": [[25, 0], [75, 0]]}}
+        classified = {"doors": [], "windows": [window], "walls": [
+            {"outer": [[0, -40], [20, -40], [20, 40], [0, 40]]},
+            {"outer": [[80, -40], [100, -40], [100, 40], [80, 40]]}]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        report = audit_opening_bindings(classified, project(), geometry)
+        row = report["openings"][0]
+        self.assertEqual(row["reasons"], ["far_from_wall"])
+        alternative = row["raster_span_on_current_walls"]
+        self.assertEqual(alternative["source_wall_band"]["median_thickness_px"], 80)
+        self.assertEqual(alternative["source_wall_band"]["bound_wall_thickness_cm"], 20)
+        self.assertEqual(alternative["reasons"], ["wall_thickness_mismatch"])
+        self.assertEqual(report["summary"]["suspect"], 1)
+
+    def test_normal_flanking_wall_does_not_flag_thickness_mismatch(self):
+        window = opening(19, [50, 0], [25, -3, 75, 3])
+        window["recovery"] = {"raster_axis_evidence": {
+            "extent_basis": "raster_clear_bay", "span": [[25, 0], [75, 0]]}}
+        classified = {"doors": [], "windows": [window], "walls": [
+            {"outer": [[0, -10], [20, -10], [20, 10], [0, 10]]},
+            {"outer": [[80, -10], [100, -10], [100, 10], [80, 10]]}]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        alternative = audit_opening_bindings(classified, project(), geometry)[
+            "openings"][0]["raster_span_on_current_walls"]
+        self.assertEqual(alternative["source_wall_band"]["median_thickness_px"], 20)
+        self.assertEqual(alternative["reasons"], [])
+
+    def test_one_flank_does_not_claim_wall_thickness_mismatch(self):
+        window = opening(19, [50, 0], [25, -3, 75, 3])
+        window["recovery"] = {"raster_axis_evidence": {
+            "extent_basis": "raster_clear_bay", "span": [[25, 0], [75, 0]]}}
+        classified = {"doors": [], "windows": [window], "walls": [
+            {"outer": [[0, -40], [20, -40], [20, 40], [0, 40]]}]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        alternative = audit_opening_bindings(classified, project(), geometry)[
+            "openings"][0]["raster_span_on_current_walls"]
+        self.assertFalse(alternative["source_wall_band"]["consistent_flanks"])
+        self.assertNotIn("wall_thickness_mismatch", alternative["reasons"])
+
+    def test_flanking_wall_band_works_for_vertical_bay(self):
+        from audit_opening_bindings import flanking_wall_band
+        walls = Polygon([[-35, 0], [35, 0], [35, 20], [-35, 20]]).union(
+            Polygon([[-35, 80], [35, 80], [35, 100], [-35, 100]]))
+        band = flanking_wall_band(walls, ((0, 25), (0, 75)))
+        self.assertEqual(band["median_thickness_px"], 70)
+        self.assertTrue(band["consistent_flanks"])
 
     def test_invalid_candidate_is_reported_without_stopping_audit(self):
         data = {"doors": [{"id": 1}],

@@ -7,13 +7,56 @@ existing quality gate for authoritative binding and export decisions.
 import argparse
 import json
 import math
+import statistics
 from pathlib import Path
 
 from add_openings import (choose_segment_binding, door_width_cm, get_center,
                           get_opening_length_px, opening_orientation)
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
 
 
-def raster_span_on_current_walls(opening, segments, transform):
+def flanking_wall_band(walls, span):
+    """Measure wall-mask thickness just beyond both ends of a raster bay."""
+    if walls.is_empty:
+        return None
+    (x0, y0), (x1, y1) = span
+    horizontal = abs(x1 - x0) >= abs(y1 - y0)
+    lo, hi = sorted((x0, x1) if horizontal else (y0, y1))
+    center = (y0 + y1) / 2 if horizontal else (x0 + x1) / 2
+    length = hi - lo
+    reach = max(100, length * .6)
+    offsets = (5, 10, 20)
+    sides = {}
+    for name, sign, endpoint in (("before", -1, lo), ("after", 1, hi)):
+        widths = []
+        for offset in offsets:
+            position = endpoint + sign * offset
+            line = (LineString([(position, center - reach),
+                                (position, center + reach)]) if horizontal else
+                    LineString([(center - reach, position),
+                                (center + reach, position)]))
+            sample = walls.intersection(line)
+            pieces = ([sample] if sample.geom_type == "LineString" else
+                      list(getattr(sample, "geoms", [])))
+            relevant = [piece.length for piece in pieces
+                        if piece.geom_type == "LineString" and piece.length >= 5
+                        and piece.distance(Point(position, center) if horizontal else
+                                           Point(center, position)) <= 15]
+            if relevant:
+                widths.append(max(relevant))
+        if widths:
+            sides[name] = round(statistics.median(widths), 2)
+    if not sides:
+        return None
+    consistent = (len(sides) == 2 and
+                  max(sides.values()) <= min(sides.values()) * 1.5)
+    return {"sampled_sides_px": sides,
+            "median_thickness_px": round(statistics.median(sides.values()), 2),
+            "consistent_flanks": consistent}
+
+
+def raster_span_on_current_walls(opening, segments, transform, walls=None):
     """Counterfactual binding; never changes the opening or project."""
     recovery = opening.get("recovery")
     evidence = recovery.get("raster_axis_evidence") if isinstance(recovery, dict) else None
@@ -40,6 +83,10 @@ def raster_span_on_current_walls(opening, segments, transform):
     result = {"span": evidence["span"], "width_cm": round(width, 2),
               "wall_uuid": None, "distance_to_wall_cm": None,
               "overhang_cm": None, "aligned": None, "reasons": []}
+    if walls is not None:
+        band = flanking_wall_band(walls, ((x0, y0), (x1, y1)))
+        if band is not None:
+            result["source_wall_band"] = band
     if binding is None:
         result["reasons"].append("no_wall_segments")
         return result
@@ -59,6 +106,14 @@ def raster_span_on_current_walls(opening, segments, transform):
         result["reasons"].append("far_from_wall")
     if binding["overhang"] > 5:
         result["reasons"].append("exceeds_segment")
+    if "source_wall_band" in result:
+        normal_scale = sy if orientation == "horizontal" else sx
+        measured_cm = result["source_wall_band"]["median_thickness_px"] * normal_scale
+        result["source_wall_band"]["median_thickness_cm"] = round(measured_cm, 2)
+        result["source_wall_band"]["bound_wall_thickness_cm"] = round(thickness, 2)
+        if (result["source_wall_band"]["consistent_flanks"]
+                and measured_cm > thickness * 2.5):
+            result["reasons"].append("wall_thickness_mismatch")
     return result
 
 
@@ -83,6 +138,14 @@ def audit_opening_bindings(classified, project, geometry):
             segments.append({"segment": segment, "ax": float(a["x"]),
                              "ay": float(a["y"]), "bx": float(b["x"]),
                              "by": float(b["y"])})
+        wall_shapes = []
+        for item in classified.get("walls", []) + classified.get("reclassified_wall_support", []):
+            shape = Polygon(item["outer"], item.get("holes", []))
+            if not shape.is_valid:
+                shape = shape.buffer(0)
+            if not shape.is_empty:
+                wall_shapes.append(shape)
+        walls = unary_union(wall_shapes) if wall_shapes else None
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         report["reason"] = f"invalid_project_geometry: {exc}"
         return report
@@ -135,7 +198,7 @@ def audit_opening_bindings(classified, project, geometry):
                     row["reasons"].append("exceeds_segment")
             if kind == "windows":
                 alternative = raster_span_on_current_walls(
-                    opening, segments, (sx, sy, ox, oy))
+                    opening, segments, (sx, sy, ox, oy), walls)
                 if alternative is not None:
                     row["raster_span_on_current_walls"] = alternative
             report["openings"].append(row)
