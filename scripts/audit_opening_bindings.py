@@ -117,6 +117,74 @@ def raster_span_on_current_walls(opening, segments, transform, walls=None):
     return result
 
 
+def audit_segment_wall_bands(segments, support, transform):
+    """Advisory comparison of exported wall axes with source structural bands."""
+    sx, sy, ox, oy = transform
+    result = {"examined": len(segments), "sampled": 0, "suspect": 0,
+              "segments": []}
+    if support.is_empty:
+        return result
+    for item in segments:
+        segment = item["segment"]
+        ax, ay = (item["ax"] - ox) / sx, (item["ay"] - oy) / sy
+        bx, by = (item["bx"] - ox) / sx, (item["by"] - oy) / sy
+        dx, dy = bx - ax, by - ay
+        length = math.hypot(dx, dy)
+        if length < 30:
+            continue
+        nx, ny = -dy / length, dx / length
+        expected = segment.get("thickness", 20)
+        if not isinstance(expected, (int, float)) or not math.isfinite(expected) or expected <= 0:
+            continue
+        normal_scale = math.hypot(nx * sx, ny * sy)
+        expected_px = expected / normal_scale
+        reach = max(100, expected_px * 5)
+        samples = []
+        for fraction in (.2, .5, .8):
+            x, y = ax + dx * fraction, ay + dy * fraction
+            cut = support.intersection(LineString([
+                (x - nx * reach, y - ny * reach),
+                (x + nx * reach, y + ny * reach)]))
+            pieces = ([cut] if cut.geom_type == "LineString" else
+                      list(getattr(cut, "geoms", [])))
+            nearby = [piece for piece in pieces
+                      if piece.geom_type == "LineString" and 3 <= piece.length <= reach
+                      and piece.distance(Point(x, y)) <= max(12, expected_px * .75)]
+            if not nearby:
+                break
+            band = max(nearby, key=lambda piece: piece.length)
+            middle = band.interpolate(.5, normalized=True)
+            signed_offset = (middle.x - x) * nx + (middle.y - y) * ny
+            samples.append((band.length, signed_offset))
+        if len(samples) != 3:
+            continue
+        widths = [width for width, _ in samples]
+        offsets = [offset for _, offset in samples]
+        if (max(widths) > min(widths) * 1.5
+                or max(offsets) - min(offsets) > max(8, expected_px * .75)):
+            continue
+        result["sampled"] += 1
+        measured = statistics.median(widths) * normal_scale
+        center_offset = statistics.median(offsets) * normal_scale
+        reasons = []
+        if measured > expected * 2.5 or measured < expected * .35:
+            reasons.append("wall_thickness_mismatch")
+        if (abs(center_offset) > max(8 * normal_scale, expected * .75)
+                and all(offset * center_offset > 0 for offset in offsets)):
+            reasons.append("wall_axis_off_center")
+        if reasons:
+            result["segments"].append({
+                "wall_uuid": segment.get("uuid"),
+                "pixel_start": [round(ax, 2), round(ay, 2)],
+                "pixel_end": [round(bx, 2), round(by, 2)],
+                "measured_thickness_cm": round(measured, 2),
+                "project_thickness_cm": round(expected, 2),
+                "axis_offset_cm": round(center_offset, 2),
+                "reasons": reasons})
+    result["suspect"] = len(result["segments"])
+    return result
+
+
 def audit_opening_bindings(classified, project, geometry):
     report = {"version": 1, "method": "polygon_segment_preflight",
               "status": "skipped", "reason": None, "openings": [],
@@ -146,10 +214,22 @@ def audit_opening_bindings(classified, project, geometry):
             if not shape.is_empty:
                 wall_shapes.append(shape)
         walls = unary_union(wall_shapes) if wall_shapes else None
+        opening_shapes = []
+        for item in classified.get("doors", []) + classified.get("windows", []):
+            if len(item.get("outer", [])) < 3:
+                continue
+            shape = Polygon(item["outer"])
+            if not shape.is_valid:
+                shape = shape.buffer(0)
+            if not shape.is_empty:
+                opening_shapes.append(shape)
+        support = unary_union(wall_shapes + opening_shapes) if wall_shapes or opening_shapes else Polygon()
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         report["reason"] = f"invalid_project_geometry: {exc}"
         return report
     report["status"] = "audited"
+    report["wall_geometry"] = audit_segment_wall_bands(
+        segments, support, (sx, sy, ox, oy))
     for kind in ("doors", "windows"):
         for opening in classified.get(kind, []):
             row = {"opening_id": opening.get("id"), "kind": kind,

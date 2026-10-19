@@ -122,6 +122,27 @@ class OpeningBindingAuditTests(unittest.TestCase):
         self.assertEqual(band["median_thickness_px"], 70)
         self.assertTrue(band["consistent_flanks"])
 
+    def test_segment_wall_band_audit_finds_off_center_thick_wall(self):
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        thick = {"doors": [], "windows": [], "walls": [
+            {"outer": [[0, -80], [100, -80], [100, 0], [0, 0]]}]}
+        original = project()
+        report = audit_opening_bindings(thick, original, geometry)
+        wall = report["wall_geometry"]
+        self.assertEqual((wall["examined"], wall["sampled"], wall["suspect"]),
+                         (1, 1, 1))
+        self.assertEqual(wall["segments"][0]["measured_thickness_cm"], 80)
+        self.assertEqual(wall["segments"][0]["axis_offset_cm"], -40)
+        self.assertEqual(wall["segments"][0]["reasons"],
+                         ["wall_thickness_mismatch", "wall_axis_off_center"])
+        self.assertEqual(original, project())
+
+        centered = {"doors": [], "windows": [], "walls": [
+            {"outer": [[0, -10], [100, -10], [100, 10], [0, 10]]}]}
+        wall = audit_opening_bindings(centered, original, geometry)["wall_geometry"]
+        self.assertEqual((wall["sampled"], wall["suspect"]), (1, 0))
+
     def test_invalid_candidate_is_reported_without_stopping_audit(self):
         data = {"doors": [{"id": 1}],
                 "windows": [opening(2, [50, 0], [40, -2, 60, 2])]}
