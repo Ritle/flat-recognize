@@ -217,6 +217,14 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
         metrics["user_review_choices"] = len(review_decisions)
         issue("user_review_applied", "warning",
               f"Пользователь уточнил проёмы ({len(review_decisions)}); проверьте итоговую геометрию.")
+    reviewed_rooms = rooms.get("reviewed_rooms", []) if isinstance(rooms, dict) else []
+    if isinstance(reviewed_rooms, list) and reviewed_rooms:
+        ignored_count = sum(item.get("choice") == "ignore" for item in reviewed_rooms
+                            if isinstance(item, dict))
+        metrics["user_room_choices"] = len(reviewed_rooms)
+        issue("user_room_review_applied", "warning",
+              f"Пользователь уточнил небольшие области ({len(reviewed_rooms)}), "
+              f"исключено из проекта: {ignored_count}; проверьте контуры соседних помещений.")
 
     exported = {"doorItem": 0, "windowItem": 0}
     bindings_by_element = {}

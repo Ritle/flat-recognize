@@ -553,7 +553,7 @@
         </div>
 
         <div class="review-panel" id="reviewPanel">
-            <h3>Уточнить спорные проёмы</h3>
+            <h3>Уточнить спорные объекты</h3>
             <p>Выберите вариант по исходному плану. После пересчёта результат снова пройдёт проверку качества; выбор не гарантирует доступность экспорта.</p>
             <div class="review-list" id="reviewList"></div>
             <button class="btn btn-secondary" id="applyReviewButton" type="button">Пересчитать с выбранными вариантами</button>
@@ -786,14 +786,17 @@ function renderReviewQuestions(data) {
     document.getElementById('reviewMarker').style.display = 'none';
     panel.style.display = currentQuestions.length ? 'block' : 'none';
     const applied = new Map((data.applied_decisions || []).map(
-        answer => [answer.opening_id, answer.choice]));
+        answer => [`${'room_id' in answer ? 'room' : 'opening'}:` +
+            (answer.room_id ?? answer.opening_id), answer.choice]));
     for (const question of currentQuestions) {
         const row = document.createElement('div');
         row.className = 'review-item';
         const locate = document.createElement('button');
         locate.type = 'button';
         locate.className = 'btn btn-secondary';
-        locate.textContent = `Показать проём №${question.opening_id}`;
+        locate.textContent = question.kind === 'room'
+            ? `Показать область №${question.room_id}`
+            : `Показать проём №${question.opening_id}`;
         locate.onclick = () => highlightQuestion(question, data.original_url);
         const label = document.createElement('span');
         const names = {door: 'дверь', window: 'окно', ignore: 'не проём',
@@ -813,8 +816,11 @@ function renderReviewQuestions(data) {
             thick_window_geometry_unresolved: 'форма и положение окна не подтверждены; выбор типа их не исправит',
             parallel_window_ambiguous: 'пересекается с параллельным кандидатом без двух подтверждённых косяков',
             user_choice: 'выбор пользователя'};
-        label.textContent = `Сейчас: ${names[question.current] || question.current}` +
-            ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
+        label.textContent = question.kind === 'room'
+            ? `Небольшая область: ${question.current === 'ignore' ? 'исключена' : 'помещение'}` +
+                ' · уточните, является ли она помещением или частью мебели'
+            : `Сейчас: ${names[question.current] || question.current}` +
+                ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
         if (Array.isArray(question.paired_with) && question.paired_with.length) {
             label.textContent += ` · проверьте также проём №${question.paired_with.join(', №')}`;
         }
@@ -831,15 +837,18 @@ function renderReviewQuestions(data) {
             }
         }
         const select = document.createElement('select');
-        for (const [value, title] of [['', 'Оставить решение системы'],
-                                       ['door', 'Дверь'], ['window', 'Окно'],
-                                       ['ignore', 'Не проём']]) {
+        const options = question.kind === 'room'
+            ? [['', 'Оставить решение системы'], ['room', 'Помещение'],
+               ['ignore', 'Мебель / не помещение']]
+            : [['', 'Оставить решение системы'], ['door', 'Дверь'],
+               ['window', 'Окно'], ['ignore', 'Не проём']];
+        for (const [value, title] of options) {
             const option = document.createElement('option');
             option.value = value;
             option.textContent = title;
             select.appendChild(option);
         }
-        select.value = applied.get(question.opening_id) || '';
+        select.value = applied.get(question.id) || '';
         reviewSelects.push({question, select});
         row.appendChild(locate);
         row.appendChild(label);
@@ -867,7 +876,8 @@ function highlightQuestion(question, imageUrl) {
 document.getElementById('applyReviewButton').onclick = () => {
     if (!currentFile) return;
     const answers = reviewSelects.filter(item => item.select.value).map(item => ({
-        opening_id: item.question.opening_id,
+        [item.question.kind === 'room' ? 'room_id' : 'opening_id']:
+            item.question.kind === 'room' ? item.question.room_id : item.question.opening_id,
         fingerprint: item.question.fingerprint,
         choice: item.select.value
     }));

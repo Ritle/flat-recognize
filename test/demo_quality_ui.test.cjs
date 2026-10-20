@@ -82,7 +82,8 @@ async function show(status) {
         ['Сегментация: исходник', 'Сегментация: нормализация', 'Сегментация: fusion']);
     context.setupImages({images: {}, original_url: '/original'});
     assert.equal(nodes.get('imageCaption').style.display, 'none');
-    const question = {opening_id: 8, fingerprint: 'geometry-hash', image_sha256: 'image-hash',
+    const question = {id: 'opening:8', kind: 'opening', opening_id: 8,
+        fingerprint: 'geometry-hash', image_sha256: 'image-hash',
         current: 'door', reasons: ['classification_uncertain'],
         center: [20, 30], image_size: [100, 80]};
     context.renderReviewQuestions({review_questions: [question], applied_decisions: []});
@@ -144,5 +145,15 @@ async function show(status) {
     assert.equal(submitted.payload.image_sha256, 'image-hash');
     assert.equal(submitted.payload.answers[0].choice, 'window');
     assert.equal(submitted.payload.answers[0].fingerprint, 'geometry-hash');
+    const roomQuestion = {id: 'room:6', kind: 'room', room_id: 6,
+        fingerprint: 'room-hash', image_sha256: 'image-hash', current: 'room',
+        reasons: ['small_enclosed_area'], center: [40, 40], image_size: [100, 80]};
+    context.renderReviewQuestions({review_questions: [roomQuestion], applied_decisions: []});
+    const roomRow = nodes.get('reviewList').children.at(-1);
+    assert.match(roomRow.children[1].textContent, /частью мебели/);
+    roomRow.children[2].value = 'ignore';
+    nodes.get('applyReviewButton').onclick();
+    assert.equal(submitted.payload.answers[0].room_id, 6);
+    assert.equal(submitted.payload.answers[0].choice, 'ignore');
     console.log('UI good → invalid → review and recovery diagnostics: passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

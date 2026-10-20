@@ -138,6 +138,8 @@ def apply_review_decisions(classified, decisions, source_sha256):
     for answer in answers:
         if not isinstance(answer, dict):
             raise ValueError("Invalid review answer")
+        if "room_id" in answer:
+            continue
         uid, choice = answer.get("opening_id"), answer.get("choice")
         if not isinstance(uid, int) or uid in selected or choice not in CHOICES:
             raise ValueError("Invalid or repeated opening choice")

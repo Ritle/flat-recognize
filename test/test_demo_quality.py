@@ -18,10 +18,58 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import demo.app as api
 from validate_recognition import validate_recognition
 from review_decisions import apply_review_decisions
+from review_rooms import apply_room_decisions
 from test.test_validate_recognition import fixture
 
 
 class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
+    async def test_room_only_choice_uses_original_openings_and_keeps_invalid_gate(self):
+        source = b"source image"
+        source_hash = hashlib.sha256(source).hexdigest()
+        large = {"id": 0, "bbox": [10, 10, 70, 70], "area_px": 3600,
+                 "polygon": [[10, 10], [70, 10], [70, 70], [10, 70]]}
+        small = {"id": 1, "bbox": [80, 80, 85, 85], "area_px": 25,
+                 "polygon": [[80, 80], [85, 80], [85, 85], [80, 85]]}
+        rooms = {"meta": {"width": 100, "height": 100}, "rooms": [large, small],
+                 "walls": [], "doors": [], "windows": []}
+        quality = {"status": "invalid", "export_allowed": False, "warnings": [],
+                   "metrics": {}, "issues": [{"code": "unclosed_area", "severity": "error"}]}
+        with tempfile.TemporaryDirectory() as temp:
+            jobs, output = Path(temp) / "jobs", Path(temp) / "output"
+            output.mkdir()
+
+            def pipeline(image_path, project_path, pipeline_v2, review_decisions=None):
+                stem = image_path.stem
+                (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
+                (output / f"{stem}_classified.json").write_text(json.dumps({
+                    "meta": rooms["meta"], "doors": [], "windows": []}), encoding="utf-8")
+                if review_decisions:
+                    selected = apply_room_decisions(
+                        rooms, json.loads(review_decisions.read_text(encoding="utf-8")), source_hash)
+                    (output / f"{stem}_rooms_selected.json").write_text(
+                        json.dumps(selected), encoding="utf-8")
+                project_path.with_suffix(".quality.json").write_text(
+                    json.dumps(quality), encoding="utf-8")
+                return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
+
+            with patch.object(api, "JOBS_DIR", jobs), patch.object(api, "OUTPUT_DIR", output), \
+                    patch.object(api, "run_pipeline", side_effect=pipeline):
+                first = await api.recognize(
+                    UploadFile(filename="test.png", file=io.BytesIO(source)), False, None)
+                question = next(item for item in first["review_questions"] if item.get("kind") == "room")
+                self.assertEqual(question["room_id"], 1)
+                answer = {"room_id": 1, "fingerprint": question["fingerprint"],
+                          "choice": "ignore"}
+                second = await api.recognize(
+                    UploadFile(filename="test.png", file=io.BytesIO(source)), False,
+                    json.dumps({"version": 1, "image_sha256": source_hash, "answers": [answer]}))
+                self.assertFalse(second["ok"])
+                self.assertEqual(second["applied_decisions"], [answer])
+                selected = json.loads((jobs / second["job_id"] / "rooms.json").read_text(encoding="utf-8"))
+                self.assertEqual([room["id"] for room in selected["rooms"]], [0])
+                self.assertEqual([room["id"] for room in selected["ignored_rooms"]], [1])
+                self.assertTrue((jobs / second["job_id"] / "classified.json").exists())
+
     async def test_opening_preflight_is_available_for_invalid_job(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(api, "JOBS_DIR", Path(temp)):
             job_id = str(uuid.uuid4())
@@ -53,6 +101,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 suffix = "_reviewed_classified.json" if review_decisions else "_classified.json"
                 (output / f"{stem}{suffix}").write_text(json.dumps(result), encoding="utf-8")
                 (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
+                if review_decisions:
+                    (output / f"{stem}_rooms_selected.json").write_text(
+                        json.dumps(rooms), encoding="utf-8")
                 (output / f"{stem}_opening_preflight.json").write_text(json.dumps({
                     "status": "audited", "summary": {"examined": 1, "suspect": 1},
                     "openings": [{"opening_id": 3, "reasons": ["far_from_wall"]}]}),

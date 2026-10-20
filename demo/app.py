@@ -13,6 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
+from scripts.review_rooms import ROOM_CHOICES, room_questions
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -199,12 +200,16 @@ async def recognize(
                 or review_payload.get("image_sha256") != source_hash
                 or not isinstance(answers, list) or len(answers) > MAX_ANSWERS
                 or any(not isinstance(answer, dict)
-                       or not isinstance(answer.get("opening_id"), int)
-                       or answer.get("choice") not in CHOICES
+                       or not ((isinstance(answer.get("opening_id"), int)
+                                and "room_id" not in answer and answer.get("choice") in CHOICES)
+                               or (isinstance(answer.get("room_id"), int)
+                                   and "opening_id" not in answer
+                                   and answer.get("choice") in ROOM_CHOICES))
                        or not isinstance(answer.get("fingerprint"), str)
                        for answer in answers)):
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
         applied_decisions = answers
+    has_opening_answers = any("opening_id" in answer for answer in applied_decisions)
 
     job_id = str(
         uuid.uuid4()
@@ -305,8 +310,11 @@ async def recognize(
     if pipeline_v2 and filtered_room_path.exists():
         room_path = filtered_room_path
     reviewed_dir = OUTPUT_DIR / f"{job_id}_reviewed"
-    if pipeline_v2 and decisions_path is not None:
+    if pipeline_v2 and has_opening_answers:
         room_path = reviewed_dir / f"{job_id}_rooms.json"
+    if decisions_path is not None:
+        room_path = (reviewed_dir / f"{job_id}_rooms_selected.json" if pipeline_v2 else
+                     OUTPUT_DIR / f"{job_id}_rooms_selected.json")
     room_data = json.loads(room_path.read_text(encoding="utf-8"))
     metrics = quality.get("metrics", {})
     stats = load_stats(project_path) if not rejected else {
@@ -321,11 +329,12 @@ async def recognize(
     classified_path = OUTPUT_DIR / f"{job_id}_classified.json"
     if pipeline_v2:
         classified_path = OUTPUT_DIR / f"{job_id}_interior_filtered_classified.json"
-    if decisions_path is not None:
+    if has_opening_answers:
         classified_path = OUTPUT_DIR / f"{job_id}_reviewed_classified.json"
     classified_data = json.loads(classified_path.read_text(encoding="utf-8"))
     shutil.copy2(classified_path, job_dir / "classified.json")
-    review_questions = make_review_questions(classified_data, quality, source_hash)
+    review_questions = (make_review_questions(classified_data, quality, source_hash)
+                        + room_questions(room_data, source_hash))[:MAX_ANSWERS]
     binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
@@ -369,11 +378,12 @@ async def recognize(
             f"{job_id}_barrier.png",
         "export": OUTPUT_DIR / f"{job_id}_export_overlay.png",
     }
-    if pipeline_v2 and decisions_path is not None:
+    if pipeline_v2 and has_opening_answers:
         generated_images.update({
-            "rooms": reviewed_dir / f"{job_id}_rooms_overlay.png",
             "barrier": reviewed_dir / f"{job_id}_barrier.png",
         })
+    if decisions_path is not None:
+        generated_images["rooms"] = room_path.with_name(f"{job_id}_rooms_selected_overlay.png")
 
     warnings = quality["warnings"]
     inference = None
@@ -388,7 +398,7 @@ async def recognize(
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
             "topology_windows": OUTPUT_DIR / f"{job_id}_topology_windows_overlay.png",
         })
-        if decisions_path is not None:
+        if has_opening_answers:
             generated_images["closures"] = reviewed_dir / f"{job_id}_closures.png"
         interior_counts = (json.loads(interior_report.read_text(encoding="utf-8"))
                            if interior_report.exists() else {})

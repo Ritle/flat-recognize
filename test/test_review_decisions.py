@@ -157,6 +157,14 @@ class ReviewDecisionsTest(unittest.TestCase):
                                    {**payload, "answers": [{**answer, "fingerprint": "stale"}]},
                                    "a" * 64)
 
+    def test_room_choice_is_left_for_room_review_stage(self):
+        payload = {"version": 1, "image_sha256": "a" * 64,
+                   "answers": [{"room_id": 2, "fingerprint": "room-hash",
+                                "choice": "ignore"}]}
+        reviewed = apply_review_decisions(self.classified, payload, "a" * 64)
+        self.assertEqual(reviewed["review_decisions"], [])
+        self.assertEqual(len(reviewed["doors"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
