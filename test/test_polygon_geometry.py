@@ -91,6 +91,36 @@ class PolygonGeometryTest(unittest.TestCase):
         self.assertEqual(changes, [])
         self.assertEqual(unsupported, [room])
 
+    def test_recovered_thick_window_straightens_supported_facade_only(self):
+        room = Polygon([(0, 0), (80, 0), (80, 50), (320, 50),
+                        (320, 0), (500, 0), (500, 350), (0, 350)])
+        window = {"outer": [[100, -30], [300, -30], [300, 60], [100, 60]],
+                  "recovery": {"method": "topology_recovered_thick_window"}}
+        walls = box(75, -30, 325, 52)
+        aligned, changes = align_window_boundaries([room], [window], walls, 10)
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["area_change_px2"], 12000)
+        self.assertEqual(changes[0]["method"], "supported_thick_window_facade")
+        self.assertEqual(changes[0]["support_fraction"], 1)
+        self.assertTrue(aligned[0].is_valid)
+        self.assertFalse(aligned[0].interiors)
+        self.assertLess(room.difference(aligned[0]).area, 1e-5)
+        unconfirmed = {**window, "recovery": {}}
+        self.assertEqual(align_window_boundaries([room], [unconfirmed], walls, 10),
+                         ([room], []))
+        self.assertEqual(align_window_boundaries([room], [window], Polygon(), 10),
+                         ([room], []))
+
+    def test_recovered_thick_window_does_not_absorb_unsupported_room_strip(self):
+        room = Polygon([(0, 0), (150, 0), (150, 50), (650, 50),
+                        (650, 0), (800, 0), (800, 500), (0, 500)])
+        window = {"outer": [[300, -30], [500, -30], [500, 60], [300, 60]],
+                  "recovery": {"method": "topology_recovered_thick_window"}}
+        thin_line = box(145, -3, 655, 3)
+        aligned, changes = align_window_boundaries([room], [window], thin_line, 10)
+        self.assertEqual(changes, [])
+        self.assertEqual(aligned, [room])
+
     def test_acute_raster_corner_does_not_project_beyond_wall_offset(self):
         room = Polygon([(0, 0), (40, 0), (41, -6), (44, 1),
                         (100, 1), (100, 100), (0, 100)])

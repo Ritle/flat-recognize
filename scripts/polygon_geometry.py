@@ -161,13 +161,17 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
         lo, hi = (y0, y1) if vertical else (x0, x1)
         side_lo, side_hi = (x0, x1) if vertical else (y0, y1)
         length, width = hi - lo, side_hi - side_lo
-        if walls.is_empty or length < max(40, half_wall * 8) or length < width * 3:
+        recovery = opening.get("recovery") or {}
+        thick_recovered = recovery.get("method") == "topology_recovered_thick_window"
+        minimum_aspect = 1.75 if thick_recovered else 3
+        if walls.is_empty or length < max(40, half_wall * 8) or length < width * minimum_aspect:
             continue
-        cap = max(half_wall * 1.5, length * .1)
+        cap = max(half_wall * 1.5, length * (.85 if thick_recovered else .1))
         side_margin = half_wall + 3
         # The source contour is an inner wall face; export moves it toward the
         # wall axis by about half a wall, where the tighter support gate runs.
         support = unary_union([walls, window]).buffer(2 * half_wall + 3)
+        raw_support = unary_union([walls, window]) if thick_recovered else None
         for room_index, shape in enumerate(result):
             if not shape.is_valid or shape.interiors:
                 continue
@@ -234,7 +238,8 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
                                for point in coords):
                             continue
                         deviation = max(chord.distance(Point(point)) for point in coords[1:-1])
-                        if not half_wall * .4 <= deviation <= half_wall + 6:
+                        max_deviation = max(half_wall + 6, width * .7) if thick_recovered else half_wall + 6
+                        if not half_wall * .4 <= deviation <= max_deviation:
                             continue
                         if chord.difference(support).length > max(2, chord.length * .05):
                             continue
@@ -242,20 +247,34 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
                             continue
                         replacement = [point for i, point in enumerate(ring) if i not in chain[1:-1]]
                         candidate = Polygon(replacement)
+                        change = shape.symmetric_difference(candidate) if candidate.is_valid else None
+                        max_change = (min(shape.area * .09, width * length * 2.5)
+                                      if thick_recovered else min(shape.area * .03, half_wall * length * 1.2))
                         if (not candidate.is_valid or candidate.interiors
                                 or candidate.area <= 0 or
-                                shape.symmetric_difference(candidate).area >
-                                min(shape.area * .03, half_wall * length * 1.2)):
+                                change.area > max_change):
+                            continue
+                        # A recovered thick window can justify moving the room
+                        # face much farther than the nominal wall offset, but
+                        # the changed strip must be mostly structural evidence.
+                        support_fraction = (1 - change.difference(raw_support).area / change.area
+                                            if thick_recovered and change.area > 0 else None)
+                        if thick_recovered and (support_fraction is None or support_fraction < .7):
                             continue
                         if any(candidate.intersection(other).area > 1e-5
                                for j, other in enumerate(result) if j != room_index):
                             continue
-                        candidates.append((abs(candidate.area - shape.area), candidate, deviation))
+                        candidates.append((abs(candidate.area - shape.area), candidate,
+                                           deviation, support_fraction))
             if candidates:
-                _, candidate, deviation = min(candidates, key=lambda item: item[0])
-                changes.append({"room_id": room_index, "window_index": window_index,
-                                "area_change_px2": round(candidate.area - shape.area, 2),
-                                "max_deviation_px": round(deviation, 2)})
+                _, candidate, deviation, support_fraction = min(candidates, key=lambda item: item[0])
+                change_report = {"room_id": room_index, "window_index": window_index,
+                                 "area_change_px2": round(candidate.area - shape.area, 2),
+                                 "max_deviation_px": round(deviation, 2)}
+                if thick_recovered:
+                    change_report.update(method="supported_thick_window_facade",
+                                         support_fraction=round(support_fraction, 3))
+                changes.append(change_report)
                 result[room_index] = candidate
     return result, changes
 
