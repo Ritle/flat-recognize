@@ -15,6 +15,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from shapely.affinity import affine_transform
 from shapely.geometry import LineString, Polygon, box as shapely_box
 from shapely.ops import unary_union
 
@@ -106,22 +107,72 @@ def wall_shape(item):
     return LineString(centerline).buffer(thickness / 2, cap_style="square", join_style="mitre")
 
 
-def evaluate_walls(expected, predicted):
-    truth = unary_union([wall_shape(item) for item in expected]) if expected else Polygon()
-    found_shapes = [polygon(item) for item in predicted]
+def wall_overlap_metrics(expected, found_shapes, regions=None, region_details=True):
+    source_shapes = found_shapes
+    truth_shapes = [wall_shape(item) for item in expected]
+    if regions:
+        annotated = unary_union([shapely_box(*bounds) for bounds in regions])
+        truth_shapes = [shape.intersection(annotated) for shape in truth_shapes]
+        found_shapes = [shape.intersection(annotated) for shape in found_shapes]
+    truth = unary_union(truth_shapes) if truth_shapes else Polygon()
     found = unary_union(found_shapes) if found_shapes else Polygon()
     intersection = truth.intersection(found).area
     precision = safe_ratio(intersection, found.area)
     recall = safe_ratio(intersection, truth.area)
     union = truth.union(found).area
-    return {
+    metrics = {
         "expected": len(expected),
-        "predicted": len(predicted),
+        "predicted": sum(not shape.is_empty and shape.area > 0 for shape in found_shapes),
         "area_precision": round(precision, 4),
         "area_recall": round(recall, 4),
         "area_f1": round(safe_ratio(2 * precision * recall, precision + recall), 4),
         "area_iou": round(safe_ratio(intersection, union), 4),
     }
+    if regions:
+        metrics.update(scope="annotation_regions", annotation_regions=regions)
+        if region_details:
+            metrics["per_region"] = [
+                {"region": region,
+                 **{key: local[key] for key in
+                    ("area_precision", "area_recall", "area_f1", "area_iou")}}
+                for region in regions
+                for local in [wall_overlap_metrics(expected, source_shapes,
+                                                   [region], region_details=False)]
+            ]
+    return metrics
+
+
+def evaluate_walls(expected, predicted, regions=None):
+    return wall_overlap_metrics(expected, [polygon(item) for item in predicted], regions)
+
+
+def exported_wall_shapes(project, geometry):
+    if geometry.get("adapter") != "polygon":
+        raise ValueError("Export wall evaluation needs polygon adapter coordinates")
+    transform = geometry.get("pixel_to_world", {})
+    try:
+        sx, sy = float(transform["scale_x"]), float(transform["scale_y"])
+        ox, oy = float(transform["origin_x"]), float(transform["origin_y"])
+        if not all(math.isfinite(value) for value in (sx, sy, ox, oy)) or min(sx, sy) <= 0:
+            raise ValueError("Invalid pixel-to-world transform")
+        level = project["levels"][0]
+        connectors = {item["uuid"]: item for item in level["connectors"]}
+        shapes = []
+        for segment in level["segments"]:
+            a, b = connectors[segment["start"]], connectors[segment["end"]]
+            thickness = float(segment["thickness"])
+            coords = [(float(a["x"]), float(a["y"])),
+                      (float(b["x"]), float(b["y"]))]
+            if (not math.isfinite(thickness) or thickness <= 0
+                    or not all(math.isfinite(v) for point in coords for v in point)
+                    or coords[0] == coords[1]):
+                raise ValueError("Invalid exported wall segment")
+            world = LineString(coords).buffer(thickness / 2, cap_style="square", join_style="mitre")
+            shapes.append(affine_transform(world,
+                                           [1 / sx, 0, 0, 1 / sy, -ox / sx, -oy / sy]))
+        return shapes
+    except (KeyError, IndexError, TypeError, OverflowError) as exc:
+        raise ValueError(f"Invalid exported wall geometry: {exc}") from exc
 
 
 def line_description(points):
@@ -313,8 +364,8 @@ def validate_ground_truth(data):
     if unknown:
         raise ValueError(f"Unknown coverage categories: {sorted(unknown)}")
     regions = data.get("annotation_regions", {})
-    if not isinstance(regions, dict) or set(regions) - {"rooms", "doors", "windows"}:
-        raise ValueError("annotation_regions supports only rooms, doors and windows")
+    if not isinstance(regions, dict) or set(regions) - {"rooms", "walls", "doors", "windows"}:
+        raise ValueError("annotation_regions supports only rooms, walls, doors and windows")
     for category, boxes in regions.items():
         if coverage.get(category) != "geometry" or not isinstance(boxes, list) or not boxes:
             raise ValueError(f"annotation_regions.{category} needs geometry coverage and boxes")
@@ -370,6 +421,11 @@ def validate_ground_truth(data):
                         or not math.isfinite(thickness) or thickness <= 0
                         or LineString(item["centerline"]).length <= 0):
                     raise ValueError(f"{label} needs positive thickness and length")
+                if category in regions:
+                    annotated = unary_union([shapely_box(*bounds) for bounds in regions[category]])
+                    shape = wall_shape(item)
+                    if shape.difference(annotated).area > shape.area * .01:
+                        raise ValueError(f"{label} is outside annotation_regions")
             elif category in ("doors", "windows"):
                 span = item.get("span")
                 if not isinstance(span, list) or len(span) != 2:
@@ -436,7 +492,9 @@ def evaluate(ground_truth, recognition):
             result["metrics"][category] = {"coverage": "geometry", **metrics}
         elif category == "walls":
             result["metrics"][category] = {
-                "coverage": "geometry", **evaluate_walls(ground_truth[category], predicted)}
+                "coverage": "geometry", **evaluate_walls(
+                    ground_truth[category], predicted,
+                    ground_truth.get("annotation_regions", {}).get(category))}
         elif category in ("doors", "windows"):
             regions = ground_truth.get("annotation_regions", {}).get(category)
             if regions:
@@ -478,7 +536,8 @@ def evaluate(ground_truth, recognition):
     return result
 
 
-def evaluate_files(ground_truth_path, recognition_path, image_path=None):
+def evaluate_files(ground_truth_path, recognition_path, image_path=None,
+                   project_path=None, geometry_path=None):
     ground_truth = load_json(ground_truth_path)
     recognition = load_json(recognition_path)
     if image_path is not None:
@@ -487,6 +546,19 @@ def evaluate_files(ground_truth_path, recognition_path, image_path=None):
         if expected_hash and actual_hash != expected_hash:
             raise ValueError("Input image SHA-256 does not match ground truth")
     result = evaluate(ground_truth, recognition)
+    if (project_path is None) != (geometry_path is None):
+        raise ValueError("Export wall evaluation needs both project and geometry report")
+    if project_path is not None:
+        if ground_truth.get("coverage", {}).get("walls") != "geometry":
+            raise ValueError("Export wall evaluation needs geometric wall ground truth")
+        result["export_geometry"] = {"walls": {
+            "coverage": "geometry",
+            **wall_overlap_metrics(
+                ground_truth["walls"],
+                exported_wall_shapes(load_json(project_path), load_json(geometry_path)),
+                ground_truth.get("annotation_regions", {}).get("walls"))}}
+        result["project"] = str(Path(project_path))
+        result["geometry_report"] = str(Path(geometry_path))
     result["ground_truth"] = str(Path(ground_truth_path))
     result["recognition"] = str(Path(recognition_path))
     result["ground_truth_sha256"] = hashlib.sha256(
@@ -500,9 +572,14 @@ def main():
     parser.add_argument("recognition", type=Path,
                         help="Rooms artifact containing walls/rooms/doors/windows")
     parser.add_argument("--image", type=Path, help="Verify source image SHA-256 when annotated")
+    parser.add_argument("--project", type=Path,
+                        help="Optional exported project for wall geometry comparison")
+    parser.add_argument("--geometry", type=Path,
+                        help="Polygon adapter report with pixel-to-world transform")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = evaluate_files(args.ground_truth, args.recognition, args.image)
+    result = evaluate_files(args.ground_truth, args.recognition, args.image,
+                            args.project, args.geometry)
     rendered = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

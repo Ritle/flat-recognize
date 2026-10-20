@@ -1,11 +1,13 @@
 import copy
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from evaluate_recognition import evaluate, prediction_span, validate_ground_truth
+from evaluate_recognition import evaluate, evaluate_files, prediction_span, validate_ground_truth
 
 
 def rectangle(x1, y1, x2, y2):
@@ -213,6 +215,49 @@ class EvaluateRecognitionTests(unittest.TestCase):
         metrics = evaluate(truth, recognition)["metrics"]["rooms"]
         self.assertEqual((metrics["true_positive"], metrics["false_positive"]), (1, 0))
         self.assertEqual(metrics["matches"][0]["prediction"], 1)
+
+    def test_partial_wall_region_clips_false_geometry_outside_it(self):
+        truth = {"version": 1, "image": {"width": 200, "height": 100},
+                 "coverage": {"walls": "geometry"},
+                 "annotation_regions": {"walls": [[40, 10, 160, 40]]},
+                 "walls": [{"id": "top", "centerline": [[70, 25], [130, 25]],
+                            "thickness_px": 10}]}
+        found = {"meta": {"width": 200, "height": 100}, "walls": [
+            rectangle(65, 20, 135, 30), rectangle(60, 60, 140, 70)]}
+        metrics = evaluate(truth, found)["metrics"]["walls"]
+        self.assertEqual(metrics["scope"], "annotation_regions")
+        self.assertEqual(metrics["predicted"], 1)
+        self.assertEqual(metrics["area_iou"], 1)
+        self.assertEqual(metrics["per_region"][0]["area_iou"], 1)
+        truth["walls"][0]["centerline"] = [[10, 25], [130, 25]]
+        with self.assertRaisesRegex(ValueError, "outside annotation_regions"):
+            validate_ground_truth(truth)
+
+    def test_exported_wall_scoring_uses_geometry_transform(self):
+        truth = {"version": 1, "image": {"width": 200, "height": 100},
+                 "coverage": {"walls": "geometry"},
+                 "annotation_regions": {"walls": [[40, 10, 160, 40]]},
+                 "walls": [{"id": "top", "centerline": [[70, 25], [130, 25]],
+                            "thickness_px": 10}]}
+        found = {"meta": {"width": 200, "height": 100}, "walls": []}
+        # Pixel coordinates are mapped to world by x*2+100, y*2-40.
+        project = {"levels": [{"connectors": [
+            {"uuid": "a", "x": 240, "y": 10},
+            {"uuid": "b", "x": 360, "y": 10}],
+            "segments": [{"start": "a", "end": "b", "thickness": 20}]}]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 2, "scale_y": 2, "origin_x": 100, "origin_y": -40}}
+        with tempfile.TemporaryDirectory() as temp:
+            paths = [Path(temp) / f"{name}.json" for name in
+                     ("truth", "found", "project", "geometry")]
+            for path, data in zip(paths, (truth, found, project, geometry)):
+                path.write_text(json.dumps(data), encoding="utf-8")
+            result = evaluate_files(paths[0], paths[1], project_path=paths[2],
+                                    geometry_path=paths[3])
+        self.assertEqual(result["metrics"]["walls"]["area_iou"], 0)
+        self.assertEqual(result["export_geometry"]["walls"]["area_iou"], 1)
+        self.assertEqual(result["export_geometry"]["walls"]["scope"],
+                         "annotation_regions")
 
     def test_equal_counts_with_false_positive_and_miss_are_not_exact(self):
         truth = {"version": 1, "image": {"width": 100, "height": 80},

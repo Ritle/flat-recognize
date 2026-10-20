@@ -8,15 +8,21 @@
   },
   "coverage": {
     "rooms": "geometry",
+    "walls": "geometry",
     "doors": "geometry",
     "windows": "geometry"
   },
   "annotation_regions": {
     "rooms": [[620, 890, 680, 1060], [165, 1005, 280, 1060]],
+    "walls": [[960, 100, 1100, 220], [1495, 280, 1545, 440]],
     "doors": [[320, 470, 590, 590], [300, 790, 430, 930]],
     "windows": [[160, 95, 1540, 215]]
   },
   "rooms": [],
+  "walls": [
+    {"id": "top_facade_slab", "centerline": [[1000, 143], [1060, 143]], "thickness_px": 66},
+    {"id": "right_facade_control", "centerline": [[1519.5, 300], [1519.5, 420]], "thickness_px": 25}
+  ],
   "doors": [
     {"id": "d1", "span": [[458, 535], [563, 535]], "connects": ["bedroom", "hall"]},
     {"id": "d2", "span": [[372, 818], [372, 907]], "connects": ["bathroom", "hall"]}
@@ -29,5 +35,5 @@
     {"id": "w5", "span": [[1138, 148], [1300, 148]], "connects": ["outside"]},
     {"id": "w6", "span": [[1326, 148], [1409, 148]], "connects": ["outside"]}
   ],
-  "notes": "Partial geometric annotation traced manually from source raster by Codex on 2026-10-09 and 2026-10-19; not independently reviewed. Room regions cover only two built-in furniture groups, confirmed not to be rooms. Scores apply only inside annotation_regions. The lower exterior threshold and other unresolved openings are outside the evaluated regions."
+  "notes": "Partial geometric annotation traced manually from source raster by Codex on 2026-10-09, 2026-10-19 and 2026-10-20; not independently reviewed. Room regions cover only two built-in furniture groups, confirmed not to be rooms. Wall regions cover a thick top facade slab and a right facade control segment; they exclude window openings. Scores apply only inside annotation_regions. The lower exterior threshold and other unresolved openings are outside the evaluated regions."
 }
