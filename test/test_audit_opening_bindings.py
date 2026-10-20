@@ -1,17 +1,19 @@
+import io
+import subprocess
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
-import subprocess
-import io
-import tempfile
-from contextlib import redirect_stdout
+
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from audit_opening_bindings import audit_opening_bindings, save_wall_geometry_overlay
 from PIL import Image
-from shapely.geometry import Polygon
 from process_floorplan import run_command
+from shapely.geometry import Polygon
 
 
 def project():
@@ -70,6 +72,33 @@ class OpeningBindingAuditTests(unittest.TestCase):
         window["recovery"]["raster_axis_evidence"]["extent_basis"] = "segmentation_bbox"
         row = audit_opening_bindings(classified, project(), geometry)["openings"][0]
         self.assertNotIn("raster_span_on_current_walls", row)
+
+    def test_suspect_existing_window_reports_rail_axis_without_rebinding(self):
+        gray = np.full((110, 170), 255, dtype=np.uint8)
+        gray[70, 20:141] = 0
+        gray[76, 20:141] = 0
+        gray[8:62, 20:40] = 0
+        gray[8:62, 120:140] = 0
+        window = opening(7, [80, 47], [20, 20, 140, 80])
+        classified = {"doors": [], "windows": [window]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+
+        row = audit_opening_bindings(classified, project(), geometry, gray)[
+            "openings"][0]
+        self.assertEqual(row["reasons"], ["far_from_wall", "exceeds_segment"])
+        self.assertEqual(row["raster_axis_evidence"]["span"],
+                         [[40, 73], [120, 73]])
+        self.assertEqual(row["raster_axis_evidence"]["bbox_extension_px"], 15)
+        self.assertEqual(row["bbox_axis_offset_px"], 23)
+        self.assertEqual(row["raster_span_on_current_walls"]["overhang_cm"], 20)
+        self.assertNotIn("recovery", window)
+
+        gray[:] = 255
+        blank = audit_opening_bindings(classified, project(), geometry, gray)[
+            "openings"][0]
+        self.assertNotIn("raster_axis_evidence", blank)
+        self.assertEqual(blank["reasons"], row["reasons"])
 
     def test_thick_flanking_wall_is_reported_without_changing_primary_binding(self):
         window = opening(19, [50, 60], [20, 50, 80, 70])
@@ -158,6 +187,17 @@ class OpeningBindingAuditTests(unittest.TestCase):
                 self.assertEqual(image.getpixel((50, 60)), (255, 0, 0))
                 self.assertEqual(image.getpixel((50, 20)), (255, 255, 0))
 
+    def test_suspect_window_overlay_shows_measured_axis(self):
+        report = {"openings": [{"reasons": ["exceeds_segment"],
+                                "raster_axis_evidence": {
+                                    "span": [[10, 30], [90, 30]]}}]}
+        with tempfile.TemporaryDirectory() as temp:
+            image_path, overlay_path = Path(temp) / "source.png", Path(temp) / "windows.png"
+            Image.new("RGB", (100, 80), "white").save(image_path)
+            save_wall_geometry_overlay(image_path, report, overlay_path)
+            with Image.open(overlay_path) as image:
+                self.assertEqual(image.getpixel((50, 30)), (0, 255, 255))
+
     def test_invalid_candidate_is_reported_without_stopping_audit(self):
         data = {"doors": [{"id": 1}],
                 "windows": [opening(2, [50, 0], [40, -2, 60, 2])]}
@@ -170,9 +210,8 @@ class OpeningBindingAuditTests(unittest.TestCase):
 
     def test_advisory_failure_does_not_block_pipeline(self):
         with patch("process_floorplan.subprocess.run",
-                   return_value=subprocess.CompletedProcess([], 2)):
-            with redirect_stdout(io.StringIO()):
-                self.assertFalse(run_command("diagnostic", ["diagnostic"], required=False))
+                   return_value=subprocess.CompletedProcess([], 2)), redirect_stdout(io.StringIO()):
+            self.assertFalse(run_command("diagnostic", ["diagnostic"], required=False))
 
 
 if __name__ == "__main__":

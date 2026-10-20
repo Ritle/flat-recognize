@@ -10,9 +10,16 @@ import math
 import statistics
 from pathlib import Path
 
+import numpy as np
+from add_openings import (
+    choose_segment_binding,
+    door_width_cm,
+    get_center,
+    get_opening_length_px,
+    opening_orientation,
+)
 from PIL import Image, ImageDraw
-from add_openings import (choose_segment_binding, door_width_cm, get_center,
-                          get_opening_length_px, opening_orientation)
+from recover_windows_topology_v2 import raster_frame_axis
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
@@ -118,6 +125,47 @@ def raster_span_on_current_walls(opening, segments, transform, walls=None):
     return result
 
 
+def measured_window_axis(gray, opening):
+    """Find an independently bounded raster bay near a suspect window bbox."""
+    bounds = opening.get("bbox")
+    if not isinstance(bounds, list) or len(bounds) != 4:
+        return None
+    try:
+        x0, y0, x1, y1 = (float(value) for value in bounds)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not all(math.isfinite(value) for value in (x0, y0, x1, y1)):
+        return None
+    horizontal = x1 - x0 >= y1 - y0
+    thickness = y1 - y0 if horizontal else x1 - x0
+    if thickness <= 0:
+        return None
+    padding = min(16, max(10, thickness * .25))
+    candidates = [(opening, 0)]
+    expanded = ([x0, y0 - padding, x1, y1 + padding] if horizontal else
+                [x0 - padding, y0, x1 + padding, y1])
+    candidates.append(({**opening, "bbox": expanded}, padding))
+    for candidate, extension in candidates:
+        try:
+            evidence = raster_frame_axis(gray, candidate)
+        except (TypeError, ValueError, IndexError):
+            continue
+        if not evidence or evidence.get("extent_basis") != "raster_clear_bay":
+            continue
+        bay = evidence["bay_evidence"]
+        if (evidence["minimum_support"] < .8 or
+                min(bay["jamb_support"]) < .8):
+            continue
+        (ax, ay), (bx, by) = evidence["span"]
+        long_lo, long_hi = (x0, x1) if horizontal else (y0, y1)
+        span_lo, span_hi = (ax, bx) if horizontal else (ay, by)
+        overlap = max(0, min(long_hi, span_hi) - max(long_lo, span_lo))
+        if overlap < .7 * min(long_hi - long_lo, span_hi - span_lo):
+            continue
+        return {**evidence, "bbox_extension_px": round(extension, 2)}
+    return None
+
+
 def audit_segment_wall_bands(segments, support, transform):
     """Advisory comparison of exported wall axes with source structural bands."""
     sx, sy, ox, oy = transform
@@ -191,7 +239,7 @@ def audit_segment_wall_bands(segments, support, transform):
     return result
 
 
-def audit_opening_bindings(classified, project, geometry):
+def audit_opening_bindings(classified, project, geometry, gray=None):
     report = {"version": 1, "method": "polygon_segment_preflight",
               "status": "skipped", "reason": None, "openings": [],
               "summary": {"examined": 0, "suspect": 0}}
@@ -283,8 +331,27 @@ def audit_opening_bindings(classified, project, geometry):
                 if binding["overhang"] > 5:
                     row["reasons"].append("exceeds_segment")
             if kind == "windows":
+                if gray is not None and row["reasons"] and not opening.get("recovery"):
+                    evidence = measured_window_axis(gray, opening)
+                    if evidence is not None:
+                        row["raster_axis_evidence"] = evidence
+                        (_, ay), (_, by) = evidence["span"]
+                        if orientation == "horizontal":
+                            axis_center = (ay + by) / 2
+                            bbox_center = (opening["bbox"][1] + opening["bbox"][3]) / 2
+                        else:
+                            (ax, _), (bx, _) = evidence["span"]
+                            axis_center = (ax + bx) / 2
+                            bbox_center = (opening["bbox"][0] + opening["bbox"][2]) / 2
+                        row["bbox_axis_offset_px"] = round(axis_center - bbox_center, 2)
+                        opening_for_span = {**opening, "recovery": {
+                            "raster_axis_evidence": evidence}}
+                    else:
+                        opening_for_span = opening
+                else:
+                    opening_for_span = opening
                 alternative = raster_span_on_current_walls(
-                    opening, segments, (sx, sy, ox, oy), walls)
+                    opening_for_span, segments, (sx, sy, ox, oy), walls)
                 if alternative is not None:
                     row["raster_span_on_current_walls"] = alternative
             report["openings"].append(row)
@@ -309,6 +376,10 @@ def save_wall_geometry_overlay(image_path, report, overlay_path):
         draw.line([tuple(source_start), tuple(source_end)], fill="yellow", width=3)
         draw.ellipse((start[0] - 4, start[1] - 4, start[0] + 4, start[1] + 4),
                      fill="red")
+    for row in report.get("openings", []):
+        if row.get("raster_axis_evidence") and row.get("reasons"):
+            span = row["raster_axis_evidence"]["span"]
+            draw.line([tuple(span[0]), tuple(span[1])], fill="cyan", width=3)
     overlay_path = Path(overlay_path)
     overlay_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(overlay_path)
@@ -325,13 +396,18 @@ def main():
     args = parser.parse_args()
     if bool(args.image) != bool(args.overlay):
         parser.error("--image and --overlay must be used together")
+    gray = None
+    if args.image:
+        with Image.open(args.image) as source:
+            gray = np.asarray(source.convert("L"))
     data = audit_opening_bindings(
         json.loads(args.classified.read_text(encoding="utf-8")),
         json.loads(args.project.read_text(encoding="utf-8")),
-        json.loads(args.geometry.read_text(encoding="utf-8")))
+        json.loads(args.geometry.read_text(encoding="utf-8")), gray=gray)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    if args.overlay and data.get("wall_geometry", {}).get("suspect", 0):
+    if args.overlay and (data.get("wall_geometry", {}).get("suspect", 0) or
+                         any(row.get("raster_axis_evidence") for row in data["openings"])):
         save_wall_geometry_overlay(args.image, data, args.overlay)
     print(f"Opening binding preflight: {data['status']}; "
           f"{data['summary']['suspect']}/{data['summary']['examined']} suspect")
