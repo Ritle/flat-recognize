@@ -8,15 +8,17 @@ import numpy as np
 from shapely.geometry import Polygon
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from filter_interior_windows_v2 import (duplicate_parallel_window_layers,
-                                        filter_interior_windows,
-                                        no_jamb_unconfirmed_windows,
-                                        one_sided_window_endcaps,
-                                        one_sided_unconfirmed_windows,
-                                        parallel_weak_window_pairs)
+from filter_interior_windows_v2 import (
+    duplicate_parallel_window_layers,
+    endcap_room_geometry_changes,
+    filter_interior_windows,
+    no_jamb_unconfirmed_windows,
+    one_sided_unconfirmed_windows,
+    one_sided_window_endcaps,
+    parallel_weak_window_pairs,
+)
 from recheck_reviewed_rooms import recheck_reviewed_rooms
-from review_decisions import (apply_review_decisions, make_review_questions,
-                              opening_fingerprint)
+from review_decisions import apply_review_decisions, make_review_questions, opening_fingerprint
 from validate_recognition import validate_recognition
 
 
@@ -245,7 +247,11 @@ class InteriorWindowFilterTests(unittest.TestCase):
                                              [120, 95], [20, 95]]
         previous = copy.deepcopy(self.rooms)
         previous["diagnostics"]["interior_window_filter"] = {
-            "ambiguous_windows": 1, "ambiguous_candidates": [{"id": 999}]}
+            "ambiguous_windows": 1, "ambiguous_candidates": [{"id": 999}],
+            "endcap_room_geometry_changes": [{
+                "opening_id": 11, "parent_window_id": 2,
+                "added_room_area_px2": 250, "removed_room_area_px2": 0,
+                "material": True}]}
         previous["diagnostics"]["opening_recovery"] = {"candidates": 2}
         previous["reclassified_wall_support"] = [{"source_opening_id": 9,
                                                    "outer": [[0, 0], [1, 0], [1, 1]]}]
@@ -256,8 +262,12 @@ class InteriorWindowFilterTests(unittest.TestCase):
         self.assertEqual(result["diagnostics"]["opening_recovery"], {"candidates": 2})
         self.assertEqual(result["reclassified_wall_support"],
                          previous["reclassified_wall_support"])
+        self.assertEqual(report["endcap_room_geometry_changes"],
+                         previous["diagnostics"]["interior_window_filter"][
+                             "endcap_room_geometry_changes"])
         quality = validate_recognition(result)
         self.assertEqual(quality["status"], "review")
+        self.assertIn("endcap_room_geometry_change", [item["code"] for item in quality["issues"]])
         self.assertIn(1, [question["opening_id"] for question in
                           make_review_questions(self.classified, quality, "a" * 64)])
         self.assertNotIn(999, [question["opening_id"] for question in
@@ -322,6 +332,17 @@ class InteriorWindowFilterTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in rooms["windows"]], [10, 12])
         self.assertEqual(rooms["reclassified_wall_support"][0]["source_opening_id"], 11)
         self.assertTrue(report["topology_stable"])
+        self.assertEqual(report["endcap_room_geometry_changes"][0]["material"], False)
+
+    def test_endcap_filter_reports_local_room_change_even_when_topology_matches(self):
+        before = [{"polygon": [[0, 0], [70, 0], [70, 50], [90, 50], [90, 0],
+                               [100, 0], [100, 100], [0, 100]]}]
+        after = [{"polygon": [[0, 0], [100, 0], [100, 100], [0, 100]]}]
+        endcaps = [{"id": 11, "parent_id": 10, "bbox": [70, 0, 90, 50]}]
+        changes = endcap_room_geometry_changes(before, after, endcaps)
+        self.assertEqual(changes, [{"opening_id": 11, "parent_window_id": 10,
+                                    "added_room_area_px2": 1000.0,
+                                    "removed_room_area_px2": 0.0, "material": True}])
 
 
 if __name__ == "__main__":

@@ -57,6 +57,25 @@ class QualityGateTest(unittest.TestCase):
         self.assertTrue(result["export_allowed"])
         self.assertEqual(result["metrics"]["user_review_choices"], 1)
 
+    def test_preserved_room_contour_with_material_endcap_shift_requires_review(self):
+        rooms, project, bindings = fixture()
+        rooms["diagnostics"]["interior_window_filter"] = {
+            "topology_stable": True,
+            "endcap_room_geometry_changes": [{
+                "opening_id": 15, "parent_window_id": 7,
+                "added_room_area_px2": 1499.15,
+                "removed_room_area_px2": 0.0, "material": True}]}
+        result = validate_recognition(rooms, project, bindings)
+        self.assertEqual(result["status"], "review")
+        change = next(issue for issue in result["issues"]
+                      if issue["code"] == "endcap_room_geometry_change")
+        self.assertEqual(change["parent_window_id"], 7)
+        self.assertEqual(change["added_room_area_px2"], 1499.15)
+
+        rooms["diagnostics"]["interior_window_filter"][
+            "endcap_room_geometry_changes"][0]["material"] = False
+        self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "good")
+
     def test_thick_topology_window_stays_invalid_after_type_confirmation(self):
         rooms, project, bindings = fixture()
         recovered = {"method": "topology_recovered_thick_window", "requires_review": True}

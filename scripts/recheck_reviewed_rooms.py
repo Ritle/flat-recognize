@@ -5,9 +5,8 @@ import json
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
-
 from filter_interior_windows_v2 import reviewed_window_report
+from PIL import Image
 
 
 def recheck_reviewed_rooms(classified, previous_rooms, reviewed_rooms, rgb):
@@ -17,6 +16,11 @@ def recheck_reviewed_rooms(classified, previous_rooms, reviewed_rooms, rgb):
     previous_diagnostics = previous_rooms.get("diagnostics", {})
     if "opening_recovery" in previous_diagnostics:
         diagnostics["opening_recovery"] = previous_diagnostics["opening_recovery"]
+    previous_filter = previous_diagnostics.get("interior_window_filter", {})
+    if (isinstance(previous_filter, dict)
+            and "endcap_room_geometry_changes" in previous_filter):
+        report["endcap_room_geometry_changes"] = previous_filter[
+            "endcap_room_geometry_changes"]
     if "reclassified_wall_support" in previous_rooms:
         reviewed_rooms["reclassified_wall_support"] = previous_rooms[
             "reclassified_wall_support"]

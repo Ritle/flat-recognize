@@ -10,12 +10,12 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw
-from shapely.geometry import Point, Polygon
-
 from classify_openings import opening_axis, opening_geometry, structural_union
 from door_leaf_evidence import leaf_and_arc, wall_jamb_support
 from extract_rooms_v2 import extract_rooms
+from PIL import Image, ImageDraw
+from shapely.geometry import Point, Polygon, box
+from shapely.ops import unary_union
 
 
 def same_room_topology(before, after):
@@ -33,6 +33,27 @@ def same_room_topology(before, after):
             return False
         unmatched.pop(index)
     return True
+
+
+def endcap_room_geometry_changes(before, after, endcaps):
+    """Measure the room footprint hidden by keeping pre-filter contours."""
+    if not endcaps:
+        return []
+    old = unary_union([Polygon(room["polygon"]) for room in before])
+    new = unary_union([Polygon(room["polygon"]) for room in after])
+    gained, lost = new.difference(old), old.difference(new)
+    changes = []
+    for endcap in endcaps:
+        x0, y0, x1, y1 = endcap["bbox"]
+        margin = max(6, min(x1 - x0, y1 - y0) * .5)
+        region = box(x0 - margin, y0 - margin, x1 + margin, y1 + margin)
+        added = gained.intersection(region).area
+        removed = lost.intersection(region).area
+        changes.append({"opening_id": endcap["id"], "parent_window_id": endcap["parent_id"],
+                        "added_room_area_px2": round(added, 2),
+                        "removed_room_area_px2": round(removed, 2),
+                        "material": max(added, removed) > max(50, (x1 - x0) * (y1 - y0) * .02)})
+    return changes
 
 
 def same_room_across_opening(start, end, wall_width, room_shapes):
@@ -365,6 +386,8 @@ def filter_interior_windows(classified, rooms, rgb):
                 else:
                     baseline_rooms = copy.deepcopy(rooms)
                 report["endcap_geometry_preserved"] = True
+                report["endcap_room_geometry_changes"] = endcap_room_geometry_changes(
+                    baseline_rooms.get("rooms", []), rebuilt.get("rooms", []), endcaps)
                 filtered_rooms = baseline_rooms
                 ids = {candidate["id"] for candidate in endcaps}
                 filtered_rooms["windows"] = [window for window in filtered_rooms["windows"]

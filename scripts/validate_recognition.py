@@ -149,6 +149,17 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     if isinstance(interior_filter, dict) and interior_filter.get("topology_stable") is False:
         issue("unstable_room_topology", "error",
               "После удаления ложных окон контуры комнат изменились; экспорт заблокирован.")
+    if isinstance(interior_filter, dict):
+        for change in interior_filter.get("endcap_room_geometry_changes", []):
+            if not isinstance(change, dict) or not change.get("material"):
+                continue
+            issue("endcap_room_geometry_change", "warning",
+                  "После удаления ложного края окна локально изменяется площадь комнаты; "
+                  "проверьте контур у оконного проёма.",
+                  source_opening_id=change.get("opening_id"),
+                  parent_window_id=change.get("parent_window_id"),
+                  added_room_area_px2=change.get("added_room_area_px2"),
+                  removed_room_area_px2=change.get("removed_room_area_px2"))
     if isinstance(interior_filter, dict) and interior_filter.get("ambiguous_windows", 0):
         candidates = interior_filter.get("ambiguous_candidates", [])
         identified = [candidate for candidate in candidates
