@@ -76,6 +76,7 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
             job = Path(temp) / job_id
             job.mkdir()
             report = {"status": "audited", "summary": {"examined": 5, "suspect": 2},
+                      "wall_geometry": {"sampled": 12, "suspect": 3},
                       "openings": [{"opening_id": 9, "reasons": ["exceeds_segment"]}]}
             (job / "opening_preflight.json").write_text(json.dumps(report), encoding="utf-8")
             self.assertEqual(await api.job_opening_preflight(job_id), report)
@@ -106,6 +107,7 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                         json.dumps(rooms), encoding="utf-8")
                 (output / f"{stem}_opening_preflight.json").write_text(json.dumps({
                     "status": "audited", "summary": {"examined": 1, "suspect": 1},
+                    "wall_geometry": {"sampled": 6, "suspect": 2},
                     "openings": [{"opening_id": 3, "reasons": ["far_from_wall"]}]}),
                     encoding="utf-8")
                 project_path.with_suffix(".quality.json").write_text(json.dumps(quality), encoding="utf-8")
@@ -117,6 +119,7 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 question = first["review_questions"][0]
                 self.assertEqual(question["opening_id"], 3)
                 self.assertEqual(first["opening_preflight"]["summary"]["suspect"], 1)
+                self.assertEqual(first["opening_preflight"]["wall_geometry"]["suspect"], 2)
                 self.assertEqual(first["opening_preflight_url"],
                                  f"/api/jobs/{first['job_id']}/opening-preflight")
                 payload = {"version": 1, "image_sha256": first["image_sha256"],
@@ -140,7 +143,7 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
             job_id = str(uuid.uuid4())
             job = Path(temp) / job_id
             job.mkdir()
-            for kind in ("topology_windows", "interior_windows"):
+            for kind in ("topology_windows", "interior_windows", "wall_geometry"):
                 Image.new("RGB", (10, 10), "white").save(job / f"{kind}.png")
                 response = await api.job_image(job_id, kind)
                 self.assertEqual(Path(response.path), job / f"{kind}.png")
@@ -168,6 +171,8 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                     (output / f"{stem}{suffix}").write_text("{}", encoding="utf-8")
                 Image.new("RGB", (10, 10), "white").save(
                     output / f"{stem}_interior_windows_overlay.png")
+                Image.new("RGB", (10, 10), "white").save(
+                    output / f"{stem}_wall_geometry_overlay.png")
                 project_path.with_suffix(".quality.json").write_text(
                     json.dumps(quality), encoding="utf-8")
                 return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
@@ -177,7 +182,10 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 response = await api.recognize(UploadFile(filename="test.png", file=io.BytesIO(b"source")), True)
                 self.assertEqual(response["quality"]["status"], "invalid")
                 self.assertIn("interior_windows", response["images"])
+                self.assertIn("wall_geometry", response["images"])
                 image = await api.job_image(response["job_id"], "interior_windows")
+                self.assertTrue(Path(image.path).exists())
+                image = await api.job_image(response["job_id"], "wall_geometry")
                 self.assertTrue(Path(image.path).exists())
 
     async def test_result_and_export_routes_for_each_status(self):

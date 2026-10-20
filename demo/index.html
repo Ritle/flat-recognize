@@ -701,7 +701,11 @@ async function showResult(data) {
     const bindingNote = suspectBindings > 0
         ? `Предварительная проверка: подозрительных привязок проёмов — ${suspectBindings}.`
         : null;
-    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote,
+    const suspectWalls = data.opening_preflight?.wall_geometry?.suspect || 0;
+    const wallNote = suspectWalls > 0
+        ? `Проверьте ось и толщину стен: подозрительных участков — ${suspectWalls}.`
+        : null;
+    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote,
         ...(data.warnings || [])].filter(Boolean).join('\n');
     warnings.classList.toggle('invalid', quality?.status === 'invalid');
     warnings.style.display = warnings.textContent ? 'block' : 'none';
@@ -914,6 +918,11 @@ function setupImages(data) {
             label: 'Геометрия экспорта',
             url: data.images.export,
             caption: 'Синий — стены по контурам комнат, бирюзовый — добавленные внутренние стены, оранжевый — неподтверждённые участки границ.'
+        },
+        {
+            label: 'Проверка стен',
+            url: data.images.wall_geometry,
+            caption: 'Красный — ось стены в проекте, жёлтый — предполагаемая середина опорной полосы на исходном плане. Предложение диагностическое: оно не меняет проект.'
         },
         {
             label: 'Область плана',

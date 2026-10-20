@@ -10,6 +10,7 @@ import math
 import statistics
 from pathlib import Path
 
+from PIL import Image, ImageDraw
 from add_openings import (choose_segment_binding, door_width_cm, get_center,
                           get_opening_length_px, opening_orientation)
 from shapely.geometry import LineString, Point, Polygon
@@ -173,10 +174,15 @@ def audit_segment_wall_bands(segments, support, transform):
                 and all(offset * center_offset > 0 for offset in offsets)):
             reasons.append("wall_axis_off_center")
         if reasons:
+            source_offset_px = statistics.median(offsets)
             result["segments"].append({
                 "wall_uuid": segment.get("uuid"),
                 "pixel_start": [round(ax, 2), round(ay, 2)],
                 "pixel_end": [round(bx, 2), round(by, 2)],
+                "source_axis_pixel_start": [round(ax + nx * source_offset_px, 2),
+                                            round(ay + ny * source_offset_px, 2)],
+                "source_axis_pixel_end": [round(bx + nx * source_offset_px, 2),
+                                          round(by + ny * source_offset_px, 2)],
                 "measured_thickness_cm": round(measured, 2),
                 "project_thickness_cm": round(expected, 2),
                 "axis_offset_cm": round(center_offset, 2),
@@ -291,19 +297,42 @@ def audit_opening_bindings(classified, project, geometry):
     return report
 
 
+def save_wall_geometry_overlay(image_path, report, overlay_path):
+    """Show only corroborated suspect axes; the lines are diagnostic proposals."""
+    with Image.open(image_path) as source:
+        image = source.convert("RGB")
+    draw = ImageDraw.Draw(image)
+    for row in report.get("wall_geometry", {}).get("segments", []):
+        start, end = row["pixel_start"], row["pixel_end"]
+        source_start, source_end = row["source_axis_pixel_start"], row["source_axis_pixel_end"]
+        draw.line([tuple(start), tuple(end)], fill="red", width=4)
+        draw.line([tuple(source_start), tuple(source_end)], fill="yellow", width=3)
+        draw.ellipse((start[0] - 4, start[1] - 4, start[0] + 4, start[1] + 4),
+                     fill="red")
+    overlay_path = Path(overlay_path)
+    overlay_path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(overlay_path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("classified", type=Path)
     parser.add_argument("project", type=Path)
     parser.add_argument("geometry", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--image", type=Path)
+    parser.add_argument("--overlay", type=Path)
     args = parser.parse_args()
+    if bool(args.image) != bool(args.overlay):
+        parser.error("--image and --overlay must be used together")
     data = audit_opening_bindings(
         json.loads(args.classified.read_text(encoding="utf-8")),
         json.loads(args.project.read_text(encoding="utf-8")),
         json.loads(args.geometry.read_text(encoding="utf-8")))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    if args.overlay and data.get("wall_geometry", {}).get("suspect", 0):
+        save_wall_geometry_overlay(args.image, data, args.overlay)
     print(f"Opening binding preflight: {data['status']}; "
           f"{data['summary']['suspect']}/{data['summary']['examined']} suspect")
 

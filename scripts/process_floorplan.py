@@ -317,6 +317,8 @@ def main():
     opening_preflight_json = OUTPUT / f"{stem}_opening_preflight.json"
     geometry_report = OUTPUT / f"{stem}_geometry.json"
     opening_preflight_json.unlink(missing_ok=True)
+    wall_geometry_overlay = OUTPUT / f"{stem}_wall_geometry_overlay.png"
+    wall_geometry_overlay.unlink(missing_ok=True)
     export_overlay = OUTPUT / f"{stem}_export_overlay.png"
 
     if args.output:
@@ -524,7 +526,8 @@ def main():
         run_command("V2 - Audit opening-to-wall fit",
                     [python, SCRIPTS / "audit_opening_bindings.py",
                      classified_json, project_json, geometry_report,
-                     "--output", opening_preflight_json], required=False)
+                     "--output", opening_preflight_json,
+                     "--image", image, "--overlay", wall_geometry_overlay], required=False)
     validation_command.extend(["--geometry", geometry_report])
     run_command("Quality gate - Export geometry", validation_command + ["--project", project_json])
 

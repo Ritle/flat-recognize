@@ -344,7 +344,10 @@ async def recognize(
         shutil.copy2(preflight_path, job_dir / "opening_preflight.json")
         preflight_data = json.loads(preflight_path.read_text(encoding="utf-8"))
         opening_preflight = {"status": preflight_data.get("status"),
-                             "summary": preflight_data.get("summary", {})}
+                             "summary": preflight_data.get("summary", {}),
+                             "wall_geometry": {
+                                 key: preflight_data.get("wall_geometry", {}).get(key, 0)
+                                 for key in ("sampled", "suspect")}}
     geometry_path = OUTPUT_DIR / f"{job_id}_geometry.json"
     if geometry_path.exists():
         shutil.copy2(geometry_path, job_dir / "geometry.json")
@@ -397,6 +400,7 @@ async def recognize(
             "closures": OUTPUT_DIR / f"{job_id}_closures.png",
             "recovery": OUTPUT_DIR / f"{job_id}_opening_recovery_overlay.png",
             "topology_windows": OUTPUT_DIR / f"{job_id}_topology_windows_overlay.png",
+            "wall_geometry": OUTPUT_DIR / f"{job_id}_wall_geometry_overlay.png",
         })
         if has_opening_answers:
             generated_images["closures"] = reviewed_dir / f"{job_id}_closures.png"
@@ -625,6 +629,7 @@ async def job_image(
         "recovery",
         "topology_windows",
         "interior_windows",
+        "wall_geometry",
     }
 
     if kind not in allowed:

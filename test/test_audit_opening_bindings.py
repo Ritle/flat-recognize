@@ -4,10 +4,12 @@ from pathlib import Path
 from unittest.mock import patch
 import subprocess
 import io
+import tempfile
 from contextlib import redirect_stdout
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from audit_opening_bindings import audit_opening_bindings
+from audit_opening_bindings import audit_opening_bindings, save_wall_geometry_overlay
+from PIL import Image
 from shapely.geometry import Polygon
 from process_floorplan import run_command
 
@@ -134,6 +136,7 @@ class OpeningBindingAuditTests(unittest.TestCase):
                          (1, 1, 1))
         self.assertEqual(wall["segments"][0]["measured_thickness_cm"], 80)
         self.assertEqual(wall["segments"][0]["axis_offset_cm"], -40)
+        self.assertEqual(wall["segments"][0]["source_axis_pixel_start"], [0.0, -40.0])
         self.assertEqual(wall["segments"][0]["reasons"],
                          ["wall_thickness_mismatch", "wall_axis_off_center"])
         self.assertEqual(original, project())
@@ -142,6 +145,18 @@ class OpeningBindingAuditTests(unittest.TestCase):
             {"outer": [[0, -10], [100, -10], [100, 10], [0, 10]]}]}
         wall = audit_opening_bindings(centered, original, geometry)["wall_geometry"]
         self.assertEqual((wall["sampled"], wall["suspect"]), (1, 0))
+
+    def test_suspect_wall_overlay_shows_project_and_source_axes(self):
+        report = {"wall_geometry": {"segments": [{
+            "pixel_start": [10, 60], "pixel_end": [90, 60],
+            "source_axis_pixel_start": [10, 20], "source_axis_pixel_end": [90, 20]}]}}
+        with tempfile.TemporaryDirectory() as temp:
+            image_path, overlay_path = Path(temp) / "source.png", Path(temp) / "walls.png"
+            Image.new("RGB", (100, 80), "white").save(image_path)
+            save_wall_geometry_overlay(image_path, report, overlay_path)
+            with Image.open(overlay_path) as image:
+                self.assertEqual(image.getpixel((50, 60)), (255, 0, 0))
+                self.assertEqual(image.getpixel((50, 20)), (255, 255, 0))
 
     def test_invalid_candidate_is_reported_without_stopping_audit(self):
         data = {"doors": [{"id": 1}],

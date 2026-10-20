@@ -47,14 +47,22 @@ async function show(status) {
     await show('invalid'); // Prior successful JSON/link must be cleared.
     assert.equal(fetches, 1); // Never fetch a blocked or null JSON URL.
     await context.showResult({quality: {status: 'invalid', errors: []}, warnings: [],
-        opening_preflight: {status: 'audited', summary: {examined: 5, suspect: 2}},
+        opening_preflight: {status: 'audited', summary: {examined: 5, suspect: 2},
+            wall_geometry: {sampled: 10, suspect: 3}},
         stats: {rooms: 0, walls: 0, doors: 0, windows: 0}, seconds: 1,
         filename: 'plan.png', job_id: 'sample-job', images: {}, original_url: '/original'});
     assert.match(nodes.get('recognitionWarnings').textContent,
         /подозрительных привязок проёмов — 2/);
+    assert.match(nodes.get('recognitionWarnings').textContent,
+        /подозрительных участков — 3/);
     await show('review'); // Review restores export controls.
     assert.equal(fetches, 2);
     assert.match(nodes.get('recognitionWarnings').textContent, /ручной проверки/);
+    nodes.get('tabs').children = [];
+    context.setupImages({images: {wall_geometry: '/wall-geometry'}});
+    assert.equal(nodes.get('tabs').children[0].textContent, 'Проверка стен');
+    nodes.get('tabs').children[0].onclick();
+    assert.match(nodes.get('imageCaption').textContent, /Красный — ось стены в проекте/);
     nodes.get('tabs').children = [];
     context.setupImages({images: {recovery: '/recovery'}});
     const tab = nodes.get('tabs').children[0];
