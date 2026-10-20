@@ -6,7 +6,7 @@ import uuid
 from itertools import pairwise
 
 from shapely import set_precision
-from shapely.geometry import GeometryCollection, LineString, Point, Polygon
+from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polygonize, unary_union
 
@@ -279,6 +279,108 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
     return result, changes
 
 
+def bridge_recovered_window_bays(shapes, windows, walls, half_wall):
+    """Add a small, supported room-face strip when a measured window crosses a wall junction."""
+    result, changes = list(shapes), []
+    if walls.is_empty:
+        return result, changes
+    for window_index, opening in enumerate(windows):
+        recovery = opening.get("recovery") or {}
+        if not isinstance(recovery, dict):
+            continue
+        evidence = recovery.get("raster_axis_evidence") or {}
+        if not isinstance(evidence, dict):
+            continue
+        bay = evidence.get("bay_evidence") or {}
+        if not isinstance(bay, dict):
+            continue
+        span = evidence.get("span")
+        jamb_support = bay.get("jamb_support")
+        if (recovery.get("method") != "topology_recovered_thick_window"
+                or evidence.get("method") != "paired_raster_rails"
+                or evidence.get("extent_basis") != "raster_clear_bay"
+                or evidence.get("minimum_support", 0) < .8
+                or not isinstance(jamb_support, (list, tuple)) or len(jamb_support) != 2
+                or min(jamb_support) < .8
+                or not isinstance(span, list) or len(span) != 2):
+            continue
+        try:
+            ax, ay = map(float, span[0])
+            bx, by = map(float, span[1])
+        except (TypeError, ValueError):
+            continue
+        if not all(math.isfinite(v) for v in (ax, ay, bx, by)):
+            continue
+        dx, dy = bx - ax, by - ay
+        horizontal = abs(dx) >= abs(dy)
+        length = abs(dx) if horizontal else abs(dy)
+        if length < half_wall * 8 or min(abs(dx), abs(dy)) > length * .1:
+            continue
+        center = Point((ax + bx) / 2, (ay + by) / 2)
+        lo, hi = sorted((ax, bx) if horizontal else (ay, by))
+        # An existing continuous facade edge already carries the measured bay.
+        def fits(edge_start, edge_end):
+            u, v = (edge_start[0], edge_end[0]) if horizontal else (edge_start[1], edge_end[1])
+            p, q = (edge_start[1], edge_end[1]) if horizontal else (edge_start[0], edge_end[0])
+            return (min(u, v) <= lo + half_wall / 2 and max(u, v) >= hi - half_wall / 2
+                    and abs(p - q) <= abs(u - v) * .1
+                    and LineString([edge_start, edge_end]).distance(center) <= half_wall * 2)
+        if any(fits(a, b) for shape in result
+               for a, b in pairwise(shape.exterior.coords)):
+            continue
+        opening_shape = Polygon(opening.get("outer", []))
+        if not opening_shape.is_valid or opening_shape.is_empty:
+            continue
+        width = (opening_shape.bounds[3] - opening_shape.bounds[1] if horizontal else
+                 opening_shape.bounds[2] - opening_shape.bounds[0])
+        if width <= 0:
+            continue
+        support = unary_union([walls, opening_shape])
+        pad = half_wall * 1.5
+        reach = width + half_wall * 2
+        candidates = []
+        for side in (-1, 1):
+            if horizontal:
+                near = center.y + side * half_wall
+                far = near + side * reach
+                strip = box(lo - pad, min(near, far), hi + pad, max(near, far))
+            else:
+                near = center.x + side * half_wall
+                far = near + side * reach
+                strip = box(min(near, far), lo - pad, max(near, far), hi + pad)
+            for room_index, shape in enumerate(result):
+                candidate = shape.union(strip)
+                if candidate.geom_type != "Polygon" or not candidate.is_valid or candidate.interiors:
+                    continue
+                added = candidate.difference(shape)
+                if (added.area < half_wall * length * .2
+                        or added.area > min(shape.area * .06, width * length * 1.5)):
+                    continue
+                support_fraction = added.intersection(support).area / added.area
+                if support_fraction < .7:
+                    continue
+                if any(candidate.intersection(other).area > 1e-5
+                       for i, other in enumerate(result) if i != room_index):
+                    continue
+                if not any(fits(a, b) for a, b in pairwise(candidate.exterior.coords)):
+                    continue
+                try:
+                    partition_rooms([candidate if i == room_index else shape
+                                     for i, shape in enumerate(result)], half_wall)
+                except ValueError:
+                    continue
+                candidates.append((room_index, side, candidate, added.area, support_fraction))
+        if len(candidates) != 1:
+            continue
+        room_index, side, candidate, area, support_fraction = candidates[0]
+        result[room_index] = candidate
+        changes.append({"room_id": room_index, "window_index": window_index,
+                        "method": "supported_raster_window_bay",
+                        "area_change_px2": round(area, 2),
+                        "support_fraction": round(support_fraction, 3), "side": side})
+    return result, changes
+
+
 def partition_rooms(shapes, offset, diagnostics=None):
     """Expand to wall axes, partition contested strips, retain original interiors.
 
@@ -363,6 +465,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     repaired = sum(not p.is_valid for p in wall_shapes + openings)
     walls = unary_union([p if p.is_valid else p.buffer(0) for p in wall_shapes]) if wall_shapes else GeometryCollection()
     shapes, aligned_windows = align_window_boundaries(shapes, source.get("windows", []), walls, half_wall)
+    shapes, bridged_windows = bridge_recovered_window_bays(
+        shapes, source.get("windows", []), walls, half_wall)
     adjustments = []
     shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments)]
     level_template = template["levels"][0]
@@ -482,6 +586,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
               "aligned_window_boundaries": aligned_windows,
+              "bridged_window_bays": bridged_windows,
               "aligned_door_boundaries": aligned_doors,
               "matched_closure_edges": matched_closure_edges,
               "offset_sliver_edges": offset_sliver_edges,

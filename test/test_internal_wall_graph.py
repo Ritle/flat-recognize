@@ -12,7 +12,8 @@ from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from internal_wall_graph import extend_project_walls, internal_lines
+from internal_wall_graph import (extend_project_walls, internal_lines,
+                                 recovered_window_frame_branch)
 from polygon_geometry import build_polygon_project, parts
 from validate_recognition import validate_recognition
 
@@ -121,6 +122,19 @@ class InternalWallsTest(unittest.TestCase):
         _project, report, _ = self.build(data)
         self.assertEqual(report["internal_wall_graph"]["added_segments"], [])
         self.assertTrue(report["internal_wall_graph"]["rejected"])
+
+    def test_recovered_window_frame_branch_is_not_a_partition(self):
+        opening = {"outer": [[10, -10], [190, -10], [190, 80], [175, 80],
+                             [175, 20], [25, 20], [25, 80], [10, 80]],
+                   "recovery": {"method": "topology_recovered_thick_window"}}
+        short_frame = LineString([(40, 20), (55, 70)])
+        self.assertTrue(recovered_window_frame_branch(short_frame, [opening]))
+        self.assertFalse(recovered_window_frame_branch(
+            LineString([(40, 20), (55, 150)]), [opening]))
+        self.assertFalse(recovered_window_frame_branch(
+            LineString([(40, 50), (140, 50)]), [opening]))
+        self.assertFalse(recovered_window_frame_branch(
+            short_frame, [{**opening, "recovery": {}}]))
 
     def test_temporary_closure_is_not_a_wall_or_a_bridge(self):
         data = fixture([box(20, 90, 85, 110), box(115, 90, 180, 110)])

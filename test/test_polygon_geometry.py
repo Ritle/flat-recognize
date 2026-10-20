@@ -12,7 +12,8 @@ from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from polygon_geometry import (align_window_boundaries, build_polygon_project, partition_rooms,
+from polygon_geometry import (align_window_boundaries, bridge_recovered_window_bays,
+                              build_polygon_project, partition_rooms,
                               requires_polygons, straighten_shared_door_kinks,
                               supported_offset_sliver)
 from validate_recognition import validate_recognition
@@ -120,6 +121,37 @@ class PolygonGeometryTest(unittest.TestCase):
         aligned, changes = align_window_boundaries([room], [window], thin_line, 10)
         self.assertEqual(changes, [])
         self.assertEqual(aligned, [room])
+
+    def test_measured_window_bay_bridges_only_supported_missing_facade_span(self):
+        room = Polygon([(0, 80), (80, 80), (80, 40), (320, 40),
+                        (320, 80), (800, 80), (800, 500), (0, 500)])
+        opening = {"outer": [[60, -30], [340, -30], [340, 60], [60, 60]],
+                   "recovery": {"method": "topology_recovered_thick_window",
+                                "raster_axis_evidence": {
+                                    "method": "paired_raster_rails",
+                                    "span": [[60, 0], [340, 0]],
+                                    "extent_basis": "raster_clear_bay",
+                                    "minimum_support": 1,
+                                    "bay_evidence": {"jamb_support": [1, 1]}}}}
+        walls = box(45, -30, 355, 90)
+        bridged, changes = bridge_recovered_window_bays([room], [opening], walls, 10)
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["method"], "supported_raster_window_bay")
+        self.assertGreater(changes[0]["support_fraction"], .7)
+        self.assertTrue(bridged[0].is_valid)
+        self.assertLess(room.difference(bridged[0]).area, 1e-5)
+        self.assertTrue(any(y == 10 and x <= 45 for x, y in bridged[0].exterior.coords))
+        self.assertEqual(bridge_recovered_window_bays(bridged, [opening], walls, 10),
+                         (bridged, []))
+        unconfirmed = copy.deepcopy(opening)
+        unconfirmed["recovery"]["raster_axis_evidence"]["minimum_support"] = .5
+        self.assertEqual(bridge_recovered_window_bays([room], [unconfirmed], walls, 10),
+                         ([room], []))
+        self.assertEqual(bridge_recovered_window_bays([room], [opening], Polygon(), 10),
+                         ([room], []))
+        neighbor = box(100, 15, 120, 35)
+        self.assertEqual(bridge_recovered_window_bays(
+            [room, neighbor], [opening], walls, 10), ([room, neighbor], []))
 
     def test_acute_raster_corner_does_not_project_beyond_wall_offset(self):
         room = Polygon([(0, 0), (40, 0), (41, -6), (44, 1),

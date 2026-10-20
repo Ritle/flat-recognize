@@ -86,6 +86,34 @@ def source_shapes(source):
     return unary_union([p if p.is_valid else p.buffer(0) for p in polygons])
 
 
+def recovered_window_frame_branch(candidate, windows):
+    """A short perpendicular centerline inside a recovered window is its frame, not a partition."""
+    a, b = candidate.coords[0], candidate.coords[-1]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    direction_length = math.hypot(dx, dy)
+    if direction_length <= 0:
+        return False
+    for opening in windows:
+        recovery = opening.get("recovery") or {}
+        if recovery.get("method") != "topology_recovered_thick_window":
+            continue
+        shape = Polygon(opening.get("outer", []))
+        if not shape.is_valid or shape.is_empty:
+            continue
+        x0, y0, x1, y1 = shape.bounds
+        horizontal = x1 - x0 >= y1 - y0
+        thickness = y1 - y0 if horizontal else x1 - x0
+        if (candidate.length > thickness * .85
+                or (abs(dx) if horizontal else abs(dy)) > direction_length * .45):
+            continue
+        # Recovered polygons often trace only the rails; their interior bay is
+        # empty geometry even though its bounding frame is an opening.
+        if (candidate.intersection(shape.envelope).length >= candidate.length * .7
+                and candidate.distance(shape) <= thickness * .25):
+            return True
+    return False
+
+
 def internal_lines(source, room_shapes, existing, half_wall):
     structure = source_shapes(source)
     report = {"version": 1, "method": "segmentation_skeleton", "lines": [], "rejected": []}
@@ -171,6 +199,11 @@ def internal_lines(source, room_shapes, existing, half_wall):
                         and extension.difference(support).length < step):
                     points[index] = tuple(nearest.coords[0])
             candidate = LineString(points)
+            if recovered_window_frame_branch(candidate, source.get("windows", [])):
+                report["rejected"].append({"points": [list(p) for p in candidate.coords],
+                                           "length_px": round(candidate.length, 3),
+                                           "reason": "recovered_window_frame_branch"})
+                continue
             reason = None
             if candidate.intersection(unknown).length > 1e-4:
                 reason = "temporary_closure_without_opening"
