@@ -136,7 +136,9 @@ def audit_segment_wall_bands(segments, support, transform):
         reasons = []
         if measured > expected * 2.5 or measured < expected * .35:
             reasons.append("wall_thickness_mismatch")
-        if (abs(center_offset) > max(8 * normal_scale, expected * .75)
+        # A consistent quarter-band displacement is visible in the exported
+        # wall even when its absolute size is smaller than nominal thickness.
+        if (abs(center_offset) > max(6 * normal_scale, measured * .25)
                 and all(offset * center_offset > 0 for offset in offsets)):
             reasons.append("wall_axis_off_center")
         if reasons:

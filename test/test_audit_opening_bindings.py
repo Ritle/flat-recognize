@@ -176,6 +176,13 @@ class OpeningBindingAuditTests(unittest.TestCase):
         wall = audit_opening_bindings(centered, original, geometry)["wall_geometry"]
         self.assertEqual((wall["sampled"], wall["suspect"]), (1, 0))
 
+        moderately_shifted = {"doors": [], "windows": [], "walls": [
+            {"outer": [[0, -6], [100, -6], [100, 22], [0, 22]]}]}
+        wall = audit_opening_bindings(moderately_shifted, original, geometry)["wall_geometry"]
+        self.assertEqual((wall["sampled"], wall["suspect"]), (1, 1))
+        self.assertEqual(wall["segments"][0]["reasons"], ["wall_axis_off_center"])
+        self.assertEqual(wall["segments"][0]["axis_offset_cm"], 8)
+
     def test_suspect_wall_overlay_shows_project_and_source_axes(self):
         report = {"wall_geometry": {"segments": [{
             "pixel_start": [10, 60], "pixel_end": [90, 60],
