@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from add_openings import choose_segment_binding, door_width_cm
+from add_openings import choose_segment_binding, door_width_cm, opening_export_geometry
 
 
 def segment(uid, ax, ay, bx, by):
@@ -12,6 +12,29 @@ def segment(uid, ax, ay, bx, by):
 
 
 class OpeningBindingSelectionTests(unittest.TestCase):
+    def test_recovered_window_uses_bounded_raster_bay_for_export(self):
+        opening = {"id": 19, "center": [60, 42], "bbox": [0, 0, 120, 80],
+                   "length": 120, "orientation": "horizontal",
+                   "recovery": {"method": "topology_recovered_thick_window",
+                                "raster_axis_evidence": {
+                                    "span": [[10, 38], [90, 38]],
+                                    "extent_basis": "raster_clear_bay",
+                                    "minimum_support": .95,
+                                    "bay_evidence": {"start": 10, "end": 90,
+                                                     "jamb_support": [.9, .9]}}}}
+        geometry = opening_export_geometry(opening)
+        self.assertEqual(geometry, {"center": (50, 38), "orientation": "horizontal",
+                                    "length_px": 80, "source": "raster_clear_bay"})
+        self.assertEqual(opening_export_geometry(opening, door=True)["length_px"], 120)
+
+        opening["recovery"]["raster_axis_evidence"]["bay_evidence"]["jamb_support"] = [.9, .5]
+        self.assertEqual(opening_export_geometry(opening)["source"], "segmentation")
+        opening["recovery"]["raster_axis_evidence"]["bay_evidence"] = {}
+        self.assertEqual(opening_export_geometry(opening)["source"], "segmentation")
+        opening["recovery"]["raster_axis_evidence"]["bay_evidence"] = {
+            "start": 30, "end": 90, "jamb_support": [.9, .9]}
+        self.assertEqual(opening_export_geometry(opening)["source"], "segmentation")
+
     def test_door_minimum_width_is_used_for_selection_and_export(self):
         self.assertEqual(door_width_cm(20), 40)
         self.assertAlmostEqual(door_width_cm(80), 89.6)

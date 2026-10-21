@@ -90,6 +90,58 @@ def opening_orientation(obj):
     return "vertical"
 
 
+def opening_export_geometry(opening, door=False):
+    """Use a verified raster bay instead of a recovered window's thick mask."""
+    fallback = {"center": get_center(opening),
+                "orientation": opening_orientation(opening),
+                "length_px": get_opening_length_px(opening),
+                "source": "segmentation"}
+    if door:
+        return fallback
+    recovery = opening.get("recovery") or {}
+    if (not isinstance(recovery, dict)
+            or recovery.get("method") != "topology_recovered_thick_window"):
+        return fallback
+    evidence = recovery.get("raster_axis_evidence") or {}
+    if not isinstance(evidence, dict) or evidence.get("extent_basis") != "raster_clear_bay":
+        return fallback
+    try:
+        bay = evidence["bay_evidence"]
+        jambs = [float(v) for v in bay["jamb_support"]]
+        support = float(evidence["minimum_support"])
+        if (len(jambs) != 2 or not all(math.isfinite(v) for v in (support, *jambs))
+                or min(support, *jambs) < .8):
+            return fallback
+        (x0, y0), (x1, y1) = evidence["span"]
+        x0, y0, x1, y1 = (float(v) for v in (x0, y0, x1, y1))
+        bounds = get_bbox(opening)
+        if bounds is None or not all(math.isfinite(v) for v in (x0, y0, x1, y1, *bounds)):
+            return fallback
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        orientation = "horizontal" if dx >= dy else "vertical"
+        if (min(dx, dy) > max(dx, dy) * .1
+                or orientation != fallback["orientation"]):
+            return fallback
+        lo, hi = ((min(x0, x1), max(x0, x1)) if orientation == "horizontal" else
+                  (min(y0, y1), max(y0, y1)))
+        bay_start, bay_end = float(bay["start"]), float(bay["end"])
+        if (not all(math.isfinite(v) for v in (bay_start, bay_end))
+                or abs(lo - bay_start) > 2 or abs(hi - bay_end) > 2):
+            return fallback
+        bbox_lo, bbox_hi = ((bounds[0], bounds[2]) if orientation == "horizontal" else
+                            (bounds[1], bounds[3]))
+        overlap = max(0, min(hi, bbox_hi) - max(lo, bbox_lo))
+        if (hi - lo < max(20, (bbox_hi - bbox_lo) * .4)
+                or overlap < .7 * (hi - lo)
+                or hi - lo > bbox_hi - bbox_lo + 20):
+            return fallback
+    except (KeyError, TypeError, ValueError, OverflowError, AttributeError):
+        return fallback
+    return {"center": ((x0 + x1) / 2, (y0 + y1) / 2),
+            "orientation": orientation, "length_px": hi - lo,
+            "source": "raster_clear_bay"}
+
+
 def point_to_segment(px, py, ax, ay, bx, by):
     dx = bx - ax
     dy = by - ay
@@ -455,20 +507,16 @@ def main():
         })
 
     def bind_opening(opening, door=False):
-        px, py = get_center(opening)
+        export_geometry = opening_export_geometry(opening, door=door)
+        px, py = export_geometry["center"]
 
         wx, wy = pixel_to_world(
             px,
             py
         )
 
-        orientation = opening_orientation(
-            opening
-        )
-
-        length_px = get_opening_length_px(
-            opening
-        )
+        orientation = export_geometry["orientation"]
+        length_px = export_geometry["length_px"]
 
         if orientation == "horizontal":
             width_cm = (
@@ -495,6 +543,7 @@ def main():
         best["width_cm"] = width_cm
         best["orientation"] = orientation
         best["pixel_center"] = [px, py]
+        best["geometry_source"] = export_geometry["source"]
 
         return best
 
@@ -742,6 +791,7 @@ def main():
 
             "orientation":
                 binding["orientation"],
+            "geometry_source": binding["geometry_source"],
         })
 
     # -------------------------------------------------------

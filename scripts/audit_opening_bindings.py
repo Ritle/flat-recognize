@@ -14,9 +14,7 @@ import numpy as np
 from add_openings import (
     choose_segment_binding,
     door_width_cm,
-    get_center,
-    get_opening_length_px,
-    opening_orientation,
+    opening_export_geometry,
 )
 from PIL import Image, ImageDraw
 from recover_windows_topology_v2 import measured_window_axis
@@ -252,16 +250,18 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
                    "wall_uuid": None, "distance_to_wall_cm": None,
                    "overhang_cm": None, "aligned": None, "reasons": []}
             try:
-                px, py = get_center(opening)
-                orientation = opening_orientation(opening)
-                length = get_opening_length_px(opening)
+                export_geometry = opening_export_geometry(opening, door=kind == "doors")
+                px, py = export_geometry["center"]
+                orientation = export_geometry["orientation"]
+                length = export_geometry["length_px"]
                 width = length * (sx if orientation == "horizontal" else
                                   sy if orientation == "vertical" else (sx + sy) / 2)
                 required = door_width_cm(width) if kind == "doors" else width
                 if not all(math.isfinite(v) for v in (px, py, required)) or required <= 0:
                     raise ValueError("nonfinite or empty opening")
                 row.update(pixel_center=[round(px, 2), round(py, 2)],
-                           orientation=orientation, width_cm=round(required, 2))
+                           orientation=orientation, width_cm=round(required, 2),
+                           geometry_source=export_geometry["source"])
                 binding = choose_segment_binding(segments, ox + px * sx,
                                                  oy + py * sy, required, orientation)
             except (KeyError, TypeError, ValueError, OverflowError):
