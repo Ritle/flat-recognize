@@ -7,15 +7,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
 from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from polygon_geometry import (align_window_boundaries, bridge_recovered_window_bays,
-                              build_polygon_project, partition_rooms,
-                              requires_polygons, straighten_shared_door_kinks,
-                              supported_offset_sliver)
+from polygon_geometry import (
+    align_window_boundaries,
+    bridge_recovered_window_bays,
+    build_polygon_project,
+    extend_window_endcap_corners,
+    partition_rooms,
+    requires_polygons,
+    straighten_shared_door_kinks,
+    supported_offset_sliver,
+)
+from recover_windows_topology_v2 import measured_window_axis
 from validate_recognition import validate_recognition
 
 
@@ -34,6 +42,34 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_short_room_endcap_extends_only_to_raster_bounded_window(self):
+        gray = np.full((130, 170), 255, dtype=np.uint8)
+        gray[40, 20:101] = 0
+        gray[46, 20:101] = 0
+        gray[10:35, 20:30] = 0
+        gray[10:35, 90:100] = 0
+        room = Polygon([(10, 80), (10, 400), (500, 400), (500, 80),
+                        (70, 80), (65, 50), (30, 50), (28, 80)])
+        window = {"id": 7, "bbox": [20, 10, 100, 60]}
+        self.assertIsNotNone(measured_window_axis(gray, window))
+        changed, report = extend_window_endcap_corners([room], [window], gray, 10)
+        self.assertEqual(report[0]["window_id"], 7)
+        self.assertEqual(report[0]["raster_span"], [[30, 43], [90, 43]])
+        self.assertGreater(changed[0].area, room.area)
+        self.assertTrue(changed[0].is_valid)
+        self.assertEqual(list(room.exterior.coords)[5], (65, 50))
+
+        blank, blank_report = extend_window_endcap_corners(
+            [room], [window], np.full_like(gray, 255), 10)
+        self.assertEqual(blank_report, [])
+        self.assertEqual(blank[0], room)
+
+        neighbor = box(75, 50, 95, 80)
+        protected, protected_report = extend_window_endcap_corners(
+            [room, neighbor], [window], gray, 10)
+        self.assertEqual(protected_report, [])
+        self.assertEqual(protected, [room, neighbor])
+
     def test_arc_door_straightens_only_supported_shared_degree_two_kink(self):
         points = [(0, 0), (100, 0), (100, 50), (55, 50.8), (0, 50),
                   (100, 100), (0, 100)]

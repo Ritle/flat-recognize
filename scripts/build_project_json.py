@@ -97,11 +97,22 @@ def main():
     template_level = template["levels"][0]
     geometry_errors = []
     if args.geometry_mode != "bbox":
-        from polygon_geometry import build_polygon_project, requires_polygons, render_geometry
+        from polygon_geometry import build_polygon_project, render_geometry, requires_polygons
         from shapely.errors import GEOSException
         if args.geometry_mode == "polygon" or requires_polygons(rooms):
             try:
-                result, report = build_polygon_project(src, template, args.scale, args.wall_thickness, args.height)
+                raster_gray = None
+                if args.source_image:
+                    import numpy as np
+                    from PIL import Image
+
+                    with Image.open(args.source_image) as raster:
+                        if raster.size == (src.get("meta", {}).get("width"),
+                                           src.get("meta", {}).get("height")):
+                            raster_gray = np.asarray(raster.convert("L"))
+                result, report = build_polygon_project(
+                    src, template, args.scale, args.wall_thickness, args.height,
+                    raster_gray=raster_gray)
                 if args.internal_walls:
                     from internal_wall_graph import extend_project_walls
                     result, report = extend_project_walls(result, src, report, args.wall_thickness, args.height)

@@ -76,6 +76,19 @@ class QualityGateTest(unittest.TestCase):
             "endcap_room_geometry_changes"][0]["material"] = False
         self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "good")
 
+    def test_raster_supported_window_corner_adjustment_stays_review(self):
+        rooms, project, bindings = fixture()
+        geometry = {"adapter": "polygon", "extended_window_endcaps": [{
+            "window_id": 7, "room_id": 0, "corner_shift_px": 35,
+            "added_room_area_px2": 1802.5}]}
+        result = validate_recognition(rooms, project, bindings, geometry=geometry)
+        self.assertEqual(result["status"], "review")
+        self.assertTrue(result["export_allowed"])
+        adjustment = next(issue for issue in result["issues"]
+                          if issue["code"] == "window_endcap_corner_adjusted")
+        self.assertEqual(adjustment["opening_id"], 7)
+        self.assertEqual(adjustment["corner_shift_px"], 35)
+
     def test_thick_topology_window_stays_invalid_after_type_confirmation(self):
         rooms, project, bindings = fixture()
         recovered = {"method": "topology_recovered_thick_window", "requires_review": True}

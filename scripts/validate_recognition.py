@@ -93,6 +93,13 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
             issue("unsupported_geometry", "error", message)
         for message in geometry.get("warnings", []):
             issue("geometry_warning", "warning", message)
+        for change in geometry.get("extended_window_endcaps", []):
+            issue("window_endcap_corner_adjusted", "warning",
+                  "Граница комнаты у окна продлена по линиям исходного изображения; "
+                  "проверьте форму комнаты и положение окна.",
+                  opening_id=change.get("window_id"), room_id=change.get("room_id"),
+                  corner_shift_px=change.get("corner_shift_px"),
+                  added_room_area_px2=change.get("added_room_area_px2"))
 
     def objects(data, key, location):
         value = data.get(key)

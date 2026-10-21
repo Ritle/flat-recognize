@@ -5,7 +5,9 @@ import math
 import uuid
 from itertools import pairwise
 
-from shapely import set_precision
+import numpy as np
+from recover_windows_topology_v2 import measured_window_axis
+from shapely import contains_xy, set_precision
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polygonize, unary_union
@@ -279,6 +281,106 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
     return result, changes
 
 
+def extend_window_endcap_corners(shapes, windows, gray, half_wall):
+    """Extend a short room contour to a raster-bounded window jamb."""
+    if gray is None:
+        return list(shapes), []
+    result, changes = list(shapes), []
+    height, width = gray.shape
+    for window_index, opening in enumerate(windows):
+        if opening.get("recovery"):
+            continue
+        evidence = measured_window_axis(gray, opening)
+        if evidence is None:
+            continue
+        (ax, ay), (bx, by) = evidence["span"]
+        horizontal = abs(bx - ax) >= abs(by - ay)
+        lo, hi = sorted((ax, bx) if horizontal else (ay, by))
+        axis_side = (ay + by) / 2 if horizontal else (ax + bx) / 2
+        length = hi - lo
+        if length < half_wall * 6:
+            continue
+
+        along_index = 0 if horizontal else 1
+        side_index = 1 - along_index
+
+        def along(point, coordinate=along_index):
+            return point[coordinate]
+
+        def side(point, coordinate=side_index):
+            return point[coordinate]
+
+        proposals = []
+        for room_index, shape in enumerate(result):
+            if not shape.is_valid or shape.interiors:
+                continue
+            ring = list(shape.exterior.coords[:-1])
+            for index in range(len(ring)):
+                following = (index + 1) % len(ring)
+                a, b = ring[index], ring[following]
+                edge_length = abs(along(b) - along(a))
+                overlap = max(0, min(max(along(a), along(b)), hi)
+                              - max(min(along(a), along(b)), lo))
+                if (edge_length < length * .4 or overlap < length * .45
+                        or abs(side(a) - side(b)) > max(2, edge_length * .05)):
+                    continue
+                for endpoint, other, neighbor in ((index, following, (index - 1) % len(ring)),
+                                                  (following, index, (following + 1) % len(ring))):
+                    for target, opposite in ((hi, lo), (lo, hi)):
+                        delta = target - along(ring[endpoint])
+                        if (delta * (1 if target == hi else -1) < max(5, half_wall * .4)
+                                or abs(delta) > min(half_wall * 4, length * .5)
+                                or abs(along(ring[other]) - opposite) > max(10, half_wall * 1.5)
+                                or abs(side(ring[endpoint]) - axis_side) > half_wall + 5):
+                            continue
+                        adjacent = ring[neighbor]
+                        perpendicular = abs(side(adjacent) - side(ring[endpoint]))
+                        if (perpendicular < max(20, half_wall * 2)
+                                or abs(along(adjacent) - along(ring[endpoint])) >
+                                max(half_wall, perpendicular * .35)):
+                            continue
+                        shifted = list(ring)
+                        for point_index in (endpoint, neighbor):
+                            u, v = along(shifted[point_index]) + delta, side(shifted[point_index])
+                            shifted[point_index] = (u, v) if horizontal else (v, u)
+                        candidate = Polygon(shifted)
+                        if not candidate.is_valid or candidate.interiors or candidate.area <= 0:
+                            continue
+                        added = candidate.difference(shape)
+                        removed = shape.difference(candidate)
+                        if (added.area <= 0 or removed.area > added.area * .1
+                                or added.area > min(shape.area * .01, half_wall * length * 4)
+                                or any(candidate.intersection(other_shape).area > 1e-5
+                                       for other_index, other_shape in enumerate(result)
+                                       if other_index != room_index)):
+                            continue
+                        x0, y0, x1, y1 = added.bounds
+                        xs = np.arange(max(0, math.floor(x0)), min(width, math.ceil(x1)), 3) + .5
+                        ys = np.arange(max(0, math.floor(y0)), min(height, math.ceil(y1)), 3) + .5
+                        if not len(xs) or not len(ys):
+                            continue
+                        sample_x, sample_y = np.meshgrid(xs, ys)
+                        inside = contains_xy(added, sample_x, sample_y)
+                        if np.count_nonzero(inside) < 10:
+                            continue
+                        bright = gray[sample_y.astype(int), sample_x.astype(int)] >= 190
+                        bright_fraction = float(np.count_nonzero(bright & inside) /
+                                                np.count_nonzero(inside))
+                        if bright_fraction < .55:
+                            continue
+                        proposals.append((room_index, candidate, delta, added.area, bright_fraction))
+        if len(proposals) != 1:
+            continue
+        room_index, candidate, delta, added_area, bright_fraction = proposals[0]
+        result[room_index] = candidate
+        changes.append({"room_id": room_index, "window_index": window_index,
+                        "window_id": opening.get("id"), "corner_shift_px": round(abs(delta), 2),
+                        "added_room_area_px2": round(added_area, 2),
+                        "bright_fraction": round(bright_fraction, 3),
+                        "raster_span": evidence["span"]})
+    return result, changes
+
+
 def bridge_recovered_window_bays(shapes, windows, walls, half_wall):
     """Add a small, supported room-face strip when a measured window crosses a wall junction."""
     result, changes = list(shapes), []
@@ -455,7 +557,8 @@ def partition_rooms(shapes, offset, diagnostics=None):
     return result
 
 
-def build_polygon_project(source, template, scale=1, thickness=20, height=270):
+def build_polygon_project(source, template, scale=1, thickness=20, height=270,
+                          raster_gray=None):
     shapes = [Polygon(r["polygon"]) for r in source["rooms"]]
     half_wall = thickness / scale / 2
     wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in
@@ -467,6 +570,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
     shapes, aligned_windows = align_window_boundaries(shapes, source.get("windows", []), walls, half_wall)
     shapes, bridged_windows = bridge_recovered_window_bays(
         shapes, source.get("windows", []), walls, half_wall)
+    shapes, extended_windows = extend_window_endcap_corners(
+        shapes, source.get("windows", []), raster_gray, half_wall)
     adjustments = []
     shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments)]
     level_template = template["levels"][0]
@@ -587,6 +692,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270):
               "unsupported_segments": unsupported,
               "aligned_window_boundaries": aligned_windows,
               "bridged_window_bays": bridged_windows,
+              "extended_window_endcaps": extended_windows,
               "aligned_door_boundaries": aligned_doors,
               "matched_closure_edges": matched_closure_edges,
               "offset_sliver_edges": offset_sliver_edges,

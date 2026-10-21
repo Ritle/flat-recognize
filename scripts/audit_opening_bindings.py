@@ -19,7 +19,7 @@ from add_openings import (
     opening_orientation,
 )
 from PIL import Image, ImageDraw
-from recover_windows_topology_v2 import raster_frame_axis
+from recover_windows_topology_v2 import measured_window_axis
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
@@ -123,47 +123,6 @@ def raster_span_on_current_walls(opening, segments, transform, walls=None):
                 and measured_cm > thickness * 2.5):
             result["reasons"].append("wall_thickness_mismatch")
     return result
-
-
-def measured_window_axis(gray, opening):
-    """Find an independently bounded raster bay near a suspect window bbox."""
-    bounds = opening.get("bbox")
-    if not isinstance(bounds, list) or len(bounds) != 4:
-        return None
-    try:
-        x0, y0, x1, y1 = (float(value) for value in bounds)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    if not all(math.isfinite(value) for value in (x0, y0, x1, y1)):
-        return None
-    horizontal = x1 - x0 >= y1 - y0
-    thickness = y1 - y0 if horizontal else x1 - x0
-    if thickness <= 0:
-        return None
-    padding = min(16, max(10, thickness * .25))
-    candidates = [(opening, 0)]
-    expanded = ([x0, y0 - padding, x1, y1 + padding] if horizontal else
-                [x0 - padding, y0, x1 + padding, y1])
-    candidates.append(({**opening, "bbox": expanded}, padding))
-    for candidate, extension in candidates:
-        try:
-            evidence = raster_frame_axis(gray, candidate)
-        except (TypeError, ValueError, IndexError):
-            continue
-        if not evidence or evidence.get("extent_basis") != "raster_clear_bay":
-            continue
-        bay = evidence["bay_evidence"]
-        if (evidence["minimum_support"] < .8 or
-                min(bay["jamb_support"]) < .8):
-            continue
-        (ax, ay), (bx, by) = evidence["span"]
-        long_lo, long_hi = (x0, x1) if horizontal else (y0, y1)
-        span_lo, span_hi = (ax, bx) if horizontal else (ay, by)
-        overlap = max(0, min(long_hi, span_hi) - max(long_lo, span_lo))
-        if overlap < .7 * min(long_hi - long_lo, span_hi - span_lo):
-            continue
-        return {**evidence, "bbox_extension_px": round(extension, 2)}
-    return None
 
 
 def audit_segment_wall_bands(segments, support, transform):
