@@ -100,6 +100,13 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                   opening_id=change.get("window_id"), room_id=change.get("room_id"),
                   corner_shift_px=change.get("corner_shift_px"),
                   added_room_area_px2=change.get("added_room_area_px2"))
+        for change in geometry.get("calibrated_wall_thickness", []):
+            issue("facade_wall_thickness_calibrated", "warning",
+                  "Толщина наружной стены измерена рядом с восстановленным окном; "
+                  "проверьте фасад и его соединения.",
+                  wall_uuid=change.get("wall_uuid"),
+                  opening_ids=change.get("opening_ids"),
+                  measured_thickness_cm=change.get("measured_thickness_cm"))
 
     def objects(data, key, location):
         value = data.get(key)

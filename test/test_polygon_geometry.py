@@ -17,6 +17,7 @@ from polygon_geometry import (
     align_window_boundaries,
     bridge_recovered_window_bays,
     build_polygon_project,
+    calibrate_recovered_facade_thickness,
     extend_window_endcap_corners,
     partition_rooms,
     requires_polygons,
@@ -42,6 +43,39 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_thick_facade_calibration_needs_external_edge_and_two_wall_flanks(self):
+        nodes = [{"uuid": uid, "x": x, "y": y} for uid, x, y in
+                 (("a", 0, 43), ("b", 100, 43), ("c", 100, 100), ("d", 0, 100))]
+        segment = {"uuid": "top", "start": "a", "end": "b", "thickness": 20,
+                   "half_width_left": 10, "half_width_right": 10}
+        areas = [{"connectors": ["a", "b", "c", "d"]}]
+        window = {"id": 19, "bbox": [20, 10, 80, 76], "center": [50, 43],
+                  "length": 66, "orientation": "horizontal",
+                  "recovery": {"method": "topology_recovered_thick_window",
+                               "raster_axis_evidence": {
+                                   "span": [[20, 43], [80, 43]],
+                                   "extent_basis": "raster_clear_bay",
+                                   "minimum_support": .95,
+                                   "bay_evidence": {"start": 20, "end": 80,
+                                                    "jamb_support": [.9, .9]}}}}
+        walls = unary_union([box(0, 10, 20, 76), box(80, 10, 100, 76)])
+        changes = calibrate_recovered_facade_thickness(
+            nodes, [segment], areas, [window], walls, 1, 0, 0, 20)
+        self.assertEqual(changes[0]["opening_ids"], [19])
+        self.assertEqual(segment["thickness"], 66)
+        self.assertEqual(segment["half_width_left"], 33)
+
+        segment["thickness"] = 20
+        shared = areas + [{"connectors": ["b", "a", "d", "c"]}]
+        self.assertEqual(calibrate_recovered_facade_thickness(
+            nodes, [segment], shared, [window], walls, 1, 0, 0, 20), [])
+        self.assertEqual(segment["thickness"], 20)
+        self.assertEqual(calibrate_recovered_facade_thickness(
+            nodes, [segment], areas, [window], box(0, 10, 20, 76), 1, 0, 0, 20), [])
+        nodes[0]["y"] = nodes[1]["y"] = 53
+        self.assertEqual(calibrate_recovered_facade_thickness(
+            nodes, [segment], areas, [window], walls, 1, 0, 0, 20), [])
+
     def test_short_room_endcap_extends_only_to_raster_bounded_window(self):
         gray = np.full((130, 170), 255, dtype=np.uint8)
         gray[40, 20:101] = 0

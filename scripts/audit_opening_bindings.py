@@ -20,46 +20,7 @@ from PIL import Image, ImageDraw
 from recover_windows_topology_v2 import measured_window_axis
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
-
-
-def flanking_wall_band(walls, span):
-    """Measure wall-mask thickness just beyond both ends of a raster bay."""
-    if walls.is_empty:
-        return None
-    (x0, y0), (x1, y1) = span
-    horizontal = abs(x1 - x0) >= abs(y1 - y0)
-    lo, hi = sorted((x0, x1) if horizontal else (y0, y1))
-    center = (y0 + y1) / 2 if horizontal else (x0 + x1) / 2
-    length = hi - lo
-    reach = max(100, length * .6)
-    offsets = (5, 10, 20)
-    sides = {}
-    for name, sign, endpoint in (("before", -1, lo), ("after", 1, hi)):
-        widths = []
-        for offset in offsets:
-            position = endpoint + sign * offset
-            line = (LineString([(position, center - reach),
-                                (position, center + reach)]) if horizontal else
-                    LineString([(center - reach, position),
-                                (center + reach, position)]))
-            sample = walls.intersection(line)
-            pieces = ([sample] if sample.geom_type == "LineString" else
-                      list(getattr(sample, "geoms", [])))
-            relevant = [piece.length for piece in pieces
-                        if piece.geom_type == "LineString" and piece.length >= 5
-                        and piece.distance(Point(position, center) if horizontal else
-                                           Point(center, position)) <= 15]
-            if relevant:
-                widths.append(max(relevant))
-        if widths:
-            sides[name] = round(statistics.median(widths), 2)
-    if not sides:
-        return None
-    consistent = (len(sides) == 2 and
-                  max(sides.values()) <= min(sides.values()) * 1.5)
-    return {"sampled_sides_px": sides,
-            "median_thickness_px": round(statistics.median(sides.values()), 2),
-            "consistent_flanks": consistent}
+from wall_band_measurement import flanking_wall_band
 
 
 def raster_span_on_current_walls(opening, segments, transform, walls=None):

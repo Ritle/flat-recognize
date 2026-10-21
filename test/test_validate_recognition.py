@@ -89,6 +89,18 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(adjustment["opening_id"], 7)
         self.assertEqual(adjustment["corner_shift_px"], 35)
 
+    def test_measured_facade_thickness_stays_review(self):
+        rooms, project, bindings = fixture()
+        geometry = {"adapter": "polygon", "calibrated_wall_thickness": [{
+            "wall_uuid": "wall-1", "opening_ids": [19],
+            "measured_thickness_cm": 66.07}]}
+        result = validate_recognition(rooms, project, bindings, geometry=geometry)
+        self.assertEqual(result["status"], "review")
+        issue = next(item for item in result["issues"]
+                     if item["code"] == "facade_wall_thickness_calibrated")
+        self.assertEqual(issue["wall_uuid"], "wall-1")
+        self.assertEqual(issue["opening_ids"], [19])
+
     def test_thick_topology_window_stays_invalid_after_type_confirmation(self):
         rooms, project, bindings = fixture()
         recovered = {"method": "topology_recovered_thick_window", "requires_review": True}

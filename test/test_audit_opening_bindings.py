@@ -151,6 +151,7 @@ class OpeningBindingAuditTests(unittest.TestCase):
             Polygon([[-35, 80], [35, 80], [35, 100], [-35, 100]]))
         band = flanking_wall_band(walls, ((0, 25), (0, 75)))
         self.assertEqual(band["median_thickness_px"], 70)
+        self.assertEqual(band["sampled_axes_px"], {"before": 0, "after": 0})
         self.assertTrue(band["consistent_flanks"])
 
     def test_segment_wall_band_audit_finds_off_center_thick_wall(self):

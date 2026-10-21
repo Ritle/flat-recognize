@@ -6,11 +6,13 @@ import uuid
 from itertools import pairwise
 
 import numpy as np
+from add_openings import choose_segment_binding, opening_export_geometry
 from recover_windows_topology_v2 import measured_window_axis
 from shapely import contains_xy, set_precision
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polygonize, unary_union
+from wall_band_measurement import flanking_wall_band
 
 
 def parts(geometry, kind):
@@ -557,6 +559,81 @@ def partition_rooms(shapes, offset, diagnostics=None):
     return result
 
 
+def calibrate_recovered_facade_thickness(nodes, segments, areas, windows, walls,
+                                         scale, origin_x, origin_y, default_thickness):
+    """Set exterior segment width only when a recovered window has two wall flanks."""
+    if walls.is_empty:
+        return []
+    by_id = {node["uuid"]: node for node in nodes}
+    boundary_counts = {}
+    for area in areas:
+        ring = area["connectors"]
+        for a, b in zip(ring, ring[1:] + ring[:1]):
+            key = frozenset((a, b))
+            boundary_counts[key] = boundary_counts.get(key, 0) + 1
+    geometry = [{"segment": segment,
+                 "ax": by_id[segment["start"]]["x"],
+                 "ay": by_id[segment["start"]]["y"],
+                 "bx": by_id[segment["end"]]["x"],
+                 "by": by_id[segment["end"]]["y"]} for segment in segments]
+    votes = {}
+    for opening in windows:
+        export = opening_export_geometry(opening)
+        if export["source"] != "raster_clear_bay":
+            continue
+        orientation = export["orientation"]
+        px, py = export["center"]
+        binding = choose_segment_binding(
+            geometry, origin_x + px * scale, origin_y + py * scale,
+            export["length_px"] * scale, orientation)
+        if (binding is None or not binding["aligned"] or binding["overhang"] > 2
+                or binding["distance"] > max(default_thickness, 10 * scale)):
+            continue
+        segment = binding["segment"]
+        key = frozenset((segment["start"], segment["end"]))
+        if boundary_counts.get(key) != 1:
+            continue
+        evidence = opening["recovery"]["raster_axis_evidence"]
+        band = flanking_wall_band(walls, evidence["span"])
+        if band is None or not band["consistent_flanks"]:
+            continue
+        widths = list(band["sampled_sides_px"].values())
+        axes = list(band["sampled_axes_px"].values())
+        if (len(widths) != 2 or len(axes) != 2
+                or max(widths) > min(widths) * 1.3
+                or abs(axes[0] - axes[1]) > max(6, min(widths) * .15)):
+            continue
+        width_cm = min(widths) * scale
+        if not default_thickness * 2.5 < width_cm < default_thickness * 6:
+            continue
+        normal_axis = ((binding["qy"] - origin_y) / scale if orientation == "horizontal" else
+                       (binding["qx"] - origin_x) / scale)
+        measured_axis = sum(axes) / 2
+        if abs(normal_axis - measured_axis) > max(4, min(widths) * .1):
+            continue
+        votes.setdefault(segment["uuid"], []).append({
+            "opening_id": opening.get("id"), "width_cm": width_cm,
+            "axis_offset_px": round(normal_axis - measured_axis, 2)})
+    changes = []
+    for segment in segments:
+        candidates = votes.get(segment["uuid"], [])
+        if not candidates:
+            continue
+        widths = [item["width_cm"] for item in candidates]
+        if max(widths) > min(widths) * 1.2:
+            continue
+        measured = round(min(widths), 2)
+        original = segment["thickness"]
+        segment.update(thickness=measured, half_width_left=measured / 2,
+                       half_width_right=measured / 2)
+        changes.append({"wall_uuid": segment["uuid"],
+                        "opening_ids": [item["opening_id"] for item in candidates],
+                        "original_thickness_cm": original,
+                        "measured_thickness_cm": measured,
+                        "axis_offset_px": max(abs(item["axis_offset_px"]) for item in candidates)})
+    return changes
+
+
 def build_polygon_project(source, template, scale=1, thickness=20, height=270,
                           raster_gray=None):
     shapes = [Polygon(r["polygon"]) for r in source["rooms"]]
@@ -683,6 +760,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
         positions = {node["uuid"]: ((node["x"] - ox) / scale,
                                      (node["y"] - oy) / scale) for node in nodes}
         shapes = [Polygon([positions[uid] for uid in area["connectors"]]) for area in areas]
+    calibrated_walls = calibrate_recovered_facade_thickness(
+        nodes, segments, areas, source.get("windows", []), walls, scale, ox, oy, thickness)
     project = copy.deepcopy(template)
     project["editable"] = True
     project["levels"][0].update(height=height, connectors=nodes, segments=segments, areas=areas, elements=[], tapes=[])
@@ -693,6 +772,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "aligned_window_boundaries": aligned_windows,
               "bridged_window_bays": bridged_windows,
               "extended_window_endcaps": extended_windows,
+              "calibrated_wall_thickness": calibrated_walls,
               "aligned_door_boundaries": aligned_doors,
               "matched_closure_edges": matched_closure_edges,
               "offset_sliver_edges": offset_sliver_edges,
