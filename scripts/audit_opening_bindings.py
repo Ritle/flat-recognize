@@ -213,6 +213,34 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
     report["status"] = "audited"
     report["wall_geometry"] = audit_segment_wall_bands(
         segments, support, (sx, sy, ox, oy), walls)
+    unsupported = []
+    for item in geometry.get("unsupported_segments") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            start, end = item["start"], item["end"]
+            if len(start) != 2 or len(end) != 2:
+                continue
+            points = [tuple(float(value) for value in point) for point in (start, end)]
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        if not all(math.isfinite(value) for point in points for value in point):
+            continue
+        line = LineString(points)
+        if line.length > 0:
+            unsupported.append((line, item.get("reason")))
+    for row in report["wall_geometry"]["segments"]:
+        source_axis = LineString([row["source_axis_pixel_start"],
+                                  row["source_axis_pixel_end"]])
+        radius = max(20, row["measured_thickness_cm"] / min(sx, sy) * 1.5)
+        nearby = [(source_axis.distance(line), reason) for line, reason in unsupported]
+        nearby = sorted(((distance, reason) for distance, reason in nearby
+                         if distance <= radius), key=lambda item: item[0])
+        if nearby:
+            row["nearby_unsupported"] = {
+                "count": len(nearby),
+                "nearest_distance_px": round(nearby[0][0], 2),
+                "nearest_reason": nearby[0][1]}
     for kind in ("doors", "windows"):
         for opening in classified.get(kind, []):
             row = {"opening_id": opening.get("id"), "kind": kind,

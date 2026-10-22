@@ -184,6 +184,18 @@ class OpeningBindingAuditTests(unittest.TestCase):
             "sampled_cuts": 3, "wall_dominant_cuts": 2,
             "wall_fraction_by_cut": [1.0, 0.0, 1.0]})
 
+        with_gap = {**geometry, "unsupported_segments": [
+            {"start": [0, -60], "end": [100, -60],
+             "reason": "missing_structural_support"},
+            {"start": [0, 500], "end": [100, 500],
+             "reason": "temporary_closure_without_opening"},
+            {"start": [0, float("nan")], "end": [100, 0]}]}
+        row = audit_opening_bindings(thick, original, with_gap)[
+            "wall_geometry"]["segments"][0]
+        self.assertEqual(row["nearby_unsupported"], {
+            "count": 1, "nearest_distance_px": 20.0,
+            "nearest_reason": "missing_structural_support"})
+
         centered = {"doors": [], "windows": [], "walls": [
             {"outer": [[0, -10], [100, -10], [100, 10], [0, 10]]}]}
         wall = audit_opening_bindings(centered, original, geometry)["wall_geometry"]
