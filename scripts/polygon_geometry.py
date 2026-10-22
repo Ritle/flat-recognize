@@ -867,9 +867,9 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
     narrow_supported_closure_area = unary_union([walls, narrow_known_tolerance])
     narrow_unknown = []
     closure_lines = []
-    for closure in source.get("diagnostics", {}).get("temporary_closures", []):
+    for closure_index, closure in enumerate(source.get("diagnostics", {}).get("temporary_closures", [])):
         line = LineString([closure["start"], closure["end"]])
-        closure_lines.append((line, closure))
+        closure_lines.append((closure_index, line, closure))
         strip = line.buffer(closure["width"] / 2 + 3)
         # A topology-only closure may never silently become a physical wall.
         # Opening polygons and room contours are derived by different raster
@@ -925,10 +925,12 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
             if reason == "temporary_closure_without_opening":
                 evidence["origin"] = "temporary_topology_closure"
                 if closure_lines:
-                    line, closure = min(closure_lines, key=lambda item: edge.distance(item[0]))
+                    closure_index, line, closure = min(
+                        closure_lines, key=lambda item: edge.distance(item[1]))
                     distance = edge.distance(line)
                     if distance <= closure["width"] / 2 + half_wall + 3:
-                        evidence.update(temporary_closure_evidence=closure.get("evidence"),
+                        evidence.update(temporary_closure_index=closure_index,
+                                        temporary_closure_evidence=closure.get("evidence"),
                                         temporary_closure_distance_px=round(distance, 2))
             unsupported.append({"start": list(a), "end": list(b), "reason": reason,
                                 **evidence})

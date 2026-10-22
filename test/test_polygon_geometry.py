@@ -395,6 +395,7 @@ class PolygonGeometryTest(unittest.TestCase):
         project, report = build_polygon_project(data, template())
         self.assertTrue(report["unsupported_segments"])
         self.assertTrue(any(item["origin"] == "temporary_topology_closure"
+                            and item.get("temporary_closure_index") == 0
                             and item.get("temporary_closure_evidence") == "raster_line"
                             for item in report["unsupported_segments"]))
         self.assertEqual(sum(report["unsupported_origin_counts"].values()),
