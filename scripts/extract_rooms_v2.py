@@ -367,7 +367,24 @@ def exterior_envelope_candidate(barrier, walls):
     additions = np.zeros_like(barrier)
     cv2.rectangle(additions, (x1, y1), (x2, y2), 255, max(2, round(thickness * .2)))
     additions[barrier > 0] = 0
-    diagnostics.update(accepted=True, reason="fragmented_exterior_envelope")
+    inferred_runs = []
+    for side, values, fixed in (("top", additions[y1, x1:x2 + 1], y1),
+                                ("bottom", additions[y2, x1:x2 + 1], y2),
+                                ("left", additions[y1:y2 + 1, x1], x1),
+                                ("right", additions[y1:y2 + 1, x2], x2)):
+        positions = np.flatnonzero(values)
+        for run in np.split(positions, np.flatnonzero(np.diff(positions) > 1) + 1):
+            if len(run) < 2:
+                continue
+            start, end = int(run[0]), int(run[-1])
+            points = ([[x1 + start, fixed], [x1 + end, fixed]]
+                      if side in ("top", "bottom") else
+                      [[fixed, y1 + start], [fixed, y1 + end]])
+            inferred_runs.append({"side": side, "start": points[0], "end": points[1],
+                                  "length_px": end - start})
+    diagnostics.update(accepted=True, reason="fragmented_exterior_envelope",
+                       inferred_pixels=int(np.count_nonzero(additions)),
+                       inferred_boundary_runs=inferred_runs)
     return cv2.bitwise_or(barrier, additions), additions, diagnostics
 
 

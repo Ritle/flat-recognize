@@ -55,8 +55,12 @@ class PolygonGeometryTest(unittest.TestCase):
             "origin": "pre_partition_unconfirmed",
             "pre_partition_parallel_px": 80.0,
             "pre_partition_unsupported_px": 80.0})
+        envelope = box(0, 0, 100, 10).boundary
+        inferred = unsupported_boundary_evidence(
+            exported, source_edge, Polygon(), 10, envelope)
+        self.assertEqual(inferred["origin"], "inferred_exterior_envelope")
         supported = unsupported_boundary_evidence(
-            exported, source_edge, box(0, -2, 100, 2), 10)
+            exported, source_edge, box(0, -2, 100, 2), 10, envelope)
         self.assertEqual(supported["origin"], "offset_or_support_mismatch")
         unrelated = unsupported_boundary_evidence(
             exported, LineString([(0, 50), (100, 50)]), Polygon(), 10)

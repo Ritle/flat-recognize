@@ -38,7 +38,7 @@ def supported_offset_sliver(edge, walls, half_wall):
 
 
 def unsupported_boundary_evidence(edge, pre_partition_boundary, structural_support,
-                                  half_wall):
+                                  half_wall, inferred_envelope=None):
     """Locate an unsupported project edge against the room contour before offset."""
     nearby = pre_partition_boundary.intersection(
         edge.buffer(half_wall + 2, cap_style="flat"))
@@ -53,7 +53,10 @@ def unsupported_boundary_evidence(edge, pre_partition_boundary, structural_suppo
     source_length = matched.length
     unsupported_length = matched.difference(structural_support.buffer(3)).length
     if source_length >= edge.length * .55 and unsupported_length >= source_length * .5:
-        origin = "pre_partition_unconfirmed"
+        envelope_near = (inferred_envelope is not None and not inferred_envelope.is_empty
+                         and edge.intersection(inferred_envelope.buffer(half_wall + 3)).length
+                         >= edge.length * .6)
+        origin = "inferred_exterior_envelope" if envelope_near else "pre_partition_unconfirmed"
     elif source_length >= edge.length * .55 and unsupported_length <= source_length * .15:
         origin = "offset_or_support_mismatch"
     else:
@@ -815,6 +818,31 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
     shapes, extended_windows = extend_window_endcap_corners(
         shapes, source.get("windows", []), raster_gray, half_wall)
     pre_partition_boundary = unary_union([p.boundary for p in shapes])
+    envelope_info = source.get("diagnostics", {}).get("exterior_envelope") or {}
+    envelope_bbox = envelope_info.get("bbox")
+    inferred_envelope = None
+    if envelope_info.get("accepted"):
+        run_data = envelope_info.get("inferred_boundary_runs")
+        if isinstance(run_data, list):
+            run_lines = []
+            for run in run_data:
+                if not isinstance(run, dict):
+                    continue
+                try:
+                    line = LineString([run["start"], run["end"]])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if line.length > 0 and all(math.isfinite(value) for point in line.coords
+                                           for value in point):
+                    run_lines.append(line)
+            inferred_envelope = unary_union(run_lines) if run_lines else None
+        elif (isinstance(envelope_bbox, list) and len(envelope_bbox) == 4
+              and all(isinstance(value, (int, float)) and math.isfinite(value)
+                      for value in envelope_bbox)
+              and envelope_bbox[2] > envelope_bbox[0]
+              and envelope_bbox[3] > envelope_bbox[1]):
+            # Older room artifacts only recorded the accepted envelope box.
+            inferred_envelope = box(*envelope_bbox).boundary
     adjustments = []
     shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments)]
     level_template = template["levels"][0]
@@ -891,7 +919,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
             unsupported.append({"start": list(a), "end": list(b), "reason": reason,
                                 **unsupported_boundary_evidence(
                                     edge, pre_partition_boundary, structural_support,
-                                    half_wall)})
+                                    half_wall, inferred_envelope)})
             continue
         if edge.intersection(narrow_unknown).length > 1e-4:
             matched_closure_edges += 1
@@ -941,7 +969,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "unsupported_segments": unsupported,
               "unsupported_origin_counts": {
                   origin: sum(item["origin"] == origin for item in unsupported)
-                  for origin in ("pre_partition_unconfirmed",
+                  for origin in ("inferred_exterior_envelope", "pre_partition_unconfirmed",
                                  "offset_or_support_mismatch", "undetermined")},
               "aligned_window_boundaries": aligned_windows,
               "bridged_window_bays": bridged_windows,

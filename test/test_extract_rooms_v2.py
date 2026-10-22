@@ -216,6 +216,10 @@ class RoomsTests(unittest.TestCase):
         envelope = result["diagnostics"]["exterior_envelope"]
         self.assertTrue(envelope["accepted"])
         self.assertEqual(envelope["reason"], "fragmented_exterior_envelope")
+        self.assertGreater(envelope["inferred_pixels"], 0)
+        self.assertTrue(any(run["side"] == "bottom"
+                            and run["start"][0] < 200 < run["end"][0]
+                            for run in envelope["inferred_boundary_runs"]))
         self.assertTrue(result["rooms"][0]["uncertain"])
 
     def test_extended_leaf_requires_free_space_at_its_tip(self):
