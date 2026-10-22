@@ -866,8 +866,11 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
     supported_closure_area = unary_union([walls, known_tolerance])
     narrow_supported_closure_area = unary_union([walls, narrow_known_tolerance])
     narrow_unknown = []
+    closure_lines = []
     for closure in source.get("diagnostics", {}).get("temporary_closures", []):
-        strip = LineString([closure["start"], closure["end"]]).buffer(closure["width"] / 2 + 3)
+        line = LineString([closure["start"], closure["end"]])
+        closure_lines.append((line, closure))
+        strip = line.buffer(closure["width"] / 2 + 3)
         # A topology-only closure may never silently become a physical wall.
         # Opening polygons and room contours are derived by different raster
         # operations, so a small tolerance prevents sub-pixel cap remnants.
@@ -916,10 +919,19 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
         elif edge.difference(support).length > max(2, edge.length * 0.15):
             reason = "missing_structural_support"
         if reason:
+            evidence = unsupported_boundary_evidence(
+                edge, pre_partition_boundary, structural_support,
+                half_wall, inferred_envelope)
+            if reason == "temporary_closure_without_opening":
+                evidence["origin"] = "temporary_topology_closure"
+                if closure_lines:
+                    line, closure = min(closure_lines, key=lambda item: edge.distance(item[0]))
+                    distance = edge.distance(line)
+                    if distance <= closure["width"] / 2 + half_wall + 3:
+                        evidence.update(temporary_closure_evidence=closure.get("evidence"),
+                                        temporary_closure_distance_px=round(distance, 2))
             unsupported.append({"start": list(a), "end": list(b), "reason": reason,
-                                **unsupported_boundary_evidence(
-                                    edge, pre_partition_boundary, structural_support,
-                                    half_wall, inferred_envelope)})
+                                **evidence})
             continue
         if edge.intersection(narrow_unknown).length > 1e-4:
             matched_closure_edges += 1
@@ -969,7 +981,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "unsupported_segments": unsupported,
               "unsupported_origin_counts": {
                   origin: sum(item["origin"] == origin for item in unsupported)
-                  for origin in ("inferred_exterior_envelope", "pre_partition_unconfirmed",
+                  for origin in ("inferred_exterior_envelope", "temporary_topology_closure",
+                                 "pre_partition_unconfirmed",
                                  "offset_or_support_mismatch", "undetermined")},
               "aligned_window_boundaries": aligned_windows,
               "bridged_window_bays": bridged_windows,

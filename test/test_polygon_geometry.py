@@ -390,9 +390,13 @@ class PolygonGeometryTest(unittest.TestCase):
         wall = Polygon(data["walls"][0]["outer"], data["walls"][0]["holes"]).difference(gap)
         data["walls"] = [{"outer": [list(p) for p in wall.exterior.coords[:-1]],
                           "holes": [[list(p) for p in r.coords[:-1]] for r in wall.interiors]}]
-        data["diagnostics"]["temporary_closures"] = [{"start": [-10, 30], "end": [-10, 70], "width": 20}]
+        data["diagnostics"]["temporary_closures"] = [{"start": [-10, 30], "end": [-10, 70],
+                                                        "width": 20, "evidence": "raster_line"}]
         project, report = build_polygon_project(data, template())
         self.assertTrue(report["unsupported_segments"])
+        self.assertTrue(any(item["origin"] == "temporary_topology_closure"
+                            and item.get("temporary_closure_evidence") == "raster_line"
+                            for item in report["unsupported_segments"]))
         self.assertEqual(sum(report["unsupported_origin_counts"].values()),
                          len(report["unsupported_segments"]))
         self.assertFalse(validate_recognition(data, project, geometry=report)["export_allowed"])
