@@ -685,7 +685,7 @@ def realign_exterior_wall_axes(nodes, segments, areas, doors, windows, walls,
         if band is None:
             continue
         measured, shift = band["median_width_px"], band["median_offset_px"]
-        if (not max(6, measured * .25) < abs(shift) <= min(12, measured * .45)
+        if (not max(6, measured * .2) < abs(shift) <= min(12, measured * .45)
                 or not width_px * .7 <= measured <= width_px * 2):
             continue
         # One adjacent room is insufficient to call a wall exterior: missing

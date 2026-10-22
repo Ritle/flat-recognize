@@ -52,7 +52,7 @@ class PolygonGeometryTest(unittest.TestCase):
         segments = [dict(uuid=f"s{i}", start=a, end=b, thickness=20) for i, (a, b) in
                     enumerate((("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")))]
         areas = [{"connectors": ["a", "b", "c", "d"], "area_value": 2_000_000}]
-        wall_mask = unary_union([box(995, 0, 1025, 1000),
+        wall_mask = unary_union([box(992.8, 0, 1020.8, 1000),
                                  box(-1000, -10, 1025, 10),
                                  box(-1000, 990, 1025, 1010),
                                  box(-1010, 0, -990, 1000)])
@@ -60,8 +60,8 @@ class PolygonGeometryTest(unittest.TestCase):
             nodes, segments, areas, [], [], wall_mask, 1, 0, 0, 20)
         self.assertEqual(len(changes), 1)
         self.assertEqual(changes[0]["wall_uuid"], "s1")
-        self.assertEqual((nodes[1]["x"], nodes[2]["x"]), (1010, 1010))
-        self.assertEqual(areas[0]["area_value"], 2_010_000)
+        self.assertEqual((nodes[1]["x"], nodes[2]["x"]), (1006.8, 1006.8))
+        self.assertEqual(areas[0]["area_value"], 2_006_800)
         self.assertGreater(changes[0]["band_coverage_after"],
                            changes[0]["band_coverage_before"])
 
