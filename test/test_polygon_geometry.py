@@ -25,6 +25,7 @@ from polygon_geometry import (
     requires_polygons,
     straighten_shared_door_kinks,
     supported_offset_sliver,
+    unsupported_boundary_evidence,
 )
 from recover_windows_topology_v2 import measured_window_axis
 from validate_recognition import validate_recognition
@@ -45,6 +46,22 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_unsupported_boundary_identifies_pre_partition_gap(self):
+        exported = LineString([(0, 10), (100, 10)])
+        source_edge = LineString([(10, 0), (90, 0)])
+        evidence = unsupported_boundary_evidence(
+            exported, source_edge, Polygon(), 10)
+        self.assertEqual(evidence, {
+            "origin": "pre_partition_unconfirmed",
+            "pre_partition_parallel_px": 80.0,
+            "pre_partition_unsupported_px": 80.0})
+        supported = unsupported_boundary_evidence(
+            exported, source_edge, box(0, -2, 100, 2), 10)
+        self.assertEqual(supported["origin"], "offset_or_support_mismatch")
+        unrelated = unsupported_boundary_evidence(
+            exported, LineString([(0, 50), (100, 50)]), Polygon(), 10)
+        self.assertEqual(unrelated["origin"], "undetermined")
+
     def test_realigns_only_supported_exterior_axis_without_changing_topology(self):
         nodes = [dict(uuid=uid, x=x, y=y) for uid, x, y in
                  (("a", -1000, 0), ("b", 1000, 0),
@@ -372,11 +389,14 @@ class PolygonGeometryTest(unittest.TestCase):
         data["diagnostics"]["temporary_closures"] = [{"start": [-10, 30], "end": [-10, 70], "width": 20}]
         project, report = build_polygon_project(data, template())
         self.assertTrue(report["unsupported_segments"])
+        self.assertEqual(sum(report["unsupported_origin_counts"].values()),
+                         len(report["unsupported_segments"]))
         self.assertFalse(validate_recognition(data, project, geometry=report)["export_allowed"])
         # A real detected opening supplies an opening carrier, not an inferred wall.
         data["doors"] = [{"outer": [[-25, 30], [1, 30], [1, 70], [-25, 70]]}]
         _, known = build_polygon_project(data, template())
         self.assertEqual(known["unsupported_segments"], [])
+        self.assertEqual(sum(known["unsupported_origin_counts"].values()), 0)
 
     def test_explicit_reclassified_wall_support_closes_rejected_endcap(self):
         data = source([box(0, 0, 100, 100)])

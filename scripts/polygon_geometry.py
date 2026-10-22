@@ -37,6 +37,32 @@ def supported_offset_sliver(edge, walls, half_wall):
             and edge.difference(walls.buffer(half_wall)).length < 1e-4)
 
 
+def unsupported_boundary_evidence(edge, pre_partition_boundary, structural_support,
+                                  half_wall):
+    """Locate an unsupported project edge against the room contour before offset."""
+    nearby = pre_partition_boundary.intersection(
+        edge.buffer(half_wall + 2, cap_style="flat"))
+    (ax, ay), (bx, by) = edge.coords
+    dx, dy = bx - ax, by - ay
+    parallel = []
+    for line in parts(nearby, "LineString"):
+        (x0, y0), (x1, y1) = line.coords[0], line.coords[-1]
+        if line.length > 1e-5 and abs((x1 - x0) * dx + (y1 - y0) * dy) >= line.length * edge.length * .9:
+            parallel.append(line)
+    matched = unary_union(parallel) if parallel else GeometryCollection()
+    source_length = matched.length
+    unsupported_length = matched.difference(structural_support.buffer(3)).length
+    if source_length >= edge.length * .55 and unsupported_length >= source_length * .5:
+        origin = "pre_partition_unconfirmed"
+    elif source_length >= edge.length * .55 and unsupported_length <= source_length * .15:
+        origin = "offset_or_support_mismatch"
+    else:
+        origin = "undetermined"
+    return {"origin": origin,
+            "pre_partition_parallel_px": round(source_length, 2),
+            "pre_partition_unsupported_px": round(unsupported_length, 2)}
+
+
 def straighten_shared_door_kinks(nodes, segments, areas, doors, walls, half_wall, scale, ox, oy):
     """Remove a tiny degree-two bend only when a confirmed door needs its full span.
 
@@ -788,6 +814,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
         shapes, source.get("windows", []), walls, half_wall)
     shapes, extended_windows = extend_window_endcap_corners(
         shapes, source.get("windows", []), raster_gray, half_wall)
+    pre_partition_boundary = unary_union([p.boundary for p in shapes])
     adjustments = []
     shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments)]
     level_template = template["levels"][0]
@@ -800,7 +827,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
     transform = {"scale_x": scale, "scale_y": scale, "origin_x": ox, "origin_y": oy}
 
     known = unary_union([p if p.is_valid else p.buffer(0) for p in openings]) if openings else GeometryCollection()
-    support = unary_union([walls, known]).buffer(half_wall + 3)
+    structural_support = unary_union([walls, known])
+    support = structural_support.buffer(half_wall + 3)
     unknown = []
     # Room axes may be half a wall away from an opening polygon and temporary
     # raster closures can extend slightly beyond its caps. Use the same support
@@ -860,7 +888,10 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
         elif edge.difference(support).length > max(2, edge.length * 0.15):
             reason = "missing_structural_support"
         if reason:
-            unsupported.append({"start": list(a), "end": list(b), "reason": reason})
+            unsupported.append({"start": list(a), "end": list(b), "reason": reason,
+                                **unsupported_boundary_evidence(
+                                    edge, pre_partition_boundary, structural_support,
+                                    half_wall)})
             continue
         if edge.intersection(narrow_unknown).length > 1e-4:
             matched_closure_edges += 1
@@ -908,6 +939,10 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "rooms": [{"id": i, "polygon": [list(p) for p in shape.exterior.coords[:-1]]}
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
+              "unsupported_origin_counts": {
+                  origin: sum(item["origin"] == origin for item in unsupported)
+                  for origin in ("pre_partition_unconfirmed",
+                                 "offset_or_support_mismatch", "undetermined")},
               "aligned_window_boundaries": aligned_windows,
               "bridged_window_bays": bridged_windows,
               "extended_window_endcaps": extended_windows,
