@@ -1,8 +1,48 @@
-"""Measure structural wall bands adjacent to a bounded opening."""
+"""Measure structural wall bands beside openings and straight wall axes."""
 
+import math
 import statistics
 
 from shapely.geometry import LineString, Point
+
+
+def sample_straight_wall_band(walls, line, nominal_width):
+    """Find one stable source-wall strip across five cuts of a straight axis."""
+    if walls.is_empty or line.length < 30 or nominal_width <= 0:
+        return None
+    (ax, ay), (bx, by) = line.coords
+    dx, dy = bx - ax, by - ay
+    length = math.hypot(dx, dy)
+    nx, ny = -dy / length, dx / length
+    reach = max(100, nominal_width * 5)
+    samples = []
+    for fraction in (.15, .3, .5, .7, .85):
+        x, y = ax + dx * fraction, ay + dy * fraction
+        center = Point(x, y)
+        cut = walls.intersection(LineString([
+            (x - nx * reach, y - ny * reach),
+            (x + nx * reach, y + ny * reach)]))
+        pieces = ([cut] if cut.geom_type == "LineString" else
+                  list(getattr(cut, "geoms", [])))
+        nearby = [piece for piece in pieces
+                  if piece.geom_type == "LineString" and 8 <= piece.length <= reach
+                  and piece.distance(center) <= max(12, nominal_width * .75)]
+        if not nearby:
+            return None
+        band = max(nearby, key=lambda piece: piece.length)
+        middle = band.interpolate(.5, normalized=True)
+        samples.append({"width": band.length,
+                        "offset": (middle.x - x) * nx + (middle.y - y) * ny})
+    widths = [sample["width"] for sample in samples]
+    offsets = [sample["offset"] for sample in samples]
+    if (max(widths) > min(widths) * 1.4
+            or max(offsets) - min(offsets) > max(4, min(widths) * .2)):
+        return None
+    offset = statistics.median(offsets)
+    if any(value * offset <= 0 for value in offsets):
+        return None
+    return {"median_width_px": statistics.median(widths),
+            "median_offset_px": offset, "normal": (nx, ny)}
 
 
 def flanking_wall_band(walls, span):

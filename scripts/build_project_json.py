@@ -97,7 +97,12 @@ def main():
     template_level = template["levels"][0]
     geometry_errors = []
     if args.geometry_mode != "bbox":
-        from polygon_geometry import build_polygon_project, render_geometry, requires_polygons
+        from polygon_geometry import (
+            build_polygon_project,
+            realign_project_exterior_wall_axes,
+            render_geometry,
+            requires_polygons,
+        )
         from shapely.errors import GEOSException
         if args.geometry_mode == "polygon" or requires_polygons(rooms):
             try:
@@ -116,6 +121,8 @@ def main():
                 if args.internal_walls:
                     from internal_wall_graph import extend_project_walls
                     result, report = extend_project_walls(result, src, report, args.wall_thickness, args.height)
+                result, report = realign_project_exterior_wall_axes(
+                    result, src, report, args.wall_thickness)
                 output_path = Path(args.output)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

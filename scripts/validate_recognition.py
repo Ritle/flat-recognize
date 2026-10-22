@@ -100,6 +100,14 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                   opening_id=change.get("window_id"), room_id=change.get("room_id"),
                   corner_shift_px=change.get("corner_shift_px"),
                   added_room_area_px2=change.get("added_room_area_px2"))
+        for change in geometry.get("realigned_exterior_wall_axes", []):
+            issue("exterior_wall_axis_realigned", "warning",
+                  "Ось наружной стены сдвинута по подтверждённой растровой полосе; "
+                  "проверьте форму комнаты и соединения стен.",
+                  wall_uuid=change.get("wall_uuid"),
+                  room_index=change.get("room_index"),
+                  axis_shift_px=change.get("axis_shift_px"),
+                  source_support=change.get("source_support"))
         for change in geometry.get("calibrated_wall_thickness", []):
             issue("facade_wall_thickness_calibrated", "warning",
                   "Толщина наружной стены измерена рядом с восстановленным окном; "

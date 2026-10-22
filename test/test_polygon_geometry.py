@@ -20,6 +20,8 @@ from polygon_geometry import (
     calibrate_recovered_facade_thickness,
     extend_window_endcap_corners,
     partition_rooms,
+    realign_exterior_wall_axes,
+    realign_project_exterior_wall_axes,
     requires_polygons,
     straighten_shared_door_kinks,
     supported_offset_sliver,
@@ -43,6 +45,57 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_realigns_only_supported_exterior_axis_without_changing_topology(self):
+        nodes = [dict(uuid=uid, x=x, y=y) for uid, x, y in
+                 (("a", -1000, 0), ("b", 1000, 0),
+                  ("c", 1000, 1000), ("d", -1000, 1000))]
+        segments = [dict(uuid=f"s{i}", start=a, end=b, thickness=20) for i, (a, b) in
+                    enumerate((("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")))]
+        areas = [{"connectors": ["a", "b", "c", "d"], "area_value": 2_000_000}]
+        wall_mask = unary_union([box(995, 0, 1025, 1000),
+                                 box(-1000, -10, 1025, 10),
+                                 box(-1000, 990, 1025, 1010),
+                                 box(-1010, 0, -990, 1000)])
+        changes = realign_exterior_wall_axes(
+            nodes, segments, areas, [], [], wall_mask, 1, 0, 0, 20)
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["wall_uuid"], "s1")
+        self.assertEqual((nodes[1]["x"], nodes[2]["x"]), (1010, 1010))
+        self.assertEqual(areas[0]["area_value"], 2_010_000)
+        self.assertGreater(changes[0]["band_coverage_after"],
+                           changes[0]["band_coverage_before"])
+
+        original_nodes = [dict(uuid=uid, x=x, y=y) for uid, x, y in
+                          (("a", -1000, 0), ("b", 1000, 0),
+                           ("c", 1000, 1000), ("d", -1000, 1000))]
+        shared = areas + [{"connectors": ["c", "b", "a", "d"]}]
+        self.assertEqual(realign_exterior_wall_axes(
+            original_nodes, segments, shared, [], [], wall_mask, 1, 0, 0, 20), [])
+        self.assertEqual(original_nodes[1]["x"], 1000)
+
+        distant_exterior = wall_mask.union(box(3000, 0, 3020, 1000))
+        self.assertEqual(realign_exterior_wall_axes(
+            original_nodes, segments, areas, [], [], distant_exterior,
+            1, 0, 0, 20), [])
+        self.assertEqual(original_nodes[1]["x"], 1000)
+
+        near_corner_window = {"outer": [[985, -5], [1015, -5],
+                                        [1015, 5], [985, 5]]}
+        self.assertEqual(realign_exterior_wall_axes(
+            original_nodes, segments, areas, [], [near_corner_window],
+            wall_mask, 1, 0, 0, 20), [])
+        self.assertEqual(original_nodes[1]["x"], 1000)
+
+        report = {"adapter": "polygon", "unsupported_segments": [{"reason": "gap"}],
+                  "pixel_to_world": {"scale_x": 1, "scale_y": 1,
+                                     "origin_x": 0, "origin_y": 0}}
+        project = {"levels": [{"connectors": original_nodes,
+                               "segments": segments, "areas": areas[:1]}]}
+        returned, _ = realign_project_exterior_wall_axes(project, {}, report, 20)
+        self.assertIs(returned, project)
+        self.assertEqual(report["realigned_exterior_wall_axes"], [])
+        self.assertEqual(original_nodes[1]["x"], 1000)
+
     def test_thick_facade_calibration_needs_external_edge_and_two_wall_flanks(self):
         nodes = [{"uuid": uid, "x": x, "y": y} for uid, x, y in
                  (("a", 0, 43), ("b", 100, 43), ("c", 100, 100), ("d", 0, 100))]

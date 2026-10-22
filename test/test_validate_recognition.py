@@ -101,6 +101,18 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(issue["wall_uuid"], "wall-1")
         self.assertEqual(issue["opening_ids"], [19])
 
+    def test_realigning_exterior_axis_requires_review(self):
+        rooms, project, bindings = fixture()
+        geometry = {"adapter": "polygon", "realigned_exterior_wall_axes": [{
+            "wall_uuid": "wall-1", "room_index": 0,
+            "axis_shift_px": 7.75, "source_support": .997}]}
+        result = validate_recognition(rooms, project, bindings, geometry=geometry)
+        self.assertEqual(result["status"], "review")
+        self.assertTrue(result["export_allowed"])
+        adjustment = next(issue for issue in result["issues"]
+                          if issue["code"] == "exterior_wall_axis_realigned")
+        self.assertEqual(adjustment["axis_shift_px"], 7.75)
+
     def test_thick_topology_window_stays_invalid_after_type_confirmation(self):
         rooms, project, bindings = fixture()
         recovered = {"method": "topology_recovered_thick_window", "requires_review": True}

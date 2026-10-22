@@ -12,7 +12,7 @@ from shapely import contains_xy, set_precision
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import nearest_points, polygonize, unary_union
-from wall_band_measurement import flanking_wall_band
+from wall_band_measurement import flanking_wall_band, sample_straight_wall_band
 
 
 def parts(geometry, kind):
@@ -634,6 +634,145 @@ def calibrate_recovered_facade_thickness(nodes, segments, areas, windows, walls,
     return changes
 
 
+def realign_exterior_wall_axes(nodes, segments, areas, doors, windows, walls,
+                               scale, origin_x, origin_y, default_thickness):
+    """Move a straight exterior axis only into a stable raster wall band."""
+    if walls.is_empty:
+        return []
+    by_id = {node["uuid"]: node for node in nodes}
+    incident = {uid: [] for uid in by_id}
+    boundary_counts = {}
+    owners = {uid: set() for uid in by_id}
+    for index, area in enumerate(areas):
+        ring = area["connectors"]
+        for uid in ring:
+            owners[uid].add(index)
+        for a, b in zip(ring, ring[1:] + ring[:1]):
+            key = frozenset((a, b))
+            boundary_counts[key] = boundary_counts.get(key, 0) + 1
+    for segment in segments:
+        incident[segment["start"]].append(segment)
+        incident[segment["end"]].append(segment)
+    opening_shapes = []
+    for item in doors + windows:
+        if len(item.get("outer", [])) >= 3:
+            shape = Polygon(item["outer"])
+            opening_shapes.append(shape if shape.is_valid else shape.buffer(0))
+    openings = unary_union(opening_shapes) if opening_shapes else GeometryCollection()
+    support = unary_union([walls, openings]).buffer(default_thickness / scale / 2 + 3)
+    moved, changes = set(), []
+
+    def point(uid):
+        node = by_id[uid]
+        return ((node["x"] - origin_x) / scale, (node["y"] - origin_y) / scale)
+
+    for segment in segments:
+        a, b = segment["start"], segment["end"]
+        if (a in moved or b in moved or boundary_counts.get(frozenset((a, b))) != 1
+                or len(incident[a]) != 2 or len(incident[b]) != 2
+                or len(owners[a]) != 1 or owners[a] != owners[b]):
+            continue
+        old_line = LineString([point(a), point(b)])
+        width_px = default_thickness / scale
+        dx, dy = old_line.coords[1][0] - old_line.coords[0][0], \
+            old_line.coords[1][1] - old_line.coords[0][1]
+        if (old_line.length < 120 or min(abs(dx), abs(dy)) > old_line.length * .05
+                or not openings.is_empty and any(
+                    openings.distance(Point(point(uid))) < max(10, width_px * 1.5)
+                    for uid in (a, b))):
+            continue
+        band = sample_straight_wall_band(walls, old_line, width_px)
+        if band is None:
+            continue
+        measured, shift = band["median_width_px"], band["median_offset_px"]
+        if (not max(6, measured * .25) < abs(shift) <= min(12, measured * .45)
+                or not width_px * .7 <= measured <= width_px * 2):
+            continue
+        # One adjacent room is insufficient to call a wall exterior: missing
+        # rooms can make an internal partition look like a facade.
+        x0, y0, x1, y1 = walls.bounds
+        middle = old_line.interpolate(.5, normalized=True)
+        edge_distance = (min(abs(middle.x - x0), abs(x1 - middle.x))
+                         if abs(dy) > abs(dx) else
+                         min(abs(middle.y - y0), abs(y1 - middle.y)))
+        if edge_distance > measured * 2:
+            continue
+        nx, ny = band["normal"]
+        candidate = {uid: (point(uid)[0] + nx * shift,
+                           point(uid)[1] + ny * shift) for uid in (a, b)}
+        new_line = LineString([candidate[a], candidate[b]])
+        old_band = old_line.buffer(width_px / 2, cap_style="flat")
+        new_band = new_line.buffer(width_px / 2, cap_style="flat")
+        before = old_band.intersection(walls).area / old_band.area
+        after = new_band.intersection(walls).area / new_band.area
+        if after < .9 or after - before < .08:
+            continue
+        owner = next(iter(owners[a]))
+        ring = areas[owner]["connectors"]
+        old_room = Polygon([point(uid) for uid in ring])
+        new_room = Polygon([candidate.get(uid, point(uid)) for uid in ring])
+        if not new_room.is_valid or new_room.area <= 0:
+            continue
+        changed = old_room.symmetric_difference(new_room)
+        if (changed.is_empty or changed.area > old_room.area * .01
+                or changed.intersection(walls).area / changed.area < .9):
+            continue
+        if any(new_room.intersection(Polygon([point(uid) for uid in area["connectors"]])).area > 1e-4
+               for index, area in enumerate(areas) if index != owner):
+            continue
+        touched = {item["uuid"]: item for uid in (a, b) for item in incident[uid]}
+        if any(LineString([candidate.get(item["start"], point(item["start"])),
+                           candidate.get(item["end"], point(item["end"]))]).difference(support).length
+               > max(2, LineString([point(item["start"]), point(item["end"])]).length * .15)
+               for item in touched.values()):
+            continue
+        for uid, (x, y) in candidate.items():
+            by_id[uid]["x"] = round(origin_x + x * scale, 4)
+            by_id[uid]["y"] = round(origin_y + y * scale, 4)
+        areas[owner]["area_value"] = round(new_room.area * scale ** 2, 4)
+        moved.update((a, b))
+        changes.append({"wall_uuid": segment["uuid"], "room_index": owner,
+                        "axis_shift_px": round(abs(shift), 2),
+                        "source_width_px": round(measured, 2),
+                        "changed_room_area_px2": round(changed.area, 2),
+                        "source_support": round(changed.intersection(walls).area / changed.area, 3),
+                        "band_coverage_before": round(before, 3),
+                        "band_coverage_after": round(after, 3)})
+    return changes
+
+
+def realign_project_exterior_wall_axes(project, source, report, default_thickness):
+    """Apply guarded facade alignment after optional internal walls are noded."""
+    report["realigned_exterior_wall_axes"] = []
+    if report.get("unsupported_segments"):
+        return project, report
+    wall_shapes = []
+    for item in source.get("walls", []) + source.get("reclassified_wall_support", []):
+        shape = Polygon(item["outer"], item.get("holes", []))
+        wall_shapes.append(shape if shape.is_valid else shape.buffer(0))
+    walls = unary_union(wall_shapes) if wall_shapes else GeometryCollection()
+    transform = report["pixel_to_world"]
+    scale = transform["scale_x"]
+    if abs(scale - transform["scale_y"]) > 1e-6:
+        return project, report
+    level = project["levels"][0]
+    changes = realign_exterior_wall_axes(
+        level["connectors"], level["segments"], level["areas"],
+        source.get("doors", []), source.get("windows", []), walls,
+        scale, transform["origin_x"], transform["origin_y"], default_thickness)
+    report["realigned_exterior_wall_axes"] = changes
+    if changes:
+        positions = {node["uuid"]: ((node["x"] - transform["origin_x"]) / scale,
+                                     (node["y"] - transform["origin_y"]) / scale)
+                     for node in level["connectors"]}
+        report["rooms"] = [{"id": i, "polygon": [list(positions[uid]) for uid in area["connectors"]]}
+                           for i, area in enumerate(level["areas"])]
+        report["warnings"].append(
+            f"Оси наружных стен согласованы с устойчивой полосой на исходном плане "
+            f"({len(changes)}); проверьте соединения стен и форму комнат.")
+    return project, report
+
+
 def build_polygon_project(source, template, scale=1, thickness=20, height=270,
                           raster_gray=None):
     shapes = [Polygon(r["polygon"]) for r in source["rooms"]]
@@ -772,6 +911,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "aligned_window_boundaries": aligned_windows,
               "bridged_window_bays": bridged_windows,
               "extended_window_endcaps": extended_windows,
+              "realigned_exterior_wall_axes": [],
               "calibrated_wall_thickness": calibrated_walls,
               "aligned_door_boundaries": aligned_doors,
               "matched_closure_edges": matched_closure_edges,
