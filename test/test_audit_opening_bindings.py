@@ -169,7 +169,20 @@ class OpeningBindingAuditTests(unittest.TestCase):
         self.assertEqual(wall["segments"][0]["source_axis_pixel_start"], [0.0, -40.0])
         self.assertEqual(wall["segments"][0]["reasons"],
                          ["wall_thickness_mismatch", "wall_axis_off_center"])
+        self.assertEqual(wall["segments"][0]["source_wall_support"], {
+            "sampled_cuts": 3, "wall_dominant_cuts": 3,
+            "wall_fraction_by_cut": [1.0, 1.0, 1.0]})
         self.assertEqual(original, project())
+
+        interrupted = {"doors": [], "windows": [
+            {"outer": [[40, -80], [70, -80], [70, 0], [40, 0]]}],
+            "walls": [{"outer": [[0, -80], [40, -80], [40, 0], [0, 0]]},
+                      {"outer": [[70, -80], [100, -80], [100, 0], [70, 0]]}]}
+        row = audit_opening_bindings(interrupted, original, geometry)[
+            "wall_geometry"]["segments"][0]
+        self.assertEqual(row["source_wall_support"], {
+            "sampled_cuts": 3, "wall_dominant_cuts": 2,
+            "wall_fraction_by_cut": [1.0, 0.0, 1.0]})
 
         centered = {"doors": [], "windows": [], "walls": [
             {"outer": [[0, -10], [100, -10], [100, 10], [0, 10]]}]}

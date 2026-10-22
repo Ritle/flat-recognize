@@ -84,7 +84,7 @@ def raster_span_on_current_walls(opening, segments, transform, walls=None):
     return result
 
 
-def audit_segment_wall_bands(segments, support, transform):
+def audit_segment_wall_bands(segments, support, transform, walls=None):
     """Advisory comparison of exported wall axes with source structural bands."""
     sx, sy, ox, oy = transform
     result = {"examined": len(segments), "sampled": 0, "suspect": 0,
@@ -107,6 +107,7 @@ def audit_segment_wall_bands(segments, support, transform):
         expected_px = expected / normal_scale
         reach = max(100, expected_px * 5)
         samples = []
+        wall_fractions = []
         for fraction in (.2, .5, .8):
             x, y = ax + dx * fraction, ay + dy * fraction
             cut = support.intersection(LineString([
@@ -123,6 +124,8 @@ def audit_segment_wall_bands(segments, support, transform):
             middle = band.interpolate(.5, normalized=True)
             signed_offset = (middle.x - x) * nx + (middle.y - y) * ny
             samples.append((band.length, signed_offset))
+            if walls is not None:
+                wall_fractions.append(band.intersection(walls).length / band.length)
         if len(samples) != 3:
             continue
         widths = [width for width, _ in samples]
@@ -143,7 +146,7 @@ def audit_segment_wall_bands(segments, support, transform):
             reasons.append("wall_axis_off_center")
         if reasons:
             source_offset_px = statistics.median(offsets)
-            result["segments"].append({
+            row = {
                 "wall_uuid": segment.get("uuid"),
                 "pixel_start": [round(ax, 2), round(ay, 2)],
                 "pixel_end": [round(bx, 2), round(by, 2)],
@@ -154,7 +157,13 @@ def audit_segment_wall_bands(segments, support, transform):
                 "measured_thickness_cm": round(measured, 2),
                 "project_thickness_cm": round(expected, 2),
                 "axis_offset_cm": round(center_offset, 2),
-                "reasons": reasons})
+                "reasons": reasons}
+            if wall_fractions:
+                row["source_wall_support"] = {
+                    "sampled_cuts": len(wall_fractions),
+                    "wall_dominant_cuts": sum(fraction >= .5 for fraction in wall_fractions),
+                    "wall_fraction_by_cut": [round(fraction, 3) for fraction in wall_fractions]}
+            result["segments"].append(row)
     result["suspect"] = len(result["segments"])
     return result
 
@@ -203,7 +212,7 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
         return report
     report["status"] = "audited"
     report["wall_geometry"] = audit_segment_wall_bands(
-        segments, support, (sx, sy, ox, oy))
+        segments, support, (sx, sy, ox, oy), walls)
     for kind in ("doors", "windows"):
         for opening in classified.get(kind, []):
             row = {"opening_id": opening.get("id"), "kind": kind,
