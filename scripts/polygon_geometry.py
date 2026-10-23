@@ -66,6 +66,47 @@ def unsupported_boundary_evidence(edge, pre_partition_boundary, structural_suppo
             "pre_partition_unsupported_px": round(unsupported_length, 2)}
 
 
+def unsupported_closure_groups(source, unsupported):
+    """Group unsupported project edges by the temporary raster closure behind them.
+
+    These are inspection targets, not openings or evidence that export is valid.
+    """
+    diagnostics = source.get("diagnostics", {})
+    closures = diagnostics.get("temporary_closures", [])
+    recovery = {item.get("closure_index"): item
+                for item in diagnostics.get("opening_recovery", {}).get("candidates", [])}
+    grouped = {}
+    for edge in unsupported:
+        index = edge.get("temporary_closure_index")
+        if (edge.get("origin") != "temporary_topology_closure"
+                or not isinstance(index, int) or not 0 <= index < len(closures)):
+            continue
+        grouped.setdefault(index, []).append(edge)
+    result = []
+    for index, edges in sorted(grouped.items()):
+        closure = closures[index]
+        decision = recovery.get(index, {})
+        start, end = closure["start"], closure["end"]
+        half_width = max(0, float(closure.get("width", 0))) / 2
+        result.append({
+            "closure_index": index, "start": start, "end": end,
+            "center": [round((start[0] + end[0]) / 2, 2),
+                       round((start[1] + end[1]) / 2, 2)],
+            "bbox": [round(min(start[0], end[0]) - half_width, 2),
+                     round(min(start[1], end[1]) - half_width, 2),
+                     round(max(start[0], end[0]) + half_width, 2),
+                     round(max(start[1], end[1]) + half_width, 2)],
+            "closure_evidence": closure.get("evidence"),
+            "recovery_status": decision.get("status"),
+            "recovery_reason": decision.get("reason"),
+            "jamb_support": decision.get("jamb_support"),
+            "unsupported_edge_count": len(edges),
+            "unsupported_edges": [{"start": edge["start"], "end": edge["end"]}
+                                  for edge in edges],
+        })
+    return result
+
+
 def straighten_shared_door_kinks(nodes, segments, areas, doors, walls, half_wall, scale, ox, oy):
     """Remove a tiny degree-two bend only when a confirmed door needs its full span.
 
@@ -981,6 +1022,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "rooms": [{"id": i, "polygon": [list(p) for p in shape.exterior.coords[:-1]]}
                         for i, shape in enumerate(shapes)],
               "unsupported_segments": unsupported,
+              "unsupported_closure_groups": unsupported_closure_groups(source, unsupported),
               "unsupported_origin_counts": {
                   origin: sum(item["origin"] == origin for item in unsupported)
                   for origin in ("inferred_exterior_envelope", "temporary_topology_closure",

@@ -163,5 +163,16 @@ async function show(status) {
     nodes.get('applyReviewButton').onclick();
     assert.equal(submitted.payload.answers[0].room_id, 6);
     assert.equal(submitted.payload.answers[0].choice, 'ignore');
+    context.renderClosureCandidates({original_url: '/original', geometry_review_candidates: [
+        {closure_index: 2, center: [25, 30], image_size: [100, 80],
+            closure_evidence: 'door_leaf', recovery_reason: 'missing_wall_jamb',
+            jamb_support: [1, 3], unsupported_edge_count: 3}]});
+    assert.equal(nodes.get('closurePanel').style.display, 'block');
+    assert.equal(nodes.get('closureList').children.length, 1);
+    assert.match(nodes.get('closureList').children[0].children[1].textContent, /1\/3/);
+    assert.match(nodes.get('closureList').children[0].children[1].textContent, /3$/);
+    assert.equal(nodes.get('closureList').children[0].children.length, 2);
+    context.renderClosureCandidates({geometry_review_candidates: []});
+    assert.equal(nodes.get('closurePanel').style.display, 'none');
     console.log('UI good → invalid → review and recovery diagnostics: passed');
 })().catch(error => { console.error(error); process.exitCode = 1; });

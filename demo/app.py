@@ -349,8 +349,15 @@ async def recognize(
                                  key: preflight_data.get("wall_geometry", {}).get(key, 0)
                                  for key in ("sampled", "suspect")}}
     geometry_path = OUTPUT_DIR / f"{job_id}_geometry.json"
+    geometry_review_candidates = []
     if geometry_path.exists():
         shutil.copy2(geometry_path, job_dir / "geometry.json")
+        geometry_data = json.loads(geometry_path.read_text(encoding="utf-8"))
+        geometry_review_candidates = [
+            {**candidate, "image_size": [room_data.get("meta", {}).get("width"),
+                                         room_data.get("meta", {}).get("height")]}
+            for candidate in geometry_data.get("unsupported_closure_groups", [])
+        ]
     interior_report = OUTPUT_DIR / f"{job_id}_interior_windows.json"
     if interior_report.exists():
         shutil.copy2(interior_report, job_dir / "interior_windows.json")
@@ -453,6 +460,7 @@ async def recognize(
         "quality": quality,
         "inference": inference,
         "review_questions": review_questions,
+        "geometry_review_candidates": geometry_review_candidates,
         "opening_preflight": opening_preflight,
         "applied_decisions": applied_decisions,
         "image_sha256": source_hash,

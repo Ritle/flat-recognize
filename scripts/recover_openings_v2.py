@@ -14,7 +14,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc
+from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, wall_jamb_support
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
@@ -55,6 +55,8 @@ def recover_openings(classified, rooms, rgb, prediction=None):
         decisions.append(decision)
         a, b = np.array(closure["start"], float), np.array(closure["end"], float)
         length, width = float(np.linalg.norm(b - a)), float(closure["width"])
+        decision["closure_evidence"] = closure.get("evidence")
+        decision["jamb_support"] = wall_jamb_support(a, b, width, walls)
         if closure.get("evidence") != "door_leaf" or width <= 0 or length < max(15, width * 1.5):
             decision["reason"] = "no_leaf_candidate"
             continue

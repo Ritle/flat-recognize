@@ -43,6 +43,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 (output / f"{stem}_rooms.json").write_text(json.dumps(rooms), encoding="utf-8")
                 (output / f"{stem}_classified.json").write_text(json.dumps({
                     "meta": rooms["meta"], "doors": [], "windows": []}), encoding="utf-8")
+                (output / f"{stem}_geometry.json").write_text(json.dumps({
+                    "unsupported_closure_groups": [{"closure_index": 2,
+                        "center": [35, 40], "unsupported_edge_count": 3}]}), encoding="utf-8")
                 if review_decisions:
                     selected = apply_room_decisions(
                         rooms, json.loads(review_decisions.read_text(encoding="utf-8")), source_hash)
@@ -57,6 +60,8 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 first = await api.recognize(
                     UploadFile(filename="test.png", file=io.BytesIO(source)), False, None)
                 question = next(item for item in first["review_questions"] if item.get("kind") == "room")
+                self.assertEqual(first["geometry_review_candidates"][0]["image_size"], [100, 100])
+                self.assertEqual(first["geometry_review_candidates"][0]["unsupported_edge_count"], 3)
                 self.assertEqual(question["room_id"], 1)
                 answer = {"room_id": 1, "fingerprint": question["fingerprint"],
                           "choice": "ignore"}

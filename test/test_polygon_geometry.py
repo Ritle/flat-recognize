@@ -26,6 +26,7 @@ from polygon_geometry import (
     straighten_shared_door_kinks,
     supported_offset_sliver,
     unsupported_boundary_evidence,
+    unsupported_closure_groups,
 )
 from recover_windows_topology_v2 import measured_window_axis
 from validate_recognition import validate_recognition
@@ -46,6 +47,31 @@ def template():
 
 
 class PolygonGeometryTest(unittest.TestCase):
+    def test_unsupported_closures_group_export_edges_without_approving_geometry(self):
+        rooms = {"diagnostics": {
+            "temporary_closures": [
+                {"start": [10, 20], "end": [30, 20], "width": 8, "evidence": "door_leaf"},
+                {"start": [50, 20], "end": [70, 20], "width": 8, "evidence": "door_leaf"}],
+            "opening_recovery": {"candidates": [
+                {"closure_index": 0, "status": "rejected",
+                 "reason": "missing_wall_jamb", "jamb_support": [1, 3]},
+                {"closure_index": 1, "status": "recovered"}]}}}
+        edges = [{"start": [10, 20], "end": [20, 20], "origin": "temporary_topology_closure",
+                  "temporary_closure_index": 0},
+                 {"start": [20, 20], "end": [30, 20], "origin": "temporary_topology_closure",
+                  "temporary_closure_index": 0},
+                 {"start": [50, 20], "end": [70, 20], "origin": "temporary_topology_closure",
+                  "temporary_closure_index": 1},
+                 {"start": [90, 20], "end": [100, 20], "origin": "pre_partition_unconfirmed"}]
+        before = copy.deepcopy((rooms, edges))
+        groups = unsupported_closure_groups(rooms, edges)
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(groups[0]["unsupported_edge_count"], 2)
+        self.assertEqual(groups[0]["jamb_support"], [1, 3])
+        self.assertEqual(groups[0]["bbox"], [6.0, 16.0, 34.0, 24.0])
+        self.assertEqual(groups[1]["recovery_status"], "recovered")
+        self.assertEqual((rooms, edges), before)
+
     def test_unsupported_boundary_identifies_pre_partition_gap(self):
         exported = LineString([(0, 10), (100, 10)])
         source_edge = LineString([(10, 0), (90, 0)])

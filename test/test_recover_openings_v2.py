@@ -132,7 +132,11 @@ class RecoveryTest(unittest.TestCase):
                 classified["walls"].pop()
             else:
                 rooms["diagnostics"]["temporary_closures"][0]["evidence"] = mode
-            self.assertEqual(recover_openings(classified, rooms, rgb)[2]["recovered_doors"], 0)
+            report = recover_openings(classified, rooms, rgb)[2]
+            self.assertEqual(report["recovered_doors"], 0)
+            self.assertEqual(report["candidates"][0]["closure_evidence"],
+                             rooms["diagnostics"]["temporary_closures"][0]["evidence"])
+            self.assertEqual(len(report["candidates"][0]["jamb_support"]), 2)
 
     def test_existing_window_and_repeated_gap_are_not_duplicated(self):
         classified, rooms, rgb = fixture()

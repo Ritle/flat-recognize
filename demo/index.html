@@ -559,6 +559,12 @@
             <button class="btn btn-secondary" id="applyReviewButton" type="button">Пересчитать с выбранными вариантами</button>
         </div>
 
+        <div class="review-panel" id="closurePanel">
+            <h3>Неподтверждённые границы помещений</h3>
+            <p>Система временно закрыла эти разрывы, чтобы построить помещения. Здесь нет достаточных признаков стены или проёма. Покажите участок на исходном плане; проект останется недоступен для экспорта, пока геометрия не будет исправлена.</p>
+            <div class="review-list" id="closureList"></div>
+        </div>
+
         <div class="json-panel" id="jsonPanel">
 
             <div class="json-head">
@@ -773,6 +779,7 @@ async function showResult(data) {
 
     setupImages(data);
     renderReviewQuestions(data);
+    renderClosureCandidates(data);
 
     results.style.display = 'block';
 
@@ -857,6 +864,41 @@ function renderReviewQuestions(data) {
         row.appendChild(locate);
         row.appendChild(label);
         row.appendChild(select);
+        list.appendChild(row);
+    }
+}
+
+function renderClosureCandidates(data) {
+    const panel = document.getElementById('closurePanel');
+    const list = document.getElementById('closureList');
+    const candidates = data.geometry_review_candidates || [];
+    list.textContent = '';
+    panel.style.display = candidates.length ? 'block' : 'none';
+    const evidence = {small_gap: 'малый разрыв', raster_line: 'растровая линия',
+        door_leaf: 'линия, похожая на дверное полотно'};
+    const reasons = {no_leaf_candidate: 'полотно не подтверждено',
+        missing_wall_jamb: 'не хватает опоры стены по краям',
+        leaf_and_arc_not_confirmed: 'нет надёжного подтверждения двери',
+        gap_contains_wall: 'в разрыве есть распознанная стена'};
+    for (const candidate of candidates) {
+        const row = document.createElement('div');
+        row.className = 'review-item';
+        const locate = document.createElement('button');
+        locate.type = 'button';
+        locate.className = 'btn btn-secondary';
+        locate.textContent = `Показать разрыв №${candidate.closure_index + 1}`;
+        locate.onclick = () => highlightQuestion(candidate, data.original_url);
+        const label = document.createElement('span');
+        const support = candidate.jamb_support;
+        const recovery = candidate.recovery_status === 'recovered'
+            ? 'проём распознан, но граница остаётся неподтверждённой'
+            : reasons[candidate.recovery_reason] || 'проём не подтверждён';
+        label.textContent = `${evidence[candidate.closure_evidence] || 'временное замыкание'}` +
+            ` · ${recovery}` +
+            (Array.isArray(support) ? ` · опора краёв ${support.join('/')} из 3` : '') +
+            ` · затронуто участков границы: ${candidate.unsupported_edge_count}`;
+        row.appendChild(locate);
+        row.appendChild(label);
         list.appendChild(row);
     }
 }
