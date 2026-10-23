@@ -49,6 +49,19 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(r["quality"], 1)
         self.assertIn("approximate_scale", [i["code"] for i in r["issues"]])
 
+    def test_automatic_topology_mask_change_cannot_clear_invalid_quality(self):
+        rooms, project, bindings = fixture()
+        rooms["diagnostics"]["topology_window_reconciliation"] = {
+            "removed_from_room_mask": [2]}
+        rooms["topology_only_openings"] = [{"id": 2, "topology_mask_use": False}]
+        result = validate_recognition(rooms, project, bindings)
+        self.assertEqual(result["status"], "invalid")
+        self.assertFalse(result["export_allowed"])
+        self.assertIn("topology_mask_change_unconfirmed",
+                      [item["code"] for item in result["issues"]])
+        self.assertNotIn("topology_only_openings",
+                         [item["code"] for item in result["issues"]])
+
     def test_manual_opening_choice_remains_review(self):
         rooms, project, bindings = fixture()
         rooms["review_decisions"] = [{"opening_id": 1, "choice": "window"}]

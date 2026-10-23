@@ -454,6 +454,20 @@ def main():
         rooms_json = require_file(OUTPUT / f"{stem}_rooms_filtered.json",
                                   "Rooms rechecked after window filtering")
 
+        run_command("V2 - Reconcile uncertain window room masks",
+                    [python, SCRIPTS / "reconcile_topology_windows_v2.py", image,
+                     classified_json, rooms_json, template, "--scale", str(args.scale),
+                     "--wall-thickness", str(args.wall_thickness)])
+        classified_json = require_file(OUTPUT / f"{stem}_topology_reconciled_classified.json",
+                                       "Topology-reconciled openings")
+        rooms_json = require_file(OUTPUT / f"{stem}_rooms_topology_reconciled.json",
+                                  "Rooms after topology-only window reconciliation")
+        topology_report = json.loads((OUTPUT / f"{stem}_topology_reconciliation.json").read_text(
+            encoding="utf-8"))
+        if topology_report.get("removed_from_room_mask"):
+            rooms_overlay = OUTPUT / f"{stem}_topology_reconciled_overlay.png"
+            barrier_image = OUTPUT / f"{stem}_topology_reconciled_barrier.png"
+
         if has_opening_answers:
             pre_review_rooms = rooms_json
             reviewed = OUTPUT / f"{stem}_reviewed_classified.json"

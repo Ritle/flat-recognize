@@ -110,6 +110,8 @@ def make_review_questions(classified, quality, source_sha256):
             "image_size": [classified.get("meta", {}).get("width"),
                            classified.get("meta", {}).get("height")],
             "current": current, "bbox": bbox, "center": center,
+            "topology_mask_use": (opening.get("topology_mask_use") is not False
+                                  if uid in topology_ids else None),
             "reasons": sorted(reasons[uid]),
             "geometry": geometry.get(uid),
             "paired_with": paired_with.get(uid, []),

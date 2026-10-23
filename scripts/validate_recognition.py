@@ -167,6 +167,14 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     diagnostics = rooms.get("diagnostics", {})
     if not isinstance(diagnostics, dict):
         diagnostics = {}
+    reconciliation = diagnostics.get("topology_window_reconciliation", {})
+    pruned = (reconciliation.get("removed_from_room_mask", [])
+              if isinstance(reconciliation, dict) else [])
+    if pruned:
+        issue("topology_mask_change_unconfirmed", "error",
+              "Контур сомнительного окна автоматически исключён из маски помещений; "
+              "форма комнат улучшилась, но требует подтверждения до экспорта.",
+              opening_ids=pruned)
     interior_filter = diagnostics.get("interior_window_filter", {})
     if isinstance(interior_filter, dict) and interior_filter.get("topology_stable") is False:
         issue("unstable_room_topology", "error",
@@ -243,9 +251,12 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     review_decisions = rooms.get("review_decisions", []) if isinstance(rooms, dict) else []
     topology_only = rooms.get("topology_only_openings", []) if isinstance(rooms, dict) else []
     if isinstance(topology_only, list) and topology_only:
-        issue("topology_only_openings", "warning",
-              f"Неподтверждённые оконные кандидаты использованы для построения комнат, но исключены из проекта "
-              f"({len(topology_only)}); проверьте проёмы и контуры.")
+        active = sum(opening.get("topology_mask_use") is not False
+                     for opening in topology_only if isinstance(opening, dict))
+        if active:
+            issue("topology_only_openings", "warning",
+                  f"Неподтверждённые оконные кандидаты использованы для построения комнат, но исключены из проекта "
+                  f"({active}); проверьте проёмы и контуры.")
     if isinstance(review_decisions, list) and review_decisions:
         metrics["user_review_choices"] = len(review_decisions)
         issue("user_review_applied", "warning",

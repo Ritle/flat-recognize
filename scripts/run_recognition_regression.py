@@ -42,6 +42,9 @@ SUFFIXES = (
     "_interior_filtered_classified.json", "_rooms_filtered.json",
     "_interior_windows.json",
     "_interior_windows_overlay.png",
+    "_topology_reconciled_classified.json", "_rooms_topology_reconciled.json",
+    "_topology_reconciliation.json", "_topology_reconciled_overlay.png",
+    "_topology_reconciled_barrier.png", "_topology_reconciled_closures.png",
 )
 
 
@@ -143,6 +146,7 @@ def run_case(case, run_dir, env, pipeline_v2=False):
     rooms = changed.get(image.stem + "_rooms.json")
     recovered_rooms = changed.get(image.stem + "_rooms_recovered.json")
     filtered_rooms = changed.get(image.stem + "_rooms_filtered.json")
+    reconciled_rooms = changed.get(image.stem + "_rooms_topology_reconciled.json")
     interior_filter = changed.get(image.stem + "_interior_windows.json")
     if interior_filter:
         row["interior_window_filter"] = load_json(interior_filter)
@@ -156,6 +160,11 @@ def run_case(case, run_dir, env, pipeline_v2=False):
         rooms = recovered_rooms
     if filtered_rooms:
         rooms = filtered_rooms
+    if reconciled_rooms:
+        rooms = reconciled_rooms
+    reconciliation = changed.get(image.stem + "_topology_reconciliation.json")
+    if reconciliation:
+        row["topology_window_reconciliation"] = load_json(reconciliation)
     if prediction:
         data = load_json(prediction)
         row["segmentation"] = {"wall_polygons": len(data.get("walls", [])),

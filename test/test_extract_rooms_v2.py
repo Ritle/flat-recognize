@@ -61,6 +61,10 @@ class RoomsTests(unittest.TestCase):
         self.assertEqual(result["topology_only_openings"], [window])
         self.assertFalse(any("изолированных тонких линиях" in warning
                              for warning in result["diagnostics"]["warnings"]))
+        window["topology_mask_use"] = False
+        excluded, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(len(excluded["rooms"]), 0)
+        self.assertEqual(excluded["topology_only_openings"], [window])
 
     def test_transverse_wall_candidate_requires_arc_and_two_wall_sides(self):
         barrier = np.zeros((300, 400), np.uint8)

@@ -832,6 +832,9 @@ function renderReviewQuestions(data) {
                 ' · уточните, является ли она помещением или частью мебели'
             : `Сейчас: ${names[question.current] || question.current}` +
                 ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
+        if (question.kind === 'opening' && question.topology_mask_use === false) {
+            label.textContent += ' · исключён из маски комнат: подтвердите, есть ли здесь проём';
+        }
         if (Array.isArray(question.paired_with) && question.paired_with.length) {
             label.textContent += ` · проверьте также проём №${question.paired_with.join(', №')}`;
         }

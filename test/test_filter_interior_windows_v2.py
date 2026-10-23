@@ -253,6 +253,8 @@ class InteriorWindowFilterTests(unittest.TestCase):
                 "added_room_area_px2": 250, "removed_room_area_px2": 0,
                 "material": True}]}
         previous["diagnostics"]["opening_recovery"] = {"candidates": 2}
+        previous["diagnostics"]["topology_window_reconciliation"] = {
+            "removed_from_room_mask": [9]}
         previous["reclassified_wall_support"] = [{"source_opening_id": 9,
                                                    "outer": [[0, 0], [1, 0], [1, 1]]}]
         reviewed = copy.deepcopy(self.rooms)
@@ -260,13 +262,15 @@ class InteriorWindowFilterTests(unittest.TestCase):
         report = result["diagnostics"]["interior_window_filter"]
         self.assertEqual([candidate["id"] for candidate in report["ambiguous_candidates"]], [1])
         self.assertEqual(result["diagnostics"]["opening_recovery"], {"candidates": 2})
+        self.assertEqual(result["diagnostics"]["topology_window_reconciliation"],
+                         previous["diagnostics"]["topology_window_reconciliation"])
         self.assertEqual(result["reclassified_wall_support"],
                          previous["reclassified_wall_support"])
         self.assertEqual(report["endcap_room_geometry_changes"],
                          previous["diagnostics"]["interior_window_filter"][
                              "endcap_room_geometry_changes"])
         quality = validate_recognition(result)
-        self.assertEqual(quality["status"], "review")
+        self.assertEqual(quality["status"], "invalid")
         self.assertIn("endcap_room_geometry_change", [item["code"] for item in quality["issues"]])
         self.assertIn(1, [question["opening_id"] for question in
                           make_review_questions(self.classified, quality, "a" * 64)])

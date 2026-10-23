@@ -309,6 +309,9 @@ async def recognize(
     filtered_room_path = OUTPUT_DIR / f"{job_id}_rooms_filtered.json"
     if pipeline_v2 and filtered_room_path.exists():
         room_path = filtered_room_path
+    reconciled_room_path = OUTPUT_DIR / f"{job_id}_rooms_topology_reconciled.json"
+    if pipeline_v2 and reconciled_room_path.exists():
+        room_path = reconciled_room_path
     reviewed_dir = OUTPUT_DIR / f"{job_id}_reviewed"
     if pipeline_v2 and has_opening_answers:
         room_path = reviewed_dir / f"{job_id}_rooms.json"
@@ -328,7 +331,9 @@ async def recognize(
     shutil.copy2(room_path, job_dir / "rooms.json")
     classified_path = OUTPUT_DIR / f"{job_id}_classified.json"
     if pipeline_v2:
-        classified_path = OUTPUT_DIR / f"{job_id}_interior_filtered_classified.json"
+        reconciled_classified_path = OUTPUT_DIR / f"{job_id}_topology_reconciled_classified.json"
+        classified_path = (reconciled_classified_path if reconciled_classified_path.exists() else
+                           OUTPUT_DIR / f"{job_id}_interior_filtered_classified.json")
     if has_opening_answers:
         classified_path = OUTPUT_DIR / f"{job_id}_reviewed_classified.json"
     classified_data = json.loads(classified_path.read_text(encoding="utf-8"))
@@ -392,6 +397,16 @@ async def recognize(
         generated_images.update({
             "barrier": reviewed_dir / f"{job_id}_barrier.png",
         })
+        topology_report_path = OUTPUT_DIR / f"{job_id}_topology_reconciliation.json"
+        if topology_report_path.exists():
+            shutil.copy2(topology_report_path, job_dir / "topology_reconciliation.json")
+            topology_report = json.loads(topology_report_path.read_text(encoding="utf-8"))
+            if topology_report.get("removed_from_room_mask"):
+                if decisions_path is None:
+                    generated_images["rooms"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_overlay.png"
+                if not has_opening_answers:
+                    generated_images["barrier"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_barrier.png"
+                    generated_images["closures"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_closures.png"
     if decisions_path is not None:
         generated_images["rooms"] = room_path.with_name(f"{job_id}_rooms_selected_overlay.png")
 
@@ -421,7 +436,8 @@ async def recognize(
         inference = json.loads((job_dir / "inference.json").read_text(encoding="utf-8"))
         for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json",
                        "_topology_windows.json", "_topology_classified.json",
-                       "_interior_filtered_classified.json", "_rooms_filtered.json"):
+                       "_interior_filtered_classified.json", "_rooms_filtered.json",
+                       "_topology_reconciled_classified.json", "_rooms_topology_reconciled.json"):
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
                 shutil.copy2(source, job_dir / suffix[1:])

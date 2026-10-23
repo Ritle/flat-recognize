@@ -471,7 +471,9 @@ def extract_rooms(data, rgb):
         walls |= mask
     openings = np.zeros_like(walls)
     topology_only = data.get("topology_only_openings", [])
-    for opening in data.get("doors", []) + data.get("windows", []) + topology_only:
+    active_topology = [opening for opening in topology_only
+                       if opening.get("topology_mask_use") is not False]
+    for opening in data.get("doors", []) + data.get("windows", []) + active_topology:
         if len(opening.get("outer", [])) >= 3:
             cv2.fillPoly(openings, [polygon_to_int(opening["outer"])], 255)
     barrier = walls | cv2.dilate(openings, np.ones((5, 5), np.uint8))
@@ -555,7 +557,7 @@ def extract_rooms(data, rgb):
                    "accepted": bool(transverse_accepted), **diagnostics})
     sealed_windows = []
     considered_windows = 0
-    for window in data.get("windows", []) + topology_only:
+    for window in data.get("windows", []) + active_topology:
         additions = window_edge_seal(window, barrier, wall_shapes)
         if additions is None or not np.any(additions):
             continue
@@ -583,9 +585,14 @@ def extract_rooms(data, rgb):
     if sealed_windows:
         warnings.append(
             f"Границы окон продлены только в маске помещений ({len(sealed_windows)}); проверьте восстановленные комнаты.")
-    if topology_only:
+    if active_topology:
         warnings.append(
-            f"Неподтверждённые оконные кандидаты оставлены только в маске помещений ({len(topology_only)}); "
+            f"Неподтверждённые оконные кандидаты оставлены только в маске помещений ({len(active_topology)}); "
+            "проверьте проёмы и границы комнат.")
+    excluded_topology = len(topology_only) - len(active_topology)
+    if excluded_topology:
+        warnings.append(
+            f"Неподтверждённые оконные кандидаты исключены из маски помещений ({excluded_topology}); "
             "проверьте проёмы и границы комнат.")
     rejected_oblique = sum(
         candidate.get("reason") == "oblique_arc_not_confirmed"

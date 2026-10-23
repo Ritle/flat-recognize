@@ -16,6 +16,10 @@ def recheck_reviewed_rooms(classified, previous_rooms, reviewed_rooms, rgb):
     previous_diagnostics = previous_rooms.get("diagnostics", {})
     if "opening_recovery" in previous_diagnostics:
         diagnostics["opening_recovery"] = previous_diagnostics["opening_recovery"]
+    if "topology_window_reconciliation" in previous_diagnostics:
+        # An opening choice does not confirm the complete room topology.
+        diagnostics["topology_window_reconciliation"] = previous_diagnostics[
+            "topology_window_reconciliation"]
     previous_filter = previous_diagnostics.get("interior_window_filter", {})
     if (isinstance(previous_filter, dict)
             and "endcap_room_geometry_changes" in previous_filter):
