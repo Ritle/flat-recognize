@@ -125,6 +125,23 @@ class RecoveryTest(unittest.TestCase):
         self.assertTrue(door["classification"]["requires_review"])
         self.assertEqual(door, final_rooms["doors"][0])
 
+    def test_partial_far_jamb_requires_leaf_hinged_to_strong_wall(self):
+        classified, rooms, rgb = fixture(arc=False, leaf=False)
+        classified["walls"][1]["outer"] = [[160, 96], [161, 96], [161, 104], [160, 104]]
+        rooms["walls"] = copy.deepcopy(classified["walls"])
+        image = Image.fromarray(rgb)
+        ImageDraw.Draw(image).line((100, 96, 142, 54), fill="black", width=2)
+        output, _, report = recover_openings(classified, rooms, np.asarray(image))
+        self.assertEqual(report["recovered_doors"], 1)
+        self.assertEqual(report["candidates"][0]["jamb_support"], [3, 1])
+        self.assertEqual(output["doors"][0]["classification"]["method"],
+                         "recovered_partial_jamb_diagonal_leaf")
+        self.assertTrue(output["doors"][0]["classification"]["requires_review"])
+
+        reverse = Image.fromarray(rgb)
+        ImageDraw.Draw(reverse).line((160, 96, 118, 54), fill="black", width=2)
+        self.assertEqual(recover_openings(classified, rooms, np.asarray(reverse))[2]["recovered_doors"], 0)
+
     def test_missing_jamb_and_unmarked_passage_stay_rejected(self):
         for mode in ("missing_jamb", "small_gap", "raster_line"):
             classified, rooms, rgb = fixture()

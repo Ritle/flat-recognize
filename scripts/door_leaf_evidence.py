@@ -139,7 +139,7 @@ def wall_jamb_support(start, end, width, walls):
 
 
 def diagonal_leaf_with_jambs(gray, start, end, width, walls):
-    """Accept a missing arc only with two wall jambs and a clear diagonal leaf."""
+    """Accept an arc-less leaf with two jambs, or a strong hinge and partial far jamb."""
     start, end = np.asarray(start, float), np.asarray(end, float)
     length = float(np.linalg.norm(end - start))
     if length < max(15, width * 1.5):
@@ -148,13 +148,15 @@ def diagonal_leaf_with_jambs(gray, start, end, width, walls):
     if max(abs(axis)) < math.cos(math.radians(12)):
         return None
     support = wall_jamb_support(start, end, width, walls)
-    if min(support) < 2:
+    if min(support) < 1 or (min(support) < 2 and max(support) < 3):
         return None
     opening = LineString([start, end]).buffer(width / 2, cap_style=2)
     if walls.intersection(opening).area > opening.area * .25:
         return None
     evidence = []
     for candidate in leaf_candidates(gray, start, end, width)[0]:
+        if min(support) < 2 and support[candidate["jamb_index"]] < 3:
+            continue
         angle = abs(candidate["swing_angle_degrees"])
         if not (25 <= angle <= 75 or 105 <= angle <= 145):
             continue
@@ -163,6 +165,7 @@ def diagonal_leaf_with_jambs(gray, start, end, width, walls):
             continue
         evidence.append({k: v for k, v in candidate.items() if k not in ("radius", "closed_direction")}
                         | {"jamb_support": support, "tip_clearance": round(clearance, 3),
-                           "arc_confirmed": False})
+                           "arc_confirmed": False,
+                           "partial_far_jamb": min(support) < 2})
     return max(evidence, key=lambda e: (e["tip_clearance"], -e["hinge_distance"])) \
         if evidence else None

@@ -1,7 +1,8 @@
 """Conservative recovery from accepted topology gaps; never invent unmarked passages.
 
-An arc-less diagonal leaf can only promote an accepted topology gap when both
-wall jambs and a clear leaf tip are present; every recovered door requires review.
+An arc-less diagonal leaf can promote an accepted topology gap with two wall
+jambs, or with a strong hinge jamb and a partial far jamb; the leaf tip must
+be clear and every recovered door requires review.
 Short segmentation window candidates can be restored only where a raster-line
 closure, polygon overlap, and structural jamb evidence agree.
 Original segmentation, classification and room extraction artifacts remain intact.
@@ -68,19 +69,19 @@ def recover_openings(classified, rooms, rgb, prediction=None):
         if known.intersection(shape).area > shape.area * .2:
             decision["reason"] = "existing_opening"
             continue
-        jambs = walls.buffer(3)
-        if any(sum(jambs.covers(Point(p + direction * width * t)) for t in (.25, .75, 1.25)) < 2
-               for p, direction in ((a, -axis), (b, axis))):
+        support = decision["jamb_support"]
+        if min(support) < 1 or (min(support) < 2 and max(support) < 3):
             decision["reason"] = "missing_wall_jamb"
             continue
         if walls.intersection(shape).area > shape.area * .25:
             decision["reason"] = "gap_contains_wall"
             continue
-        evidence = leaf_and_arc(gray, a, b, width, walls)
+        evidence = leaf_and_arc(gray, a, b, width, walls) if min(support) >= 2 else None
         method = "recovered_leaf_and_arc"
         if evidence is None:
             evidence = diagonal_leaf_with_jambs(gray, a, b, width, walls)
-            method = "recovered_two_jamb_diagonal_leaf"
+            method = ("recovered_partial_jamb_diagonal_leaf" if evidence and
+                      evidence.get("partial_far_jamb") else "recovered_two_jamb_diagonal_leaf")
             if evidence is None:
                 decision["reason"] = "leaf_and_arc_not_confirmed"
                 continue
@@ -96,6 +97,8 @@ def recover_openings(classified, rooms, rgb, prediction=None):
         recovered_rooms.setdefault("doors", []).append(copy.deepcopy(opening))
         known = known.union(shape)
         reason = ("leaf_and_arc_confirmed" if method == "recovered_leaf_and_arc" else
+                  "partial_jamb_diagonal_leaf_confirmed" if
+                  method == "recovered_partial_jamb_diagonal_leaf" else
                   "two_jamb_diagonal_leaf_confirmed")
         decision.update(status="recovered", reason=reason, method=method, opening_id=opening["id"],
                         outer=opening["outer"], evidence=evidence)
