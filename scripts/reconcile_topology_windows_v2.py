@@ -138,6 +138,9 @@ def main():
             ring = [tuple(point) for point in room["polygon"]]
             draw.line(ring + ring[:1], fill="magenta", width=3)
             draw.text(tuple(room["center"]), f"Room {room['id'] + 1}", fill="magenta")
+        for candidate in result_rooms.get("diagnostics", {}).get("possible_room_partitions", []):
+            draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
+                      fill="orange", width=3)
         overlay.save(args.output_dir / f"{stem}_topology_reconciled_overlay.png")
     print(json.dumps(report, ensure_ascii=False))
 

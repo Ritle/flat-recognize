@@ -138,6 +138,19 @@ class RoomsTests(unittest.TestCase):
         self.assertFalse(np.any(inferred))
         self.assertFalse(result["rooms"][0]["uncertain"])
 
+    def test_facing_wall_caps_propose_partition_without_closing_passage(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
+                 rectangle(195, 20, 205, 130), rectangle(195, 170, 205, 280)]
+        data, rgb = source(walls)
+        result, _, inferred = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertFalse(np.any(inferred))
+        proposals = result["diagnostics"]["possible_room_partitions"]
+        self.assertEqual(len(proposals), 1)
+        self.assertEqual(proposals[0]["rooms_if_closed"], 2)
+        self.assertEqual(proposals[0]["evidence"], "facing_wall_caps_only")
+
     def test_rejected_window_candidate_is_reported_for_review(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
                  rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280)]

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+from PIL import Image, ImageDraw
 
 from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
 from scripts.review_rooms import ROOM_CHOICES, room_questions
@@ -397,16 +398,6 @@ async def recognize(
         generated_images.update({
             "barrier": reviewed_dir / f"{job_id}_barrier.png",
         })
-        topology_report_path = OUTPUT_DIR / f"{job_id}_topology_reconciliation.json"
-        if topology_report_path.exists():
-            shutil.copy2(topology_report_path, job_dir / "topology_reconciliation.json")
-            topology_report = json.loads(topology_report_path.read_text(encoding="utf-8"))
-            if topology_report.get("removed_from_room_mask"):
-                if decisions_path is None:
-                    generated_images["rooms"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_overlay.png"
-                if not has_opening_answers:
-                    generated_images["barrier"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_barrier.png"
-                    generated_images["closures"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_closures.png"
     if decisions_path is not None:
         generated_images["rooms"] = room_path.with_name(f"{job_id}_rooms_selected_overlay.png")
 
@@ -426,6 +417,15 @@ async def recognize(
         })
         if has_opening_answers:
             generated_images["closures"] = reviewed_dir / f"{job_id}_closures.png"
+        topology_report_path = OUTPUT_DIR / f"{job_id}_topology_reconciliation.json"
+        if topology_report_path.exists():
+            shutil.copy2(topology_report_path, job_dir / "topology_reconciliation.json")
+            topology_report = json.loads(topology_report_path.read_text(encoding="utf-8"))
+            if topology_report.get("removed_from_room_mask") and not has_opening_answers:
+                if decisions_path is None:
+                    generated_images["rooms"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_overlay.png"
+                generated_images["barrier"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_barrier.png"
+                generated_images["closures"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_closures.png"
         interior_counts = (json.loads(interior_report.read_text(encoding="utf-8"))
                            if interior_report.exists() else {})
         if interior_counts.get("rejected_windows", 0) or interior_counts.get("ambiguous_windows", 0):
@@ -441,6 +441,23 @@ async def recognize(
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
                 shutil.copy2(source, job_dir / suffix[1:])
+
+    partition_candidates = room_data.get("diagnostics", {}).get("possible_room_partitions", [])
+    if pipeline_v2 and partition_candidates:
+        with Image.open(image_path) as original:
+            overlay = original.convert("RGB")
+        draw = ImageDraw.Draw(overlay)
+        for room in room_data.get("rooms", []):
+            ring = [tuple(point) for point in room.get("polygon", [])]
+            if len(ring) >= 3:
+                draw.line(ring + ring[:1], fill="magenta", width=3)
+                draw.text(tuple(room["center"]), f"Room {room['id'] + 1}", fill="magenta")
+        for candidate in partition_candidates:
+            draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
+                      fill="orange", width=3)
+        partition_overlay_path = job_dir / "possible_room_partitions.png"
+        overlay.save(partition_overlay_path)
+        generated_images["rooms"] = partition_overlay_path
 
     images = {}
 
@@ -477,6 +494,8 @@ async def recognize(
         "inference": inference,
         "review_questions": review_questions,
         "geometry_review_candidates": geometry_review_candidates,
+        "possible_room_partitions": room_data.get("diagnostics", {}).get(
+            "possible_room_partitions", []),
         "opening_preflight": opening_preflight,
         "applied_decisions": applied_decisions,
         "image_sha256": source_hash,

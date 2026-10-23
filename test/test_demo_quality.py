@@ -23,6 +23,49 @@ from test.test_validate_recognition import fixture
 
 
 class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
+    async def test_v2_shows_final_partition_candidates_and_reconciled_mask(self):
+        source = io.BytesIO()
+        Image.new("RGB", (40, 40), "white").save(source, format="PNG")
+        rooms = {"meta": {"width": 40, "height": 40}, "rooms": [], "doors": [],
+                 "windows": [], "diagnostics": {"possible_room_partitions": [
+                     {"start": [10, 20], "end": [30, 20], "rooms_if_closed": 2}]}}
+        quality = {"status": "invalid", "export_allowed": False, "warnings": [],
+                   "errors": ["Needs review"], "metrics": {}, "issues": []}
+        with tempfile.TemporaryDirectory() as temp:
+            jobs, output = Path(temp) / "jobs", Path(temp) / "output"
+            output.mkdir()
+
+            def pipeline(image_path, project_path, pipeline_v2, review_decisions=None):
+                stem = image_path.stem
+                for suffix in ("_rooms.json", "_rooms_filtered.json",
+                               "_rooms_topology_reconciled.json"):
+                    (output / f"{stem}{suffix}").write_text(json.dumps(rooms), encoding="utf-8")
+                (output / f"{stem}_topology_reconciled_classified.json").write_text(
+                    json.dumps({"meta": rooms["meta"], "doors": [], "windows": []}),
+                    encoding="utf-8")
+                (output / f"{stem}_topology_reconciliation.json").write_text(
+                    json.dumps({"removed_from_room_mask": [2]}), encoding="utf-8")
+                for suffix in ("_preprocess.json", "_inference.json"):
+                    (output / f"{stem}{suffix}").write_text("{}", encoding="utf-8")
+                for suffix in ("_topology_reconciled_barrier.png",
+                               "_topology_reconciled_closures.png"):
+                    Image.new("RGB", (40, 40), "black").save(output / f"{stem}{suffix}")
+                project_path.with_suffix(".quality.json").write_text(
+                    json.dumps(quality), encoding="utf-8")
+                return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
+
+            with patch.object(api, "JOBS_DIR", jobs), patch.object(api, "OUTPUT_DIR", output), \
+                    patch.object(api, "run_pipeline", side_effect=pipeline):
+                response = await api.recognize(
+                    UploadFile(filename="plan.png", file=io.BytesIO(source.getvalue())), True)
+                self.assertEqual(len(response["possible_room_partitions"]), 1)
+                job = jobs / response["job_id"]
+                self.assertTrue((job / "topology_reconciliation.json").exists())
+                with Image.open(job / "rooms.png") as overlay:
+                    self.assertEqual(overlay.convert("RGB").getpixel((20, 20)), (255, 165, 0))
+                with Image.open(job / "barrier.png") as barrier:
+                    self.assertEqual(barrier.convert("RGB").getpixel((20, 20)), (0, 0, 0))
+
     async def test_room_only_choice_uses_original_openings_and_keeps_invalid_gate(self):
         source = b"source image"
         source_hash = hashlib.sha256(source).hexdigest()

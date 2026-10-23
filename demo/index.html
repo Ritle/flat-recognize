@@ -711,7 +711,11 @@ async function showResult(data) {
     const wallNote = suspectWalls > 0
         ? `Проверьте ось и толщину стен: подозрительных участков — ${suspectWalls}.`
         : null;
-    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote,
+    const possiblePartitions = data.possible_room_partitions?.length || 0;
+    const partitionNote = possiblePartitions > 0
+        ? `Возможные незамкнутые границы комнат — ${possiblePartitions}; оранжевые линии на схеме требуют проверки.`
+        : null;
+    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote, partitionNote,
         ...(data.warnings || [])].filter(Boolean).join('\n');
     warnings.classList.toggle('invalid', quality?.status === 'invalid');
     warnings.style.display = warnings.textContent ? 'block' : 'none';

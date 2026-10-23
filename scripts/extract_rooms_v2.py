@@ -331,6 +331,57 @@ def apply_closures(barrier, closures):
     return cv2.bitwise_or(result, additions), additions
 
 
+def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics):
+    """Report facing wall caps whose hypothetical seal splits an existing room.
+
+    A split is evidence of missing topology, not evidence of a door or permission
+    to add a wall. Broad, unmarked passages remain open in the actual mask.
+    """
+    if not rooms:
+        return []
+    endpoints, thickness = wall_endpoints(barrier)
+    plausible = []
+    for index, a in enumerate(endpoints):
+        if a["width"] < thickness * .5:
+            continue
+        for b in endpoints[index + 1:]:
+            if b["width"] < thickness * .5:
+                continue
+            delta = b["point"] - a["point"]
+            gap = float(np.linalg.norm(delta))
+            if not thickness * 1.5 < gap < min(thickness * 12, min(barrier.shape) * .18):
+                continue
+            direction = delta / gap
+            alignment = min(float(np.dot(a["direction"], direction)),
+                            float(np.dot(b["direction"], -direction)))
+            if alignment < .9:
+                continue
+            samples = a["point"] + np.linspace(.15, .85, 16)[:, None] * delta
+            xx = np.clip(np.rint(samples[:, 0]).astype(int), 0, barrier.shape[1] - 1)
+            yy = np.clip(np.rint(samples[:, 1]).astype(int), 0, barrier.shape[0] - 1)
+            if np.mean(barrier[yy, xx] > 0) > .1:
+                continue
+            plausible.append({"start": a["point"].tolist(), "end": b["point"].tolist(),
+                              "width": min(a["width"], b["width"]), "length_px": round(gap, 2),
+                              "alignment": round(alignment, 3)})
+    proposals = []
+    for candidate in sorted(plausible, key=lambda item: item["length_px"])[:24]:
+        trial, _ = apply_closures(barrier, [candidate])
+        trial_rooms, trial_diagnostics = room_candidates(trial, walls, inferred)
+        if (len(trial_rooms) <= len(rooms)
+                or trial_diagnostics["interior_area_px"] < diagnostics["interior_area_px"] * .98
+                or trial_diagnostics["outside_fraction_in_structure"]
+                > diagnostics["outside_fraction_in_structure"] + .02):
+            continue
+        if any(np.linalg.norm((np.array(item["start"]) + item["end"])
+                              - (np.array(candidate["start"]) + candidate["end"]))
+               < thickness * 2 for item in proposals):
+            continue
+        proposals.append({**candidate, "rooms_if_closed": len(trial_rooms),
+                          "evidence": "facing_wall_caps_only"})
+    return proposals
+
+
 def exterior_envelope_candidate(barrier, walls):
     """Close a heavily fragmented rectangular exterior only for topology."""
     ys, xs = np.where(walls > 0)
@@ -637,6 +688,7 @@ def extract_rooms(data, rgb):
                                             * (r["bbox"][3] - r["bbox"][1])) < 0.9 for r in rooms)
     if non_rectangular:
         warnings.append("Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.")
+    partition_proposals = possible_room_partitions(barrier, walls, inferred, rooms, diagnostics)
     result = {"meta": data.get("meta", {}),
               "review_decisions": data.get("review_decisions", []),
               "walls": data.get("walls", []),
@@ -651,6 +703,7 @@ def extract_rooms(data, rgb):
                               "review_doors": review_doors,
                               "review_windows": review_windows,
                               "rejected_oblique_closures": rejected_oblique,
+                              "possible_room_partitions": partition_proposals,
                               "non_rectangular_rooms": non_rectangular,
                               "warnings": warnings, **diagnostics}}
     return result, barrier, inferred
@@ -681,6 +734,9 @@ def main():
                 draw.line(points + points[:1], fill="red", width=2)
     for closure in result["diagnostics"]["temporary_closures"]:
         draw.line([tuple(closure["start"]), tuple(closure["end"])], fill="cyan", width=4)
+    for candidate in result["diagnostics"]["possible_room_partitions"]:
+        draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
+                  fill="orange", width=3)
     for room in result["rooms"]:
         points = [tuple(p) for p in room["polygon"]]
         draw.line(points + points[:1], fill="magenta", width=3)
