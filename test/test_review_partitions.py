@@ -73,6 +73,23 @@ class PartitionReviewTest(unittest.TestCase):
             apply_partition_decisions(self.classified, self.rooms, self.rgb,
                                       doubled, self.sha)
 
+    def test_old_exterior_candidate_cannot_be_confirmed_as_partition(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),
+                 rectangle(190, 270, 380, 280), rectangle(100, 20, 110, 110),
+                 rectangle(20, 100, 110, 110)]
+        classified, rgb = source(walls)
+        rooms, _, _ = extract_rooms(classified, rgb)
+        candidate = {"start": [144.0, 275.0], "end": [195.0, 275.0],
+                     "width": 14.0, "length_px": 51.0}
+        rooms["diagnostics"]["possible_room_partitions"] = [candidate]
+        question = partition_questions(rooms, self.sha)[0]
+        payload = {"version": 1, "image_sha256": self.sha, "answers": [{
+            "partition_id": 0, "fingerprint": question["fingerprint"],
+            "choice": "separate"}]}
+        with self.assertRaisesRegex(ValueError, "inside one room"):
+            apply_partition_decisions(classified, rooms, rgb, payload, self.sha)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -151,6 +151,16 @@ class RoomsTests(unittest.TestCase):
         self.assertEqual(proposals[0]["rooms_if_closed"], 2)
         self.assertEqual(proposals[0]["evidence"], "facing_wall_caps_only")
 
+    def test_exterior_gap_is_not_proposed_as_room_partition(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),
+                 rectangle(190, 270, 380, 280), rectangle(100, 20, 110, 110),
+                 rectangle(20, 100, 110, 110)]
+        data, rgb = source(walls)
+        result, _, _ = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertEqual(result["diagnostics"]["possible_room_partitions"], [])
+
     def test_rejected_window_candidate_is_reported_for_review(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
                  rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280)]

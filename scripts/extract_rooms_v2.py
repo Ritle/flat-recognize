@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 import cv2
@@ -12,7 +13,7 @@ from classify_openings import classify_opening, opening_axis, structural_union
 from door_leaf_evidence import leaf_and_arc, leaf_candidates, wall_jamb_support
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 
 def skeletonize(mask):
@@ -331,6 +332,28 @@ def apply_closures(barrier, closures):
     return cv2.bitwise_or(result, additions), additions
 
 
+def candidate_inside_existing_room(candidate, rooms):
+    """Both sides of a proposed divider must lie in one accepted room."""
+    start, end = np.asarray(candidate["start"], float), np.asarray(candidate["end"], float)
+    delta = end - start
+    length = float(np.linalg.norm(delta))
+    width = float(candidate["width"])
+    if length <= 0 or not math.isfinite(width) or width <= 0:
+        return False
+    axis = delta / length
+    if max(abs(axis)) < math.cos(math.radians(12)):
+        return False
+    normal = np.array([-axis[1], axis[0]])
+    middle = (start + end) / 2
+    probes = [Point(middle + normal * sign * max(4, width * 1.5)) for sign in (-1, 1)]
+    for room in rooms:
+        shape = Polygon(room.get("polygon", []))
+        if shape.is_valid and not shape.is_empty and all(
+                shape.buffer(2).covers(point) for point in probes):
+            return True
+    return False
+
+
 def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics):
     """Report facing wall caps whose hypothetical seal splits an existing room.
 
@@ -366,6 +389,8 @@ def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics):
                               "alignment": round(alignment, 3)})
     proposals = []
     for candidate in sorted(plausible, key=lambda item: item["length_px"])[:24]:
+        if not candidate_inside_existing_room(candidate, rooms):
+            continue
         trial, _ = apply_closures(barrier, [candidate])
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, inferred)
         if (len(trial_rooms) <= len(rooms)

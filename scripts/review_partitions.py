@@ -52,7 +52,8 @@ def apply_partition_decisions(classified, previous_rooms, rgb, decisions, source
     # Geometry imports stay local so the FastAPI demo can load question metadata
     # without requiring scripts/ to be on the Python import path.
     from extract_rooms import fill_polygon
-    from extract_rooms_v2 import apply_closures, extract_rooms, room_candidates
+    from extract_rooms_v2 import (apply_closures, candidate_inside_existing_room,
+                                  extract_rooms, room_candidates)
     from filter_interior_windows_v2 import same_room_topology
 
     if not isinstance(decisions, dict) or decisions.get("version") != 1:
@@ -93,6 +94,8 @@ def apply_partition_decisions(classified, previous_rooms, rgb, decisions, source
         if choice != "separate":
             continue
         candidate = candidates[index]
+        if not candidate_inside_existing_room(candidate, current_rooms):
+            raise ValueError("Selected boundary no longer lies inside one room")
         trial, additions = apply_closures(barrier, [candidate])
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
