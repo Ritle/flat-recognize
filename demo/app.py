@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 
 from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
 from scripts.review_rooms import ROOM_CHOICES, room_questions
+from scripts.review_partitions import PARTITION_CHOICES, partition_questions
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -202,10 +203,14 @@ async def recognize(
                 or not isinstance(answers, list) or len(answers) > MAX_ANSWERS
                 or any(not isinstance(answer, dict)
                        or not ((isinstance(answer.get("opening_id"), int)
-                                and "room_id" not in answer and answer.get("choice") in CHOICES)
+                                and "room_id" not in answer and "partition_id" not in answer
+                                and answer.get("choice") in CHOICES)
                                or (isinstance(answer.get("room_id"), int)
-                                   and "opening_id" not in answer
-                                   and answer.get("choice") in ROOM_CHOICES))
+                                   and "opening_id" not in answer and "partition_id" not in answer
+                                   and answer.get("choice") in ROOM_CHOICES)
+                               or (pipeline_v2 and isinstance(answer.get("partition_id"), int)
+                                   and "opening_id" not in answer and "room_id" not in answer
+                                   and answer.get("choice") in PARTITION_CHOICES))
                        or not isinstance(answer.get("fingerprint"), str)
                        for answer in answers)):
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
@@ -340,7 +345,8 @@ async def recognize(
     classified_data = json.loads(classified_path.read_text(encoding="utf-8"))
     shutil.copy2(classified_path, job_dir / "classified.json")
     review_questions = (make_review_questions(classified_data, quality, source_hash)
-                        + room_questions(room_data, source_hash))[:MAX_ANSWERS]
+                        + room_questions(room_data, source_hash)
+                        + (partition_questions(room_data, source_hash) if pipeline_v2 else []))[:MAX_ANSWERS]
     binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
@@ -426,6 +432,10 @@ async def recognize(
                     generated_images["rooms"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_overlay.png"
                 generated_images["barrier"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_barrier.png"
                 generated_images["closures"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_closures.png"
+        if any(item.get("choice") == "separate"
+               for item in room_data.get("reviewed_partitions", [])):
+            generated_images["barrier"] = reviewed_dir / f"{job_id}_partition_reviewed_barrier.png"
+            generated_images["closures"] = reviewed_dir / f"{job_id}_partition_reviewed_closures.png"
         interior_counts = (json.loads(interior_report.read_text(encoding="utf-8"))
                            if interior_report.exists() else {})
         if interior_counts.get("rejected_windows", 0) or interior_counts.get("ambiguous_windows", 0):
@@ -443,6 +453,8 @@ async def recognize(
                 shutil.copy2(source, job_dir / suffix[1:])
 
     partition_candidates = room_data.get("diagnostics", {}).get("possible_room_partitions", [])
+    reviewed_partitions = {item["partition_id"]: item["choice"]
+                           for item in room_data.get("reviewed_partitions", [])}
     if pipeline_v2 and partition_candidates:
         with Image.open(image_path) as original:
             overlay = original.convert("RGB")
@@ -452,9 +464,10 @@ async def recognize(
             if len(ring) >= 3:
                 draw.line(ring + ring[:1], fill="magenta", width=3)
                 draw.text(tuple(room["center"]), f"Room {room['id'] + 1}", fill="magenta")
-        for candidate in partition_candidates:
+        for index, candidate in enumerate(partition_candidates):
             draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
-                      fill="orange", width=3)
+                      fill="cyan" if reviewed_partitions.get(index) == "separate" else "orange",
+                      width=3)
         partition_overlay_path = job_dir / "possible_room_partitions.png"
         overlay.save(partition_overlay_path)
         generated_images["rooms"] = partition_overlay_path

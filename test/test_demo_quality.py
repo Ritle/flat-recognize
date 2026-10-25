@@ -50,6 +50,15 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 for suffix in ("_topology_reconciled_barrier.png",
                                "_topology_reconciled_closures.png"):
                     Image.new("RGB", (40, 40), "black").save(output / f"{stem}{suffix}")
+                if review_decisions:
+                    answers = json.loads(review_decisions.read_text(encoding="utf-8"))["answers"]
+                    selected = {**rooms, "reviewed_partitions": [
+                        {"partition_id": answer["partition_id"], "choice": answer["choice"]}
+                        for answer in answers]}
+                    reviewed_dir = output / f"{stem}_reviewed"
+                    reviewed_dir.mkdir()
+                    (reviewed_dir / f"{stem}_rooms_selected.json").write_text(
+                        json.dumps(selected), encoding="utf-8")
                 project_path.with_suffix(".quality.json").write_text(
                     json.dumps(quality), encoding="utf-8")
                 return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
@@ -59,12 +68,22 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 response = await api.recognize(
                     UploadFile(filename="plan.png", file=io.BytesIO(source.getvalue())), True)
                 self.assertEqual(len(response["possible_room_partitions"]), 1)
+                question = next(item for item in response["review_questions"]
+                                if item["kind"] == "partition")
                 job = jobs / response["job_id"]
                 self.assertTrue((job / "topology_reconciliation.json").exists())
                 with Image.open(job / "rooms.png") as overlay:
                     self.assertEqual(overlay.convert("RGB").getpixel((20, 20)), (255, 165, 0))
                 with Image.open(job / "barrier.png") as barrier:
                     self.assertEqual(barrier.convert("RGB").getpixel((20, 20)), (0, 0, 0))
+                answer = {"partition_id": question["partition_id"],
+                          "fingerprint": question["fingerprint"], "choice": "open"}
+                reviewed = await api.recognize(
+                    UploadFile(filename="plan.png", file=io.BytesIO(source.getvalue())), True,
+                    json.dumps({"version": 1, "image_sha256": response["image_sha256"],
+                                "answers": [answer]}))
+                self.assertEqual(reviewed["applied_decisions"], [answer])
+                self.assertEqual(reviewed["quality"]["status"], "invalid")
 
     async def test_room_only_choice_uses_original_openings_and_keeps_invalid_gate(self):
         source = b"source image"

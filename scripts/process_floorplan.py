@@ -205,6 +205,7 @@ def main():
     args = parser.parse_args()
 
     has_opening_answers = False
+    has_partition_answers = False
     if args.review_decisions:
         decisions_path = require_file(args.review_decisions, "Review decisions").resolve()
         args.review_decisions = decisions_path
@@ -212,9 +213,13 @@ def main():
             answers = json.loads(decisions_path.read_text(encoding="utf-8")).get("answers")
             has_opening_answers = not isinstance(answers, list) or any(
                 not isinstance(answer, dict) or "opening_id" in answer for answer in answers)
+            has_partition_answers = isinstance(answers, list) and any(
+                isinstance(answer, dict) and "partition_id" in answer for answer in answers)
         except (ValueError, AttributeError):
             # The review stage will report the malformed payload precisely.
             has_opening_answers = True
+    if has_partition_answers and not args.pipeline_v2:
+        parser.error("Room partition review requires --pipeline-v2")
 
     python = sys.executable
 
@@ -486,6 +491,20 @@ def main():
                          classified_json, pre_review_rooms, rooms_json])
             rooms_overlay = reviewed_dir / f"{stem}_rooms_overlay.png"
             barrier_image = reviewed_dir / f"{stem}_barrier.png"
+
+        if has_partition_answers:
+            partition_dir = OUTPUT / f"{stem}_reviewed"
+            run_command("Apply user room-boundary choices",
+                        [python, SCRIPTS / "review_partitions.py", image, classified_json,
+                         rooms_json, require_file(args.review_decisions, "Review decisions"),
+                         "--output-dir", partition_dir])
+            rooms_json = require_file(partition_dir / f"{stem}_rooms_partition_reviewed.json",
+                                      "Reviewed room boundaries")
+            partition_diagnostics = json.loads(rooms_json.read_text(encoding="utf-8")).get(
+                "diagnostics", {})
+            if partition_diagnostics.get("reviewed_partition_closures"):
+                rooms_overlay = partition_dir / f"{stem}_partition_reviewed_overlay.png"
+                barrier_image = partition_dir / f"{stem}_partition_reviewed_barrier.png"
 
     if args.review_decisions:
         selected_rooms = (OUTPUT / f"{stem}_reviewed" / f"{stem}_rooms_selected.json"

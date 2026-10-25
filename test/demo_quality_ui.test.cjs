@@ -163,6 +163,16 @@ async function show(status) {
     nodes.get('applyReviewButton').onclick();
     assert.equal(submitted.payload.answers[0].room_id, 6);
     assert.equal(submitted.payload.answers[0].choice, 'ignore');
+    const partitionQuestion = {id: 'partition:0', kind: 'partition', partition_id: 0,
+        fingerprint: 'partition-hash', image_sha256: 'image-hash', current: 'open',
+        reasons: ['facing_wall_caps_only'], center: [30, 50], image_size: [100, 80]};
+    context.renderReviewQuestions({review_questions: [partitionQuestion], applied_decisions: []});
+    const partitionRow = nodes.get('reviewList').children.at(-1);
+    assert.match(partitionRow.children[1].textContent, /дверь или сплошная стена не подтверждены/);
+    partitionRow.children[2].value = 'separate';
+    nodes.get('applyReviewButton').onclick();
+    assert.equal(submitted.payload.answers[0].partition_id, 0);
+    assert.equal(submitted.payload.answers[0].choice, 'separate');
     context.renderClosureCandidates({original_url: '/original', geometry_review_candidates: [
         {closure_index: 2, center: [25, 30], image_size: [100, 80],
             closure_evidence: 'door_leaf', recovery_reason: 'missing_wall_jamb',

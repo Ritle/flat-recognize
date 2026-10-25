@@ -713,7 +713,7 @@ async function showResult(data) {
         : null;
     const possiblePartitions = data.possible_room_partitions?.length || 0;
     const partitionNote = possiblePartitions > 0
-        ? `Возможные незамкнутые границы комнат — ${possiblePartitions}; оранжевые линии на схеме требуют проверки.`
+        ? `Возможные незамкнутые границы комнат — ${possiblePartitions}; оранжевые линии требуют проверки, голубые разделены по вашему выбору.`
         : null;
     warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote, partitionNote,
         ...(data.warnings || [])].filter(Boolean).join('\n');
@@ -800,9 +800,9 @@ function renderReviewQuestions(data) {
     reviewSelects = [];
     document.getElementById('reviewMarker').style.display = 'none';
     panel.style.display = currentQuestions.length ? 'block' : 'none';
-    const applied = new Map((data.applied_decisions || []).map(
-        answer => [`${'room_id' in answer ? 'room' : 'opening'}:` +
-            (answer.room_id ?? answer.opening_id), answer.choice]));
+    const applied = new Map((data.applied_decisions || []).map(answer => [
+        `${'partition_id' in answer ? 'partition' : 'room_id' in answer ? 'room' : 'opening'}:` +
+            (answer.partition_id ?? answer.room_id ?? answer.opening_id), answer.choice]));
     for (const question of currentQuestions) {
         const row = document.createElement('div');
         row.className = 'review-item';
@@ -811,7 +811,9 @@ function renderReviewQuestions(data) {
         locate.className = 'btn btn-secondary';
         locate.textContent = question.kind === 'room'
             ? `Показать область №${question.room_id}`
-            : `Показать проём №${question.opening_id}`;
+            : question.kind === 'partition'
+                ? `Показать границу №${question.partition_id + 1}`
+                : `Показать проём №${question.opening_id}`;
         locate.onclick = () => highlightQuestion(question, data.original_url);
         const label = document.createElement('span');
         const names = {door: 'дверь', window: 'окно', ignore: 'не проём',
@@ -831,7 +833,10 @@ function renderReviewQuestions(data) {
             thick_window_geometry_unresolved: 'форма и положение окна не подтверждены; выбор типа их не исправит',
             parallel_window_ambiguous: 'пересекается с параллельным кандидатом без двух подтверждённых косяков',
             user_choice: 'выбор пользователя'};
-        label.textContent = question.kind === 'room'
+        label.textContent = question.kind === 'partition'
+            ? `Возможная граница комнат: ${question.current === 'separate' ? 'разделить' : 'оставить проход'}` +
+                ' · торцы стен совпадают, но дверь или сплошная стена не подтверждены'
+            : question.kind === 'room'
             ? `Небольшая область: ${question.current === 'ignore' ? 'исключена' : 'помещение'}` +
                 ' · уточните, является ли она помещением или частью мебели'
             : `Сейчас: ${names[question.current] || question.current}` +
@@ -855,7 +860,10 @@ function renderReviewQuestions(data) {
             }
         }
         const select = document.createElement('select');
-        const options = question.kind === 'room'
+        const options = question.kind === 'partition'
+            ? [['', 'Оставить решение системы'], ['separate', 'Разделить комнаты'],
+               ['open', 'Оставить проход']]
+            : question.kind === 'room'
             ? [['', 'Оставить решение системы'], ['room', 'Помещение'],
                ['ignore', 'Мебель / не помещение']]
             : [['', 'Оставить решение системы'], ['door', 'Дверь'],
@@ -929,8 +937,10 @@ function highlightQuestion(question, imageUrl) {
 document.getElementById('applyReviewButton').onclick = () => {
     if (!currentFile) return;
     const answers = reviewSelects.filter(item => item.select.value).map(item => ({
-        [item.question.kind === 'room' ? 'room_id' : 'opening_id']:
-            item.question.kind === 'room' ? item.question.room_id : item.question.opening_id,
+        [item.question.kind === 'room' ? 'room_id' :
+            item.question.kind === 'partition' ? 'partition_id' : 'opening_id']:
+            item.question.kind === 'room' ? item.question.room_id :
+                item.question.kind === 'partition' ? item.question.partition_id : item.question.opening_id,
         fingerprint: item.question.fingerprint,
         choice: item.select.value
     }));
