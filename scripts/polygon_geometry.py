@@ -66,6 +66,37 @@ def unsupported_boundary_evidence(edge, pre_partition_boundary, structural_suppo
             "pre_partition_unsupported_px": round(unsupported_length, 2)}
 
 
+def matching_recovery_decision(closure, candidates):
+    """Recovery indices may change when rooms are extracted again; match the gap itself."""
+    start = np.asarray(closure["start"], float)
+    end = np.asarray(closure["end"], float)
+    width = float(closure.get("width", 0))
+    length = float(np.linalg.norm(end - start))
+    if length <= 0 or width <= 0:
+        return None
+    matches = []
+    for decision in candidates:
+        if not all(key in decision for key in ("start", "end", "width")):
+            continue
+        other_start = np.asarray(decision["start"], float)
+        other_end = np.asarray(decision["end"], float)
+        other_width = float(decision["width"])
+        other_length = float(np.linalg.norm(other_end - other_start))
+        if (other_length <= 0 or other_width <= 0
+                or not .75 <= other_length / length <= 1.3
+                or not .5 <= other_width / width <= 2):
+            continue
+        tolerance = max(3, min(width, other_width) * 1.5)
+        direct = (float(np.linalg.norm(start - other_start)),
+                  float(np.linalg.norm(end - other_end)))
+        reversed_ends = (float(np.linalg.norm(start - other_end)),
+                         float(np.linalg.norm(end - other_start)))
+        distances = min((direct, reversed_ends), key=lambda pair: max(pair))
+        if max(distances) <= tolerance:
+            matches.append((sum(distances), decision))
+    return min(matches, key=lambda item: item[0])[1] if matches else None
+
+
 def unsupported_closure_groups(source, unsupported):
     """Group unsupported project edges by the temporary raster closure behind them.
 
@@ -73,8 +104,7 @@ def unsupported_closure_groups(source, unsupported):
     """
     diagnostics = source.get("diagnostics", {})
     closures = diagnostics.get("temporary_closures", [])
-    recovery = {item.get("closure_index"): item
-                for item in diagnostics.get("opening_recovery", {}).get("candidates", [])}
+    recovery = diagnostics.get("opening_recovery", {}).get("candidates", [])
     grouped = {}
     for edge in unsupported:
         index = edge.get("temporary_closure_index")
@@ -85,7 +115,7 @@ def unsupported_closure_groups(source, unsupported):
     result = []
     for index, edges in sorted(grouped.items()):
         closure = closures[index]
-        decision = recovery.get(index, {})
+        decision = matching_recovery_decision(closure, recovery) or {}
         start, end = closure["start"], closure["end"]
         half_width = max(0, float(closure.get("width", 0))) / 2
         result.append({
@@ -97,6 +127,7 @@ def unsupported_closure_groups(source, unsupported):
                      round(max(start[0], end[0]) + half_width, 2),
                      round(max(start[1], end[1]) + half_width, 2)],
             "closure_evidence": closure.get("evidence"),
+            "recovery_closure_index": decision.get("closure_index"),
             "recovery_status": decision.get("status"),
             "recovery_reason": decision.get("reason"),
             "jamb_support": decision.get("jamb_support"),

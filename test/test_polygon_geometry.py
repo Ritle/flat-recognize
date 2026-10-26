@@ -53,9 +53,11 @@ class PolygonGeometryTest(unittest.TestCase):
                 {"start": [10, 20], "end": [30, 20], "width": 8, "evidence": "door_leaf"},
                 {"start": [50, 20], "end": [70, 20], "width": 8, "evidence": "door_leaf"}],
             "opening_recovery": {"candidates": [
-                {"closure_index": 0, "status": "rejected",
+                {"closure_index": 0, "start": [10, 20], "end": [30, 20],
+                 "width": 8, "status": "rejected",
                  "reason": "missing_wall_jamb", "jamb_support": [1, 3]},
-                {"closure_index": 1, "status": "recovered"}]}}}
+                {"closure_index": 1, "start": [50, 20], "end": [70, 20],
+                 "width": 8, "status": "recovered"}]}}}
         edges = [{"start": [10, 20], "end": [20, 20], "origin": "temporary_topology_closure",
                   "temporary_closure_index": 0},
                  {"start": [20, 20], "end": [30, 20], "origin": "temporary_topology_closure",
@@ -71,6 +73,25 @@ class PolygonGeometryTest(unittest.TestCase):
         self.assertEqual(groups[0]["bbox"], [6.0, 16.0, 34.0, 24.0])
         self.assertEqual(groups[1]["recovery_status"], "recovered")
         self.assertEqual((rooms, edges), before)
+
+    def test_recovery_status_matches_gap_after_closure_indices_shift(self):
+        rooms = {"diagnostics": {
+            "temporary_closures": [
+                {"start": [50, 20], "end": [70, 20], "width": 8},
+                {"start": [10, 20], "end": [30, 20], "width": 8},
+                {"start": [90, 20], "end": [110, 20], "width": 8}],
+            "opening_recovery": {"candidates": [
+                {"closure_index": 0, "start": [10, 20], "end": [30, 20],
+                 "width": 8, "status": "recovered"},
+                {"closure_index": 1, "start": [70, 21], "end": [50, 21],
+                 "width": 8, "status": "rejected", "reason": "missing_wall_jamb"}]}}}
+        edges = [{"start": closure["start"], "end": closure["end"],
+                  "origin": "temporary_topology_closure", "temporary_closure_index": index}
+                 for index, closure in enumerate(rooms["diagnostics"]["temporary_closures"])]
+        groups = unsupported_closure_groups(rooms, edges)
+        self.assertEqual([item["recovery_status"] for item in groups],
+                         ["rejected", "recovered", None])
+        self.assertEqual([item["recovery_closure_index"] for item in groups], [1, 0, None])
 
     def test_unsupported_boundary_identifies_pre_partition_gap(self):
         exported = LineString([(0, 10), (100, 10)])
