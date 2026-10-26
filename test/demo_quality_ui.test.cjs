@@ -174,9 +174,15 @@ async function show(status) {
     assert.equal(submitted.payload.answers[0].partition_id, 0);
     assert.equal(submitted.payload.answers[0].choice, 'separate');
     partitionQuestion.reasons.push('near_closed_leaf_unconfirmed');
+    partitionQuestion.choices = ['door', 'separate', 'open'];
     context.renderReviewQuestions({review_questions: [partitionQuestion], applied_decisions: []});
     assert.match(nodes.get('reviewList').children.at(-1).children[1].textContent,
         /почти закрытое дверное полотно/);
+    assert.ok(nodes.get('reviewList').children.at(-1).children[2].children.some(
+        option => option.value === 'door'));
+    nodes.get('reviewList').children.at(-1).children[2].value = 'door';
+    nodes.get('applyReviewButton').onclick();
+    assert.equal(submitted.payload.answers[0].choice, 'door');
     context.renderClosureCandidates({original_url: '/original', geometry_review_candidates: [
         {closure_index: 2, center: [25, 30], image_size: [100, 80],
             closure_evidence: 'door_leaf', recovery_reason: 'missing_wall_jamb',

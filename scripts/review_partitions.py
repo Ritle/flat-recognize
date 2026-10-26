@@ -16,7 +16,7 @@ except ImportError:  # Direct CLI execution from scripts/.
     from review_decisions import MAX_ANSWERS, image_sha256
 
 
-PARTITION_CHOICES = {"separate", "open"}
+PARTITION_CHOICES = {"separate", "open", "door"}
 
 
 def partition_fingerprint(candidate):
@@ -47,7 +47,9 @@ def partition_questions(rooms, source_sha256):
                                       ["facing_wall_caps_only"]),
                           "unconfirmed_leaf_hint": candidate.get("unconfirmed_leaf_hint"),
                           "rooms_if_closed": candidate.get("rooms_if_closed"),
-                          "choices": ["separate", "open"], "severity": "review"})
+                          "choices": (["door", "separate", "open"]
+                                      if candidate.get("unconfirmed_leaf_hint") else
+                                      ["separate", "open"]), "severity": "review"})
     return questions[:MAX_ANSWERS]
 
 
@@ -58,6 +60,9 @@ def apply_partition_decisions(classified, previous_rooms, rgb, decisions, source
     from extract_rooms_v2 import (apply_closures, candidate_inside_existing_room,
                                   extract_rooms, room_candidates)
     from filter_interior_windows_v2 import same_room_topology
+    from classify_openings import structural_union
+    from door_leaf_evidence import shallow_leaf_hint
+    from shapely.geometry import LineString
 
     if not isinstance(decisions, dict) or decisions.get("version") != 1:
         raise ValueError("Unsupported review decisions format")
@@ -78,27 +83,51 @@ def apply_partition_decisions(classified, previous_rooms, rgb, decisions, source
                 or index in selected or choice not in PARTITION_CHOICES
                 or answer.get("fingerprint") != partition_fingerprint(candidates[index])):
             raise ValueError("Partition answer refers to a changed or missing boundary")
+        if choice == "door" and not candidates[index].get("unconfirmed_leaf_hint"):
+            raise ValueError("Door choice requires a visible leaf candidate")
         selected[index] = choice
     result = copy.deepcopy(previous_rooms)
+    reviewed_classified = copy.deepcopy(classified)
     result["reviewed_partitions"] = [
         {"partition_id": index, "choice": choice} for index, choice in selected.items()]
-    if not any(choice == "separate" for choice in selected.values()):
-        return result, None, None
+    if not any(choice in ("separate", "door") for choice in selected.values()):
+        return result, None, None, reviewed_classified
     baseline, barrier, inferred = extract_rooms(classified, rgb)
     if not same_room_topology(previous_rooms.get("rooms", []), baseline.get("rooms", [])):
         raise ValueError("Room topology changed before partition review")
     walls = np.zeros(barrier.shape, dtype=np.uint8)
     for polygon in classified.get("walls", []):
         fill_polygon(walls, polygon)
+    wall_shapes = structural_union(classified.get("walls", []))
+    gray = rgb.min(axis=2)
+    known = structural_union(classified.get("doors", []) + classified.get("windows", [])
+                             + classified.get("topology_only_openings", []))
+    all_openings = (classified.get("doors", []) + classified.get("windows", [])
+                    + classified.get("topology_only_openings", [])
+                    + classified.get("rejected_openings", []))
+    next_id = max([item.get("id") for item in all_openings
+                   if type(item.get("id")) is int] + [-1]) + 1
     current_rooms = baseline["rooms"]
     current_diagnostics = baseline["diagnostics"]
     accepted = []
+    confirmed_doors = []
     for index, choice in selected.items():
-        if choice != "separate":
+        if choice == "open":
             continue
         candidate = candidates[index]
         if not candidate_inside_existing_room(candidate, current_rooms):
             raise ValueError("Selected boundary no longer lies inside one room")
+        shape = None
+        hint = None
+        if choice == "door":
+            hint = shallow_leaf_hint(gray, candidate["start"], candidate["end"],
+                                     candidate["width"], wall_shapes)
+            if hint is None:
+                raise ValueError("Door leaf is no longer supported by the source image")
+            shape = LineString([candidate["start"], candidate["end"]]).buffer(
+                candidate["width"] / 2, cap_style=2)
+            if known.intersection(shape).area > shape.area * .2:
+                raise ValueError("Selected door overlaps an existing opening")
         trial, additions = apply_closures(barrier, [candidate])
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
@@ -110,17 +139,43 @@ def apply_partition_decisions(classified, previous_rooms, rgb, decisions, source
             raise ValueError("Selected boundary no longer separates a room safely")
         barrier, inferred = trial, trial_inferred
         current_rooms, current_diagnostics = trial_rooms, trial_diagnostics
-        accepted.append({"partition_id": index, **candidate})
+        if choice == "separate":
+            accepted.append({"partition_id": index, **candidate})
+            continue
+        start, end = np.asarray(candidate["start"]), np.asarray(candidate["end"])
+        door = {"id": next_id, "type": "door",
+                "outer": [list(point) for point in shape.exterior.coords[:-1]],
+                "holes": [],
+                "orientation": "horizontal" if abs(end[0] - start[0]) >= abs(end[1] - start[1])
+                               else "vertical",
+                "length": candidate["length_px"], "thickness": candidate["width"],
+                "classification": {"method": "user_selected_near_closed_leaf",
+                                   "confirmed": False, "user_confirmed": True,
+                                   "requires_review": False, "evidence": hint},
+                "review": {"partition_id": index, "user_confirmed": True}}
+        next_id += 1
+        reviewed_classified.setdefault("doors", []).append(copy.deepcopy(door))
+        reviewed_classified.setdefault("openings", []).append(copy.deepcopy(door))
+        result.setdefault("doors", []).append(copy.deepcopy(door))
+        known = known.union(shape)
+        confirmed_doors.append({"partition_id": index, "opening_id": door["id"],
+                                "start": candidate["start"], "end": candidate["end"],
+                                "width": candidate["width"], "leaf_evidence": hint})
     result["rooms"] = current_rooms
     diagnostics = result.setdefault("diagnostics", {})
     diagnostics["reviewed_partition_closures"] = accepted
+    diagnostics["reviewed_door_closures"] = confirmed_doors
     diagnostics["rooms_found"] = len(current_rooms)
     diagnostics["interior_area_px"] = current_diagnostics["interior_area_px"]
     diagnostics["outside_fraction_in_structure"] = current_diagnostics[
         "outside_fraction_in_structure"]
-    diagnostics.setdefault("warnings", []).append(
-        "Границы помещений разделены по выбору пользователя; опора стены или двери не подтверждена.")
-    return result, barrier, inferred
+    if accepted:
+        diagnostics.setdefault("warnings", []).append(
+            "Границы помещений разделены по выбору пользователя; опора стены или двери не подтверждена.")
+    if confirmed_doors:
+        diagnostics.setdefault("warnings", []).append(
+            "Пользователь подтвердил двери по видимому полотну; проверьте привязку проёмов к стенам.")
+    return result, barrier, inferred, reviewed_classified
 
 
 def main():
@@ -134,7 +189,7 @@ def main():
     with Image.open(args.image) as image:
         rgb = np.asarray(image.convert("RGB"))
     try:
-        result, barrier, inferred = apply_partition_decisions(
+        result, barrier, inferred, reviewed_classified = apply_partition_decisions(
             json.loads(args.classified.read_text(encoding="utf-8")),
             json.loads(args.rooms.read_text(encoding="utf-8")), rgb,
             json.loads(args.decisions.read_text(encoding="utf-8")), image_sha256(args.image))
@@ -145,6 +200,8 @@ def main():
     stem = args.image.stem
     (args.output_dir / f"{stem}_rooms_partition_reviewed.json").write_text(
         json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    (args.output_dir / f"{stem}_partition_reviewed_classified.json").write_text(
+        json.dumps(reviewed_classified, indent=2, ensure_ascii=False), encoding="utf-8")
     if barrier is not None:
         Image.fromarray(barrier).save(args.output_dir / f"{stem}_partition_reviewed_barrier.png")
         Image.fromarray(inferred).save(args.output_dir / f"{stem}_partition_reviewed_closures.png")
@@ -157,6 +214,12 @@ def main():
         for candidate in result["diagnostics"]["reviewed_partition_closures"]:
             draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
                       fill="cyan", width=3)
+        for candidate in result["diagnostics"]["reviewed_door_closures"]:
+            draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
+                      fill="lime", width=3)
+            evidence = candidate["leaf_evidence"]
+            draw.line([tuple(evidence["hinge"]), tuple(evidence["tip"])],
+                      fill="blue", width=3)
         overlay.save(args.output_dir / f"{stem}_partition_reviewed_overlay.png")
     print(f"Applied partition choices: {len(result['reviewed_partitions'])}")
     return 0

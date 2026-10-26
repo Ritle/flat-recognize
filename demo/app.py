@@ -216,6 +216,7 @@ async def recognize(
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
         applied_decisions = answers
     has_opening_answers = any("opening_id" in answer for answer in applied_decisions)
+    has_partition_answers = any("partition_id" in answer for answer in applied_decisions)
 
     job_id = str(
         uuid.uuid4()
@@ -342,6 +343,8 @@ async def recognize(
                            OUTPUT_DIR / f"{job_id}_interior_filtered_classified.json")
     if has_opening_answers:
         classified_path = OUTPUT_DIR / f"{job_id}_reviewed_classified.json"
+    if pipeline_v2 and has_partition_answers:
+        classified_path = reviewed_dir / f"{job_id}_partition_reviewed_classified.json"
     classified_data = json.loads(classified_path.read_text(encoding="utf-8"))
     shutil.copy2(classified_path, job_dir / "classified.json")
     review_questions = (make_review_questions(classified_data, quality, source_hash)
@@ -432,7 +435,7 @@ async def recognize(
                     generated_images["rooms"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_overlay.png"
                 generated_images["barrier"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_barrier.png"
                 generated_images["closures"] = OUTPUT_DIR / f"{job_id}_topology_reconciled_closures.png"
-        if any(item.get("choice") == "separate"
+        if any(item.get("choice") in ("separate", "door")
                for item in room_data.get("reviewed_partitions", [])):
             generated_images["barrier"] = reviewed_dir / f"{job_id}_partition_reviewed_barrier.png"
             generated_images["closures"] = reviewed_dir / f"{job_id}_partition_reviewed_closures.png"
@@ -465,8 +468,10 @@ async def recognize(
                 draw.line(ring + ring[:1], fill="magenta", width=3)
                 draw.text(tuple(room["center"]), f"Room {room['id'] + 1}", fill="magenta")
         for index, candidate in enumerate(partition_candidates):
+            choice = reviewed_partitions.get(index)
             draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
-                      fill="cyan" if reviewed_partitions.get(index) == "separate" else "orange",
+                      fill="lime" if choice == "door" else "cyan" if choice == "separate"
+                      else "orange",
                       width=3)
             hint = candidate.get("unconfirmed_leaf_hint")
             if hint:

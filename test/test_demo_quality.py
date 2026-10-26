@@ -60,6 +60,10 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                     reviewed_dir.mkdir()
                     (reviewed_dir / f"{stem}_rooms_selected.json").write_text(
                         json.dumps(selected), encoding="utf-8")
+                    (reviewed_dir / f"{stem}_partition_reviewed_classified.json").write_text(
+                        json.dumps({"meta": rooms["meta"], "doors": [], "windows": [],
+                                    "partition_review_marker": True}),
+                        encoding="utf-8")
                 project_path.with_suffix(".quality.json").write_text(
                     json.dumps(quality), encoding="utf-8")
                 return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
@@ -87,6 +91,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                                 "answers": [answer]}))
                 self.assertEqual(reviewed["applied_decisions"], [answer])
                 self.assertEqual(reviewed["quality"]["status"], "invalid")
+                reviewed_classified = json.loads((jobs / reviewed["job_id"] / "classified.json")
+                                                  .read_text(encoding="utf-8"))
+                self.assertTrue(reviewed_classified["partition_review_marker"])
 
     async def test_room_only_choice_uses_original_openings_and_keeps_invalid_gate(self):
         source = b"source image"

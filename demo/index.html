@@ -834,7 +834,7 @@ function renderReviewQuestions(data) {
             parallel_window_ambiguous: 'пересекается с параллельным кандидатом без двух подтверждённых косяков',
             user_choice: 'выбор пользователя'};
         label.textContent = question.kind === 'partition'
-            ? `Возможная граница комнат: ${question.current === 'separate' ? 'разделить' : 'оставить проход'}` +
+            ? `Возможная граница комнат: ${question.current === 'door' ? 'дверь подтверждена' : question.current === 'separate' ? 'разделить' : 'оставить проход'}` +
                 ' · торцы стен совпадают, но дверь или сплошная стена не подтверждены'
             : question.kind === 'room'
             ? `Небольшая область: ${question.current === 'ignore' ? 'исключена' : 'помещение'}` +
@@ -864,7 +864,9 @@ function renderReviewQuestions(data) {
         }
         const select = document.createElement('select');
         const options = question.kind === 'partition'
-            ? [['', 'Оставить решение системы'], ['separate', 'Разделить комнаты'],
+            ? [['', 'Оставить решение системы'],
+               ...(question.choices?.includes('door') ? [['door', 'Это дверь']] : []),
+               ['separate', 'Разделить комнаты'],
                ['open', 'Оставить проход']]
             : question.kind === 'room'
             ? [['', 'Оставить решение системы'], ['room', 'Помещение'],

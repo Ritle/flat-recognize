@@ -181,6 +181,11 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
               "Пользователь разделил помещения, но в выбранном разрыве не подтверждена "
               "стена или дверь с полотном; экспорт заблокирован.",
               partition_ids=[item.get("partition_id") for item in reviewed_partitions])
+    reviewed_doors = diagnostics.get("reviewed_door_closures", [])
+    if reviewed_doors:
+        issue("reviewed_door_binding_pending", "warning",
+              "Пользователь подтвердил дверь по полотну; проверьте её положение и привязку к стене.",
+              opening_ids=[item.get("opening_id") for item in reviewed_doors])
     interior_filter = diagnostics.get("interior_window_filter", {})
     if isinstance(interior_filter, dict) and interior_filter.get("topology_stable") is False:
         issue("unstable_room_topology", "error",

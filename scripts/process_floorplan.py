@@ -500,9 +500,13 @@ def main():
                          "--output-dir", partition_dir])
             rooms_json = require_file(partition_dir / f"{stem}_rooms_partition_reviewed.json",
                                       "Reviewed room boundaries")
+            classified_json = require_file(
+                partition_dir / f"{stem}_partition_reviewed_classified.json",
+                "Classified openings after room-boundary review")
             partition_diagnostics = json.loads(rooms_json.read_text(encoding="utf-8")).get(
                 "diagnostics", {})
-            if partition_diagnostics.get("reviewed_partition_closures"):
+            if (partition_diagnostics.get("reviewed_partition_closures")
+                    or partition_diagnostics.get("reviewed_door_closures")):
                 rooms_overlay = partition_dir / f"{stem}_partition_reviewed_overlay.png"
                 barrier_image = partition_dir / f"{stem}_partition_reviewed_barrier.png"
 
