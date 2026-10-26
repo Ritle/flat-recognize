@@ -42,7 +42,10 @@ def partition_questions(rooms, source_sha256):
                                    max(start[0], end[0]), max(start[1], end[1])],
                           "center": [round((start[0] + end[0]) / 2, 2),
                                      round((start[1] + end[1]) / 2, 2)],
-                          "reasons": ["facing_wall_caps_only"],
+                          "reasons": (["facing_wall_caps_only", "near_closed_leaf_unconfirmed"]
+                                      if candidate.get("unconfirmed_leaf_hint") else
+                                      ["facing_wall_caps_only"]),
+                          "unconfirmed_leaf_hint": candidate.get("unconfirmed_leaf_hint"),
                           "rooms_if_closed": candidate.get("rooms_if_closed"),
                           "choices": ["separate", "open"], "severity": "review"})
     return questions[:MAX_ANSWERS]

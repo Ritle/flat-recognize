@@ -63,6 +63,15 @@ class PartitionReviewTest(unittest.TestCase):
         self.assertEqual(result["reviewed_partitions"],
                          [{"partition_id": 0, "choice": "open"}])
 
+    def test_nearly_closed_leaf_hint_is_exposed_without_changing_choices(self):
+        rooms = copy.deepcopy(self.rooms)
+        rooms["diagnostics"]["possible_room_partitions"][0]["unconfirmed_leaf_hint"] = {
+            "hinge": [200, 170], "tip": [188, 132], "swing_angle_degrees": 18}
+        question = partition_questions(rooms, self.sha)[0]
+        self.assertIn("near_closed_leaf_unconfirmed", question["reasons"])
+        self.assertEqual(question["choices"], ["separate", "open"])
+        self.assertEqual(question["unconfirmed_leaf_hint"]["hinge"], [200, 170])
+
     def test_stale_geometry_and_duplicate_answers_are_rejected(self):
         with self.assertRaises(ValueError):
             apply_partition_decisions(self.classified, self.rooms, self.rgb,

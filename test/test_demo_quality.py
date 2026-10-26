@@ -28,7 +28,8 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
         Image.new("RGB", (40, 40), "white").save(source, format="PNG")
         rooms = {"meta": {"width": 40, "height": 40}, "rooms": [], "doors": [],
                  "windows": [], "diagnostics": {"possible_room_partitions": [
-                     {"start": [10, 20], "end": [30, 20], "rooms_if_closed": 2}]}}
+                     {"start": [10, 20], "end": [30, 20], "rooms_if_closed": 2,
+                      "unconfirmed_leaf_hint": {"hinge": [10, 10], "tip": [30, 10]}}]}}
         quality = {"status": "invalid", "export_allowed": False, "warnings": [],
                    "errors": ["Needs review"], "metrics": {}, "issues": []}
         with tempfile.TemporaryDirectory() as temp:
@@ -70,10 +71,12 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(response["possible_room_partitions"]), 1)
                 question = next(item for item in response["review_questions"]
                                 if item["kind"] == "partition")
+                self.assertIn("near_closed_leaf_unconfirmed", question["reasons"])
                 job = jobs / response["job_id"]
                 self.assertTrue((job / "topology_reconciliation.json").exists())
                 with Image.open(job / "rooms.png") as overlay:
                     self.assertEqual(overlay.convert("RGB").getpixel((20, 20)), (255, 165, 0))
+                    self.assertEqual(overlay.convert("RGB").getpixel((20, 10)), (0, 0, 255))
                 with Image.open(job / "barrier.png") as barrier:
                     self.assertEqual(barrier.convert("RGB").getpixel((20, 20)), (0, 0, 0))
                 answer = {"partition_id": question["partition_id"],

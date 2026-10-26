@@ -468,6 +468,9 @@ async def recognize(
             draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
                       fill="cyan" if reviewed_partitions.get(index) == "separate" else "orange",
                       width=3)
+            hint = candidate.get("unconfirmed_leaf_hint")
+            if hint:
+                draw.line([tuple(hint["hinge"]), tuple(hint["tip"])], fill="blue", width=3)
         partition_overlay_path = job_dir / "possible_room_partitions.png"
         overlay.save(partition_overlay_path)
         generated_images["rooms"] = partition_overlay_path

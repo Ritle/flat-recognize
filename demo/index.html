@@ -841,6 +841,9 @@ function renderReviewQuestions(data) {
                 ' · уточните, является ли она помещением или частью мебели'
             : `Сейчас: ${names[question.current] || question.current}` +
                 ` · ${question.reasons.map(reason => reasons[reason] || reason).join(', ')}`;
+        if (question.kind === 'partition' && question.reasons?.includes('near_closed_leaf_unconfirmed')) {
+            label.textContent += ' · На изображении есть короткая линия, похожая на почти закрытое дверное полотно; тип проёма ещё не подтверждён';
+        }
         if (question.kind === 'opening' && question.topology_mask_use === false) {
             label.textContent += ' · исключён из маски комнат: подтвердите, есть ли здесь проём';
         }

@@ -150,6 +150,28 @@ class RoomsTests(unittest.TestCase):
         self.assertEqual(len(proposals), 1)
         self.assertEqual(proposals[0]["rooms_if_closed"], 2)
         self.assertEqual(proposals[0]["evidence"], "facing_wall_caps_only")
+        self.assertNotIn("unconfirmed_leaf_hint", proposals[0])
+
+    def test_nearly_closed_leaf_is_only_a_partition_review_hint(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 380, 280),
+                 rectangle(195, 20, 205, 130), rectangle(195, 170, 205, 280)]
+        data, rgb = source(walls)
+        image = Image.fromarray(rgb)
+        ImageDraw.Draw(image).line((170, 170, 158, 132), fill="black", width=2)
+        unrelated, _, _ = extract_rooms(data, np.asarray(image))
+        self.assertNotIn("unconfirmed_leaf_hint",
+                         unrelated["diagnostics"]["possible_room_partitions"][0])
+
+        image = Image.fromarray(rgb)
+        ImageDraw.Draw(image).line((200, 170, 188, 132), fill="black", width=2)
+        result, _, inferred = extract_rooms(data, np.asarray(image))
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertFalse(np.any(inferred))
+        self.assertEqual(result["doors"], [])
+        hint = result["diagnostics"]["possible_room_partitions"][0]["unconfirmed_leaf_hint"]
+        self.assertLess(abs(hint["swing_angle_degrees"]), 25)
+        self.assertEqual(hint["jamb_support"], [3, 3])
 
     def test_exterior_gap_is_not_proposed_as_room_partition(self):
         walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),

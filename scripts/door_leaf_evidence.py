@@ -27,7 +27,7 @@ def extend_ink_line(a, b, edges, origin, maximum):
     return ends
 
 
-def leaf_candidates(gray, start, end, width):
+def leaf_candidates(gray, start, end, width, *, sensitive=False):
     start, end = np.asarray(start, float), np.asarray(end, float)
     length = float(np.linalg.norm(end - start))
     if length < 15 or width <= 0:
@@ -40,8 +40,10 @@ def leaf_candidates(gray, start, end, width):
     if x1 <= x0 or y1 <= y0:
         return [], None, None
     edges = cv2.Canny(gray[y0:y1, x0:x1], 50, 150)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=max(10, int(length * .22)),
-                            minLineLength=max(10, int(length * .35)), maxLineGap=3)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180,
+                            threshold=max(10, int(length * (.15 if sensitive else .22))),
+                            minLineLength=max(10, int(length * .35)),
+                            maxLineGap=8 if sensitive else 3)
     candidates = []
     if lines is None:
         return candidates, edges, np.array([x0, y0])
@@ -74,7 +76,7 @@ def leaf_candidates(gray, start, end, width):
                         continue
                     leaf = (tip - hinge) / radius
                     angle = math.atan2(float(closed[0] * leaf[1] - closed[1] * leaf[0]), float(closed @ leaf))
-                    if not math.radians(20) <= abs(angle) <= math.radians(145):
+                    if not math.radians(15 if sensitive else 20) <= abs(angle) <= math.radians(145):
                         continue
                     # Broad wall ink cannot supply a leaf. Sample the actual raster,
                     # even if segmentation accidentally includes a thin leaf in walls.
@@ -136,6 +138,34 @@ def wall_jamb_support(start, end, width, walls):
     return [sum(jambs.covers(Point(point + direction * width * step))
                 for step in (.25, .75, 1.25))
             for point, direction in ((start, -axis), (end, axis))]
+
+
+def shallow_leaf_hint(gray, start, end, width, walls):
+    """Flag a near-closed raster leaf for review without promoting it to a door."""
+    start, end = np.asarray(start, float), np.asarray(end, float)
+    length = float(np.linalg.norm(end - start))
+    if (length < max(15, width * 1.5)
+            or max(abs((end - start) / length)) < math.cos(math.radians(12))):
+        return None
+    support = wall_jamb_support(start, end, width, walls)
+    if min(support) < 2:
+        return None
+    opening = LineString([start, end]).buffer(width / 2, cap_style=2)
+    if walls.intersection(opening).area > opening.area * .25:
+        return None
+    evidence = []
+    for candidate in leaf_candidates(gray, start, end, width, sensitive=True)[0]:
+        if not 15 <= abs(candidate["swing_angle_degrees"]) < 25:
+            continue
+        if candidate["hinge_distance"] > max(3, width * .5):
+            continue
+        clearance = float(walls.distance(Point(candidate["tip"])))
+        if clearance < max(3, width * .35):
+            continue
+        evidence.append({"hinge": candidate["hinge"], "tip": candidate["tip"],
+                         "swing_angle_degrees": candidate["swing_angle_degrees"],
+                         "jamb_support": support, "tip_clearance": round(clearance, 3)})
+    return max(evidence, key=lambda item: item["tip_clearance"]) if evidence else None
 
 
 def diagonal_leaf_with_jambs(gray, start, end, width, walls):

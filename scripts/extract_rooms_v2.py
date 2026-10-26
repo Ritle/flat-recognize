@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from classify_openings import classify_opening, opening_axis, structural_union
-from door_leaf_evidence import leaf_and_arc, leaf_candidates, wall_jamb_support
+from door_leaf_evidence import leaf_and_arc, leaf_candidates, shallow_leaf_hint, wall_jamb_support
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
@@ -354,7 +354,7 @@ def candidate_inside_existing_room(candidate, rooms):
     return False
 
 
-def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics):
+def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics, gray, wall_shapes):
     """Report facing wall caps whose hypothetical seal splits an existing room.
 
     A split is evidence of missing topology, not evidence of a door or permission
@@ -402,8 +402,13 @@ def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics):
                               - (np.array(candidate["start"]) + candidate["end"]))
                < thickness * 2 for item in proposals):
             continue
-        proposals.append({**candidate, "rooms_if_closed": len(trial_rooms),
-                          "evidence": "facing_wall_caps_only"})
+        proposal = {**candidate, "rooms_if_closed": len(trial_rooms),
+                    "evidence": "facing_wall_caps_only"}
+        leaf_hint = shallow_leaf_hint(gray, candidate["start"], candidate["end"],
+                                      candidate["width"], wall_shapes)
+        if leaf_hint:
+            proposal["unconfirmed_leaf_hint"] = leaf_hint
+        proposals.append(proposal)
     return proposals
 
 
@@ -716,7 +721,8 @@ def extract_rooms(data, rgb):
                                             * (r["bbox"][3] - r["bbox"][1])) < 0.9 for r in rooms)
     if non_rectangular:
         warnings.append("Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.")
-    partition_proposals = possible_room_partitions(barrier, walls, inferred, rooms, diagnostics)
+    partition_proposals = possible_room_partitions(
+        barrier, walls, inferred, rooms, diagnostics, gray, wall_shapes)
     result = {"meta": data.get("meta", {}),
               "review_decisions": data.get("review_decisions", []),
               "walls": data.get("walls", []),
@@ -765,6 +771,9 @@ def main():
     for candidate in result["diagnostics"]["possible_room_partitions"]:
         draw.line([tuple(candidate["start"]), tuple(candidate["end"])],
                   fill="orange", width=3)
+        hint = candidate.get("unconfirmed_leaf_hint")
+        if hint:
+            draw.line([tuple(hint["hinge"]), tuple(hint["tip"])], fill="blue", width=3)
     for room in result["rooms"]:
         points = [tuple(p) for p in room["polygon"]]
         draw.line(points + points[:1], fill="magenta", width=3)
