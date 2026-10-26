@@ -564,11 +564,14 @@ def extract_rooms(data, rgb):
     closures = []
     envelope = None
     envelope_applied = False
-    if not rooms and diagnostics["outside_fraction_in_structure"] >= 0.9:
+    # One enclosed room can coexist with a larger interior still leaking to outside.
+    if diagnostics["outside_fraction_in_structure"] >= 0.9:
         trial, additions, envelope = exterior_envelope_candidate(barrier, walls)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
         accepted = (envelope["accepted"] and bool(trial_rooms)
+                    and len(trial_rooms) >= len(rooms)
+                    and preserves_existing_rooms(rooms, trial_rooms)
                     and trial_diagnostics["outside_fraction_in_structure"] < 0.25)
         envelope["accepted"] = accepted
         passes.append({"name": "exterior_envelope", "rooms": len(trial_rooms),

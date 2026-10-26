@@ -249,6 +249,35 @@ class RoomsTests(unittest.TestCase):
                             for run in envelope["inferred_boundary_runs"]))
         self.assertTrue(result["rooms"][0]["uncertain"])
 
+    def test_fragmented_envelope_repairs_leak_with_existing_small_room(self):
+        walls = [rectangle(20, 20, 145, 30), rectangle(255, 20, 380, 30),
+                 rectangle(20, 270, 145, 280), rectangle(255, 270, 380, 280),
+                 rectangle(20, 20, 30, 115), rectangle(20, 185, 30, 280),
+                 rectangle(370, 20, 380, 115), rectangle(370, 185, 380, 280),
+                 rectangle(70, 65, 120, 70), rectangle(70, 65, 75, 115),
+                 rectangle(115, 65, 120, 115), rectangle(70, 110, 120, 115)]
+        data, rgb = source(walls)
+        result, _, inferred = extract_rooms(data, rgb)
+        phases = result["diagnostics"]["passes"]
+        self.assertEqual(phases[0]["rooms"], 1)
+        self.assertGreaterEqual(phases[0]["outside_fraction_in_structure"], .9)
+        self.assertTrue(result["diagnostics"]["exterior_envelope"]["accepted"])
+        self.assertEqual(len(result["rooms"]), 2)
+        self.assertTrue(np.any(inferred))
+        self.assertEqual(result["walls"], walls)
+
+    def test_local_exterior_gap_stays_open_despite_existing_small_room(self):
+        walls = [rectangle(20, 20, 380, 30), rectangle(20, 20, 30, 280),
+                 rectangle(370, 20, 380, 280), rectangle(20, 270, 150, 280),
+                 rectangle(190, 270, 380, 280), rectangle(70, 65, 120, 70),
+                 rectangle(70, 65, 75, 115), rectangle(115, 65, 120, 115),
+                 rectangle(70, 110, 120, 115)]
+        data, rgb = source(walls)
+        result, _, inferred = extract_rooms(data, rgb)
+        self.assertEqual(len(result["rooms"]), 1)
+        self.assertFalse(result["diagnostics"]["exterior_envelope"]["accepted"])
+        self.assertFalse(np.any(inferred))
+
     def test_extended_leaf_requires_free_space_at_its_tip(self):
         barrier = np.zeros((300, 300), dtype=np.uint8)
         cv2.rectangle(barrier, (95, 20), (105, 120), 255, -1)
