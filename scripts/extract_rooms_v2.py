@@ -316,10 +316,9 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickn
             continue
         used.update(candidate.pop("indices"))
         closures.append(candidate)
-    # Validate after grouping near-identical axes. Rejecting one noisy sample
-    # during candidate collection lets an adjacent sample close the same gap.
+    # Mark uncertain leaf evidence after grouping near-identical axes. Room
+    # topology decides below whether such a closure is actually needed.
     if wall_shapes is not None:
-        confirmed = []
         for closure in closures:
             start, end, width = closure["start"], closure["end"], closure["width"]
             delta = np.array(end) - start
@@ -329,12 +328,8 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickn
                 if (min(support) < 2
                         and diagonal_leaf_with_jambs(gray, start, end, width,
                                                      wall_shapes) is None):
-                    rejected_leaves.append({"start": start, "end": end, "width": width,
-                                            "jamb_support": support,
-                                            "reason": "partial_jamb_diagonal_leaf_not_confirmed"})
-                    continue
-            confirmed.append(closure)
-        closures = confirmed
+                    closure["partial_jamb_leaf_unconfirmed"] = True
+                    closure["jamb_support"] = support
     return closures, {"wall_endpoints": len(endpoints), "candidate_gaps": len(candidates),
                       "rejected_leaf_gaps": rejected_leaves,
                       "axis_cap_pairs": len(axes),
@@ -350,6 +345,29 @@ def apply_closures(barrier, closures):
         cv2.line(additions, a, b, 255, max(2, round(closure["width"])))
     additions[barrier > 0] = 0
     return cv2.bitwise_or(result, additions), additions
+
+
+def prune_redundant_weak_closures(barrier, walls, inferred, candidates):
+    """Discard weak leaf closures only when removing them preserves the rooms."""
+    retained = list(candidates)
+    rejected = []
+    for candidate in candidates:
+        if not candidate.get("partial_jamb_leaf_unconfirmed"):
+            continue
+        full_barrier, full_additions = apply_closures(barrier, retained)
+        full_rooms, full_info = room_candidates(full_barrier, walls, inferred | full_additions)
+        remaining = [item for item in retained if item is not candidate]
+        reduced_barrier, reduced_additions = apply_closures(barrier, remaining)
+        reduced_rooms, reduced_info = room_candidates(
+            reduced_barrier, walls, inferred | reduced_additions)
+        if (len(reduced_rooms) >= len(full_rooms)
+                and preserves_existing_rooms(full_rooms, reduced_rooms)
+                and reduced_info["outside_fraction_in_structure"]
+                <= full_info["outside_fraction_in_structure"] + .02
+                and reduced_info["interior_area_px"] >= full_info["interior_area_px"] * .98):
+            retained = remaining
+            rejected.append(candidate)
+    return retained, rejected
 
 
 def candidate_inside_existing_room(candidate, rooms):
@@ -612,6 +630,9 @@ def extract_rooms(data, rgb):
         candidates, info = gap_candidates(barrier, gray, relaxed=relaxed, extended=extended,
                                           sampling_thickness=wall_only_thickness,
                                           wall_shapes=wall_shapes)
+        candidates, redundant = prune_redundant_weak_closures(
+            barrier, walls, inferred, candidates)
+        info["redundant_weak_closures"] = redundant
         trial, additions = apply_closures(barrier, candidates)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)

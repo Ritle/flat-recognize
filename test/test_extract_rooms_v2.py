@@ -8,7 +8,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from extract_rooms_v2 import axis_pairs, endpoint_wall_arc_candidates, extract_rooms, gap_candidates
+from extract_rooms_v2 import (axis_pairs, endpoint_wall_arc_candidates, extract_rooms,
+                              gap_candidates, prune_redundant_weak_closures)
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
@@ -319,7 +320,7 @@ class RoomsTests(unittest.TestCase):
         self.assertTrue(all(candidate["reason"] == "leaf_tip_touches_barrier"
                             for candidate in diagnostics["rejected_leaf_gaps"]))
 
-    def test_partial_jamb_leaf_needs_diagonal_evidence_for_topology_closure(self):
+    def test_partial_jamb_leaf_is_marked_for_topology_check(self):
         barrier = np.zeros((300, 300), dtype=np.uint8)
         cv2.rectangle(barrier, (95, 20), (105, 120), 255, -1)
         cv2.rectangle(barrier, (95, 170), (105, 280), 255, -1)
@@ -328,11 +329,11 @@ class RoomsTests(unittest.TestCase):
         cv2.line(gray, (100, 170), (150, 170), 0, 2)
         with (patch("extract_rooms_v2.wall_jamb_support", return_value=[3, 1]),
               patch("extract_rooms_v2.diagonal_leaf_with_jambs", return_value=None)):
-            closures, diagnostics = gap_candidates(barrier, gray, relaxed=True,
-                                                   extended=True, wall_shapes=object())
-        self.assertEqual(closures, [])
-        self.assertIn("partial_jamb_diagonal_leaf_not_confirmed",
-                      [item["reason"] for item in diagnostics["rejected_leaf_gaps"]])
+            closures, _ = gap_candidates(barrier, gray, relaxed=True,
+                                         extended=True, wall_shapes=object())
+        self.assertEqual(len(closures), 1)
+        self.assertTrue(closures[0]["partial_jamb_leaf_unconfirmed"])
+        self.assertEqual(closures[0]["jamb_support"], [3, 1])
 
         with (patch("extract_rooms_v2.wall_jamb_support", return_value=[3, 1]),
               patch("extract_rooms_v2.diagonal_leaf_with_jambs", return_value={"hinge": [100, 170]})):
@@ -340,6 +341,29 @@ class RoomsTests(unittest.TestCase):
                                          extended=True, wall_shapes=object())
         self.assertEqual(len(closures), 1)
         self.assertEqual(closures[0]["evidence"], "door_leaf")
+        self.assertNotIn("partial_jamb_leaf_unconfirmed", closures[0])
+
+    def test_weak_leaf_closure_is_kept_only_when_it_separates_rooms(self):
+        barrier = np.zeros((300, 400), dtype=np.uint8)
+        cv2.rectangle(barrier, (20, 20), (380, 30), 255, -1)
+        cv2.rectangle(barrier, (20, 270), (380, 280), 255, -1)
+        cv2.rectangle(barrier, (20, 20), (30, 280), 255, -1)
+        cv2.rectangle(barrier, (370, 20), (380, 280), 255, -1)
+        cv2.rectangle(barrier, (195, 20), (205, 120), 255, -1)
+        cv2.rectangle(barrier, (195, 180), (205, 280), 255, -1)
+        weak = {"start": [200, 120], "end": [200, 180], "width": 10,
+                "partial_jamb_leaf_unconfirmed": True}
+        inferred = np.zeros_like(barrier)
+        retained, rejected = prune_redundant_weak_closures(barrier, barrier, inferred, [weak])
+        self.assertEqual(retained, [weak])
+        self.assertEqual(rejected, [])
+
+        redundant = {"start": [90, 120], "end": [90, 180], "width": 10,
+                     "partial_jamb_leaf_unconfirmed": True}
+        retained, rejected = prune_redundant_weak_closures(
+            barrier, barrier, inferred, [weak, redundant])
+        self.assertEqual(retained, [weak])
+        self.assertEqual(rejected, [redundant])
 
     def test_oblique_leaf_needs_arc_before_it_closes_a_room(self):
         barrier = np.zeros((400, 400), dtype=np.uint8)
