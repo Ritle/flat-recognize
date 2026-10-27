@@ -15,6 +15,15 @@ from shapely.ops import nearest_points, polygonize, unary_union
 from wall_band_measurement import flanking_wall_band, sample_straight_wall_band
 
 
+class UnsupportedRoomGeometry(ValueError):
+    def __init__(self, room_index, components):
+        self.room_index = room_index
+        self.components = components
+        super().__init__(
+            f"Expanded room {room_index + 1} has holes or disconnected parts; "
+            f"target area cannot represent it: {components}")
+
+
 def parts(geometry, kind):
     if geometry.is_empty:
         return []
@@ -653,8 +662,12 @@ def partition_rooms(shapes, offset, diagnostics=None):
                     diagnostics.append("Малые пустоты, возникшие при смещении границ, устранены; проверьте форму комнат.")
         if merged.geom_type != "Polygon" or not merged.is_valid or merged.interiors:
             components = parts(merged, "Polygon")
-            details = [(round(p.area, 3), [round(Polygon(r).area, 3) for r in p.interiors]) for p in components]
-            raise ValueError(f"Expanded room has holes or disconnected parts; target area cannot represent it: {details}")
+            details = [{"area_px2": round(p.area, 3),
+                        "bounds": [round(v, 2) for v in p.bounds],
+                        "holes": [{"area_px2": round(Polygon(r).area, 3),
+                                   "bounds": [round(v, 2) for v in Polygon(r).bounds]}
+                                  for r in p.interiors]} for p in components]
+            raise UnsupportedRoomGeometry(index, details)
         if source.difference(merged).area > max(0.05, source.area * 1e-6):
             raise ValueError("Polygon partition lost part of a source room")
     return result
@@ -1110,4 +1123,12 @@ def render_geometry(project, report, image_path, output_path):
                   fill="#00a99d" if segment["uuid"] in internal else "blue", width=3)
     for segment in report.get("unsupported_segments", []):
         draw.line([tuple(segment["start"]), tuple(segment["end"])], fill="orange", width=4)
+    failure = report.get("unsupported_room_geometry")
+    if isinstance(failure, dict):
+        for component in failure.get("components", []):
+            for hole in component.get("holes", []):
+                draw.rectangle(hole["bounds"], outline="red", width=5)
+                draw.text(tuple(hole["bounds"][:2]),
+                          f"Room {failure['room_index'] + 1}: unsupported void",
+                          fill="red", stroke_width=2, stroke_fill="white")
     image.save(output_path)

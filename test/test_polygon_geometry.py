@@ -8,12 +8,14 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from polygon_geometry import (
+    UnsupportedRoomGeometry,
     align_window_boundaries,
     bridge_recovered_window_bays,
     build_polygon_project,
@@ -522,8 +524,37 @@ class PolygonGeometryTest(unittest.TestCase):
     def test_large_hole_created_by_offset_is_not_filled(self):
         shape = Polygon([(0, 0), (100, 0), (100, 45), (80, 45), (80, 20), (20, 20),
                          (20, 80), (80, 80), (80, 55), (100, 55), (100, 100), (0, 100)])
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(UnsupportedRoomGeometry,
+                                    r"Expanded room 1.*area_px2.*bounds.*holes") as failure:
             partition_rooms([shape], 10)
+        self.assertEqual(failure.exception.room_index, 0)
+        self.assertTrue(failure.exception.components[0]["holes"])
+
+    def test_unsupported_room_hole_is_located_in_fallback_report(self):
+        shape = Polygon([(0, 0), (100, 0), (100, 45), (80, 45), (80, 20), (20, 20),
+                         (20, 80), (80, 80), (80, 55), (100, 55), (100, 100), (0, 100)])
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            (directory / "source.json").write_text(json.dumps(source([shape])), encoding="utf-8")
+            (directory / "template.json").write_text(json.dumps(template()), encoding="utf-8")
+            Image.new("RGB", (120, 120), "white").save(directory / "source.png")
+            command = [sys.executable, str(ROOT / "scripts/build_project_json.py"),
+                       str(directory / "source.json"), str(directory / "template.json"),
+                       "--geometry-mode", "polygon", "--output", str(directory / "project.json"),
+                       "--geometry-report", str(directory / "geometry.json"),
+                       "--source-image", str(directory / "source.png"),
+                       "--overlay", str(directory / "overlay.png")]
+            result = subprocess.run(command, capture_output=True, encoding="utf-8",
+                                    env={**os.environ, "PYTHONUTF8": "1"}, check=False)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            report = json.loads((directory / "geometry.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["adapter"], "bbox")
+            self.assertEqual(report["unsupported_room_geometry"]["room_index"], 0)
+            self.assertTrue(report["unsupported_room_geometry"]["components"][0]["holes"])
+            self.assertTrue((directory / "overlay.png").is_file())
+            project = json.loads((directory / "project.json").read_text(encoding="utf-8"))
+            self.assertFalse(validate_recognition(source([shape]), project,
+                                                  geometry=report)["export_allowed"])
 
     def test_sub_wall_cross_section_hole_created_by_offset_is_filled(self):
         shape = Polygon([(0, 0), (100, 0), (100, 45), (64, 45), (64, 36), (36, 36),

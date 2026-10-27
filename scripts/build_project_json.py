@@ -96,12 +96,14 @@ def main():
 
     template_level = template["levels"][0]
     geometry_errors = []
+    unsupported_room_geometry = None
     if args.geometry_mode != "bbox":
         from polygon_geometry import (
             build_polygon_project,
             realign_project_exterior_wall_axes,
             render_geometry,
             requires_polygons,
+            UnsupportedRoomGeometry,
         )
         from shapely.errors import GEOSException
         if args.geometry_mode == "polygon" or requires_polygons(rooms):
@@ -134,6 +136,11 @@ def main():
                 print(f"Polygon geometry created: {output_path}; unsupported boundaries: {len(report['unsupported_segments'])}")
                 return
             except (ValueError, GEOSException) as exc:
+                if isinstance(exc, UnsupportedRoomGeometry):
+                    unsupported_room_geometry = {
+                        "room_index": exc.room_index,
+                        "components": exc.components,
+                    }
                 # Preserve a diagnostic candidate, but explicitly block its export.
                 geometry_errors.append(f"Полигональная геометрия не построена: {exc}")
 
@@ -755,6 +762,8 @@ def main():
         "origin_x": origin_x - min_px_x * args.scale,
         "origin_y": origin_y - min_px_y * args.scale,
     }, "errors": geometry_errors, "warnings": [], "unsupported_segments": []}
+    if unsupported_room_geometry is not None:
+        report["unsupported_room_geometry"] = unsupported_room_geometry
     if args.internal_walls:
         from internal_wall_graph import extend_project_walls
         result, report = extend_project_walls(result, src, report, args.wall_thickness, args.height)
