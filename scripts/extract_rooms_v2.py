@@ -10,7 +10,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 from classify_openings import classify_opening, opening_axis, structural_union
-from door_leaf_evidence import leaf_and_arc, leaf_candidates, shallow_leaf_hint, wall_jamb_support
+from door_leaf_evidence import (diagonal_leaf_with_jambs, leaf_and_arc, leaf_candidates,
+                                shallow_leaf_hint, wall_jamb_support)
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
@@ -315,6 +316,25 @@ def gap_candidates(barrier, gray, relaxed=False, extended=False, sampling_thickn
             continue
         used.update(candidate.pop("indices"))
         closures.append(candidate)
+    # Validate after grouping near-identical axes. Rejecting one noisy sample
+    # during candidate collection lets an adjacent sample close the same gap.
+    if wall_shapes is not None:
+        confirmed = []
+        for closure in closures:
+            start, end, width = closure["start"], closure["end"], closure["width"]
+            delta = np.array(end) - start
+            direction = delta / np.linalg.norm(delta)
+            if closure["evidence"] == "door_leaf" and max(abs(direction)) >= np.cos(np.radians(12)):
+                support = wall_jamb_support(start, end, width, wall_shapes)
+                if (min(support) < 2
+                        and diagonal_leaf_with_jambs(gray, start, end, width,
+                                                     wall_shapes) is None):
+                    rejected_leaves.append({"start": start, "end": end, "width": width,
+                                            "jamb_support": support,
+                                            "reason": "partial_jamb_diagonal_leaf_not_confirmed"})
+                    continue
+            confirmed.append(closure)
+        closures = confirmed
     return closures, {"wall_endpoints": len(endpoints), "candidate_gaps": len(candidates),
                       "rejected_leaf_gaps": rejected_leaves,
                       "axis_cap_pairs": len(axes),

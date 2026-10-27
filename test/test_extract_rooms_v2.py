@@ -319,6 +319,28 @@ class RoomsTests(unittest.TestCase):
         self.assertTrue(all(candidate["reason"] == "leaf_tip_touches_barrier"
                             for candidate in diagnostics["rejected_leaf_gaps"]))
 
+    def test_partial_jamb_leaf_needs_diagonal_evidence_for_topology_closure(self):
+        barrier = np.zeros((300, 300), dtype=np.uint8)
+        cv2.rectangle(barrier, (95, 20), (105, 120), 255, -1)
+        cv2.rectangle(barrier, (95, 170), (105, 280), 255, -1)
+        gray = np.full_like(barrier, 255)
+        gray[barrier > 0] = 0
+        cv2.line(gray, (100, 170), (150, 170), 0, 2)
+        with (patch("extract_rooms_v2.wall_jamb_support", return_value=[3, 1]),
+              patch("extract_rooms_v2.diagonal_leaf_with_jambs", return_value=None)):
+            closures, diagnostics = gap_candidates(barrier, gray, relaxed=True,
+                                                   extended=True, wall_shapes=object())
+        self.assertEqual(closures, [])
+        self.assertIn("partial_jamb_diagonal_leaf_not_confirmed",
+                      [item["reason"] for item in diagnostics["rejected_leaf_gaps"]])
+
+        with (patch("extract_rooms_v2.wall_jamb_support", return_value=[3, 1]),
+              patch("extract_rooms_v2.diagonal_leaf_with_jambs", return_value={"hinge": [100, 170]})):
+            closures, _ = gap_candidates(barrier, gray, relaxed=True,
+                                         extended=True, wall_shapes=object())
+        self.assertEqual(len(closures), 1)
+        self.assertEqual(closures[0]["evidence"], "door_leaf")
+
     def test_oblique_leaf_needs_arc_before_it_closes_a_room(self):
         barrier = np.zeros((400, 400), dtype=np.uint8)
         gray = np.full_like(barrier, 255)
