@@ -328,6 +328,7 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
     segments, pairs = [], set()
     template = level["segments"][0] if level["segments"] else {}
     used_originals = set()
+    descendants = {}
     for line in parts(network, "LineString"):
         for a, b in zip(line.coords, list(line.coords)[1:]):
             edge = LineString([a, b])
@@ -345,6 +346,8 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
                 uid = str(uuid.uuid4())
                 if old:
                     used_originals.add(old[0]["uuid"])
+            if old:
+                descendants.setdefault(old[0]["uuid"], []).append(uid)
             segment.update(uuid=uid, start=start, end=end, left=int(start[1:]), right=int(end[1:]))
             if not old:
                 segment.update(thickness=thickness, height=height, alignment=.5,
@@ -373,6 +376,9 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
         area["connectors"] = cycle
     level["segments"] = segments
     report["split_existing_segments"] = len(used_originals)
+    for measurement in geometry.get("calibrated_wall_thickness", []):
+        if isinstance(measurement, dict) and measurement.get("wall_uuid") in descendants:
+            measurement["final_wall_uuids"] = descendants[measurement["wall_uuid"]]
     structural = [Polygon(item["outer"], item.get("holes", [])).buffer(0)
                   for item in source.get("walls", []) + source.get("reclassified_wall_support", [])]
     wall_shapes = unary_union(structural) if structural else GeometryCollection()

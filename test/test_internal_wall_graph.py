@@ -70,6 +70,28 @@ class InternalWallsTest(unittest.TestCase):
         self.assertEqual(quality["status"], "review")
         self.assertTrue(any(len(c["adjacency"]) == 3 for c in project["levels"][0]["connectors"]))
 
+    def test_calibrated_wall_report_tracks_final_segments_after_split(self):
+        data = fixture([box(90, -10, 110, 120)])
+        project, report = build_polygon_project(data, template())
+        originals = {segment["uuid"]: (segment, line)
+                     for segment, line in graph_lines(project)}
+        report["calibrated_wall_thickness"] = [
+            {"wall_uuid": uid, "measured_thickness_cm": segment["thickness"]}
+            for uid, (segment, _) in originals.items()]
+
+        updated, report = extend_project_walls(project, data, report)
+        final = {segment["uuid"]: (segment, line)
+                 for segment, line in graph_lines(updated)}
+        measurements = report["calibrated_wall_thickness"]
+        self.assertTrue(any(len(item["final_wall_uuids"]) > 1 for item in measurements))
+        for item in measurements:
+            old_segment, old_line = originals[item["wall_uuid"]]
+            self.assertTrue(item["final_wall_uuids"])
+            for uid in item["final_wall_uuids"]:
+                child, child_line = final[uid]
+                self.assertLess(child_line.difference(old_line.buffer(1e-5)).length, 1e-5)
+                self.assertEqual(child["thickness"], old_segment["thickness"])
+
     def test_isolated_orthogonal_furniture_edge_is_not_exported_as_wall(self):
         data = fixture([box(40, 90, 160, 110)])
         _, report, _ = self.build(data)
