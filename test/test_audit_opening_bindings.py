@@ -132,6 +132,41 @@ class OpeningBindingAuditTests(unittest.TestCase):
         self.assertEqual(alternative["source_wall_band"]["median_thickness_px"], 20)
         self.assertEqual(alternative["reasons"], [])
 
+    def test_recovered_window_traces_calibrated_wall_after_graph_split(self):
+        window = opening(19, [50, 0], [20, -20, 80, 20])
+        window["recovery"] = {"method": "topology_recovered_thick_window"}
+        classified = {"doors": [], "windows": [window]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0},
+            "calibrated_wall_thickness": [{"wall_uuid": "old-wall",
+                "opening_ids": [19], "measured_thickness_cm": 20,
+                "final_wall_uuids": ["wall"]}]}
+        original = project()
+        row = audit_opening_bindings(classified, original, geometry)["openings"][0]
+        self.assertEqual(row["reasons"], [])
+        self.assertEqual(row["calibrated_wall_trace"], {
+            "status": "matched", "bound_wall_uuid": "wall",
+            "source_wall_uuid": "old-wall", "final_wall_uuids": ["wall"],
+            "measured_thickness_cm": 20, "bound_thickness_cm": 20})
+        self.assertEqual(original, project())
+
+        original["levels"][0]["segments"][0]["thickness"] = 30
+        changed = audit_opening_bindings(classified, original, geometry)["openings"][0]
+        self.assertEqual(changed["calibrated_wall_trace"]["status"], "thickness_mismatch")
+        geometry["calibrated_wall_thickness"][0]["final_wall_uuids"] = ["missing"]
+        stale = audit_opening_bindings(classified, original, geometry)["openings"][0]
+        self.assertEqual(stale["calibrated_wall_trace"]["status"], "untraceable")
+
+        other = project()
+        other["levels"][0]["connectors"].extend([
+            {"uuid": "c", "x": 0, "y": 100}, {"uuid": "d", "x": 100, "y": 100}])
+        other["levels"][0]["segments"].append({
+            "uuid": "other", "start": "c", "end": "d", "thickness": 20})
+        geometry["calibrated_wall_thickness"][0]["final_wall_uuids"] = ["other"]
+        different = audit_opening_bindings(classified, other, geometry)["openings"][0]
+        self.assertEqual(different["reasons"], [])
+        self.assertEqual(different["calibrated_wall_trace"]["status"], "different_segment")
+
     def test_one_flank_does_not_claim_wall_thickness_mismatch(self):
         window = opening(19, [50, 0], [25, -3, 75, 3])
         window["recovery"] = {"raster_axis_evidence": {

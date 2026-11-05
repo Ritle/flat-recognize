@@ -84,6 +84,51 @@ def raster_span_on_current_walls(opening, segments, transform, walls=None):
     return result
 
 
+def calibrated_wall_trace(opening, bound_segment, geometry, final_segments):
+    """Trace a recovered thick window's measured wall into the final graph."""
+    recovery = opening.get("recovery") or {}
+    if (not isinstance(recovery, dict)
+            or recovery.get("method") != "topology_recovered_thick_window"):
+        return None
+    measurements = geometry.get("calibrated_wall_thickness") or []
+    matches = [item for item in measurements
+               if isinstance(item, dict) and isinstance(item.get("opening_ids"), list)
+               and opening.get("id") in item["opening_ids"]]
+    bound_id = bound_segment.get("uuid") if isinstance(bound_segment, dict) else None
+    result = {"status": "unmeasured", "bound_wall_uuid": bound_id,
+              "source_wall_uuid": None, "final_wall_uuids": []}
+    if len(matches) != 1:
+        if matches:
+            result["status"] = "ambiguous_measurement"
+        return result
+    measurement = matches[0]
+    source_id = measurement.get("wall_uuid")
+    final_ids = measurement.get("final_wall_uuids")
+    if not isinstance(final_ids, list):
+        final_ids = [source_id] if source_id in final_segments else []
+    final_ids = [uid for uid in final_ids
+                 if isinstance(uid, str) and uid in final_segments]
+    result.update(source_wall_uuid=source_id, final_wall_uuids=final_ids,
+                  measured_thickness_cm=measurement.get("measured_thickness_cm"))
+    if not final_ids:
+        result["status"] = "untraceable"
+    elif bound_id is None:
+        result["status"] = "unbound"
+    elif bound_id not in final_ids:
+        result["status"] = "different_segment"
+    else:
+        measured = measurement.get("measured_thickness_cm")
+        bound = bound_segment.get("thickness")
+        result["bound_thickness_cm"] = bound
+        if (isinstance(measured, (int, float)) and isinstance(bound, (int, float))
+                and math.isfinite(measured) and math.isfinite(bound) and measured > 0
+                and abs(measured - bound) <= max(2, measured * .1)):
+            result["status"] = "matched"
+        else:
+            result["status"] = "thickness_mismatch"
+    return result
+
+
 def audit_segment_wall_bands(segments, support, transform, walls=None):
     """Advisory comparison of exported wall axes with source structural bands."""
     sx, sy, ox, oy = transform
@@ -189,6 +234,7 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
             segments.append({"segment": segment, "ax": float(a["x"]),
                              "ay": float(a["y"]), "bx": float(b["x"]),
                              "by": float(b["y"])})
+        final_segments = {item["segment"]["uuid"]: item["segment"] for item in segments}
         wall_shapes = []
         for item in classified.get("walls", []) + classified.get("reclassified_wall_support", []):
             shape = Polygon(item["outer"], item.get("holes", []))
@@ -290,6 +336,11 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
                 if binding["overhang"] > 5:
                     row["reasons"].append("exceeds_segment")
             if kind == "windows":
+                trace = calibrated_wall_trace(opening,
+                                              binding["segment"] if binding else None,
+                                              geometry, final_segments)
+                if trace is not None:
+                    row["calibrated_wall_trace"] = trace
                 if gray is not None and row["reasons"] and not opening.get("recovery"):
                     evidence = measured_window_axis(gray, opening)
                     if evidence is not None:
