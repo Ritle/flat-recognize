@@ -595,7 +595,7 @@ def bridge_recovered_window_bays(shapes, windows, walls, half_wall):
     return result, changes
 
 
-def partition_rooms(shapes, offset, diagnostics=None):
+def partition_rooms(shapes, offset, diagnostics=None, walls=None):
     """Expand to wall axes, partition contested strips, retain original interiors.
 
     Local bisectors split overlapping expansion regions. Polygonizing the complete
@@ -648,15 +648,25 @@ def partition_rooms(shapes, offset, diagnostics=None):
         result.append(merged)
     for index, (source, merged) in enumerate(zip(shapes, result)):
         if merged.geom_type == "Polygon" and merged.interiors:
-            holes = [Polygon(r) for r in merged.interiors]
-            if (all(p.area <= max(1, offset ** 2) for p in holes)
-                    and all(p.intersection(other).area < 1e-5 for p in holes
-                            for j, other in enumerate(result) if j != index)):
-                # Voids smaller than one wall-offset cross-section are raster
-                # junction artifacts created solely by expansion and belong to
-                # no source room.
-                # Keep larger holes blocked: the target contract cannot encode them.
-                merged = Polygon(merged.exterior)
+            remaining = []
+            filled = []
+            for ring in merged.interiors:
+                hole = Polygon(ring)
+                claimed = any(hole.intersection(other).area >= 1e-5
+                              for j, other in enumerate(result) if j != index)
+                wall_fraction = (hole.intersection(walls).area / hole.area
+                                 if walls is not None and hole.area > 0 else 1)
+                small = hole.area <= max(1, offset ** 2)
+                unbacked = (walls is not None and wall_fraction < .2
+                            and hole.area <= min(source.area * .05, offset ** 2 * 10))
+                if not claimed and (small or unbacked):
+                    filled.append((hole.area, wall_fraction))
+                else:
+                    remaining.append(ring)
+            if filled:
+                # Keep wall-backed cores blocked. Small buffer artifacts and
+                # bounded voids without wall support may be safely filled.
+                merged = Polygon(merged.exterior, remaining)
                 result[index] = merged
                 if diagnostics is not None:
                     diagnostics.append("Малые пустоты, возникшие при смещении границ, устранены; проверьте форму комнат.")
@@ -929,7 +939,8 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
             # Older room artifacts only recorded the accepted envelope box.
             inferred_envelope = box(*envelope_bbox).boundary
     adjustments = []
-    shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments)]
+    shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments,
+                                                            walls=walls)]
     level_template = template["levels"][0]
     old = level_template.get("connectors", [])
     cx = (min(c["x"] for c in old) + max(c["x"] for c in old)) / 2 if old else 0

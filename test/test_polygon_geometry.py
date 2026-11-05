@@ -529,6 +529,20 @@ class PolygonGeometryTest(unittest.TestCase):
             partition_rooms([shape], 10)
         self.assertEqual(failure.exception.room_index, 0)
         self.assertTrue(failure.exception.components[0]["holes"])
+        with self.assertRaises(UnsupportedRoomGeometry):
+            partition_rooms([shape], 10, walls=Polygon())
+
+    def test_buffer_void_with_little_wall_support_can_be_filled(self):
+        shape = Polygon([(-1000, 0), (100, 0), (100, 45), (60, 45), (60, 20),
+                         (20, 20), (20, 80), (60, 80), (60, 55), (100, 55),
+                         (100, 100), (-1000, 100)])
+        diagnostics = []
+        result = partition_rooms([shape], 10, diagnostics, walls=Polygon())[0]
+        self.assertFalse(result.interiors)
+        self.assertLess(shape.difference(result).area, 1e-5)
+        self.assertTrue(diagnostics)
+        with self.assertRaises(UnsupportedRoomGeometry):
+            partition_rooms([shape], 10, walls=box(30, 30, 50, 70))
 
     def test_unsupported_room_hole_is_located_in_fallback_report(self):
         shape = Polygon([(0, 0), (100, 0), (100, 45), (80, 45), (80, 20), (20, 20),
