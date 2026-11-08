@@ -285,6 +285,26 @@ class PolygonGeometryTest(unittest.TestCase):
         self.assertEqual(changes, [])
         self.assertEqual(unsupported, [room])
 
+    def test_window_alignment_handles_small_reverse_notch_but_keeps_deep_return(self):
+        window = {"outer": [[100, -10], [250, -10], [250, 20], [100, 20]]}
+        walls = unary_union([box(80, -20, 100, 20), box(250, -20, 270, 20)])
+
+        def contour(reverse, depth):
+            return Polygon([(0, 0), (160, 0), (160 - reverse, depth),
+                            (220, depth), (221, 0), (400, 0), (400, 300), (0, 300)])
+
+        room = contour(14, 14)
+        aligned, changes = align_window_boundaries([room], [window], walls, 10)
+        self.assertEqual(len(changes), 1)
+        self.assertTrue(aligned[0].is_valid)
+        self.assertGreater(aligned[0].area, room.area)
+        for reverse, depth in ((20, 14), (14, 30)):
+            returned = contour(reverse, depth)
+            self.assertEqual(align_window_boundaries([returned], [window], walls, 10),
+                             ([returned], []))
+        self.assertEqual(align_window_boundaries([room], [window], Polygon(), 10),
+                         ([room], []))
+
     def test_recovered_thick_window_straightens_supported_facade_only(self):
         room = Polygon([(0, 0), (80, 0), (80, 50), (320, 50),
                         (320, 0), (500, 0), (500, 350), (0, 350)])

@@ -343,7 +343,13 @@ def align_window_boundaries(shapes, windows, walls, half_wall):
                         coords = [ring[i] for i in chain]
                         longitudinal = [axis(point) for point in coords]
                         if any(b < a - half_wall for a, b in pairwise(longitudinal)):
-                            continue
+                            # Raster notches near a frame/handle can reverse a
+                            # short part of an otherwise straight window face.
+                            # Bound the total reversal; deeper architectural
+                            # returns still fail this or the deviation gate.
+                            backtrack = sum(max(0, a - b) for a, b in pairwise(longitudinal))
+                            if thick_recovered or backtrack > min(half_wall * 1.5, length * .1):
+                                continue
                         chord = LineString([coords[0], coords[-1]])
                         if chord.length < length * .8 or abs(side(coords[-1]) - side(coords[0])) > chord.length * .12:
                             continue
