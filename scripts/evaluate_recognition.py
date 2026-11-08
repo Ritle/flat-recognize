@@ -183,6 +183,8 @@ def line_description(points):
 
 
 def prediction_span(item):
+    if "span" in item:
+        return item["span"]
     shape = polygon(item)
     rectangle = shape.minimum_rotated_rectangle
     if rectangle.is_empty or rectangle.geom_type != "Polygon":
@@ -200,6 +202,8 @@ def prediction_span(item):
 
 
 def prediction_thickness(item):
+    if "thickness_px" in item:
+        return item["thickness_px"]
     rectangle = polygon(item).minimum_rotated_rectangle
     if rectangle.is_empty or rectangle.geom_type != "Polygon":
         return None
@@ -239,13 +243,61 @@ def evaluate_openings(expected, predicted, tolerance):
     matches = greedy_matches(opening_scores(expected, predicted, tolerance), 1e-9)
     result = detection_metrics(len(matches), len(predicted), len(expected))
     result.update(unmatched_objects(matches, expected, predicted))
-    result["matches"] = [{
-        "truth": expected[i].get("id", str(i)),
-        "prediction": j,
-        "score": round(score, 4),
-        "predicted_thickness_px": round(prediction_thickness(predicted[j]), 2),
-    } for i, j, score in matches]
+    result["matches"] = []
+    for i, j, score in matches:
+        truth_center, truth_angle, truth_length = line_description(expected[i]["span"])
+        center, angle, length = line_description(prediction_span(predicted[j]))
+        thickness = prediction_thickness(predicted[j])
+        result["matches"].append({
+            "truth": expected[i].get("id", str(i)), "prediction": j,
+            "prediction_id": predicted[j].get("id"), "score": round(score, 4),
+            "predicted_thickness_px": round(thickness, 2) if thickness is not None else None,
+            "center_error_px": round(float(np.linalg.norm(center - truth_center)), 2),
+            "length_error_px": round(abs(length - truth_length), 2),
+            "angle_error_deg": round(angle_difference(angle, truth_angle), 2),
+        })
     return result
+
+
+def exported_openings(project, geometry):
+    """Measure actual element spans from their carrier, position and size."""
+    if geometry.get("adapter") != "polygon":
+        raise ValueError("Export opening evaluation needs polygon adapter coordinates")
+    result = {"doors": [], "windows": []}
+    try:
+        transform = geometry["pixel_to_world"]
+        sx, sy = float(transform["scale_x"]), float(transform["scale_y"])
+        ox, oy = float(transform["origin_x"]), float(transform["origin_y"])
+        if not all(math.isfinite(v) for v in (sx, sy, ox, oy)) or min(sx, sy) <= 0:
+            raise ValueError("Invalid pixel-to-world transform")
+        level = project["levels"][0]
+        elements = [item for item in level.get("elements", [])
+                    if item.get("type") in ("doorItem", "windowItem")]
+        if not elements:
+            return result
+        nodes = {item["uuid"]: item for item in level["connectors"]}
+        segments = {item["uuid"]: item for item in level["segments"]}
+        for element in elements:
+            segment = segments[element["wall"]["uuid"]]
+            a, b = nodes[segment["start"]], nodes[segment["end"]]
+            ax, ay, bx, by = (float(v) for v in (a["x"], a["y"], b["x"], b["y"]))
+            position = float(element["wall"]["position"])
+            width, thickness = float(element["size"]["x"]), float(segment["thickness"])
+            length = math.hypot(bx - ax, by - ay)
+            if (not all(math.isfinite(v) for v in
+                        (ax, ay, bx, by, position, width, thickness, length))
+                    or not 0 <= position <= 100 or min(width, thickness, length) <= 0):
+                raise ValueError("Invalid exported opening dimensions or carrier")
+            ux, uy = (bx - ax) / length, (by - ay) / length
+            cx, cy = ax + (bx - ax) * position / 100, ay + (by - ay) * position / 100
+            span = [[(cx + sign * ux * width / 2 - ox) / sx,
+                     (cy + sign * uy * width / 2 - oy) / sy] for sign in (-1, 1)]
+            category = "doors" if element["type"] == "doorItem" else "windows"
+            result[category].append({"id": element["uuid"], "span": span,
+                "thickness_px": thickness / (sx * sy * math.hypot(ux / sx, uy / sy))})
+        return result
+    except (KeyError, IndexError, TypeError, OverflowError) as exc:
+        raise ValueError(f"Invalid exported opening geometry: {exc}") from exc
 
 
 def rasterize_walls(walls, width, height):
@@ -547,16 +599,23 @@ def evaluate_files(ground_truth_path, recognition_path, image_path=None,
             raise ValueError("Input image SHA-256 does not match ground truth")
     result = evaluate(ground_truth, recognition)
     if (project_path is None) != (geometry_path is None):
-        raise ValueError("Export wall evaluation needs both project and geometry report")
+        raise ValueError("Export evaluation needs both project and geometry report")
     if project_path is not None:
-        if ground_truth.get("coverage", {}).get("walls") != "geometry":
-            raise ValueError("Export wall evaluation needs geometric wall ground truth")
-        result["export_geometry"] = {"walls": {
-            "coverage": "geometry",
-            **wall_overlap_metrics(
-                ground_truth["walls"],
-                exported_wall_shapes(load_json(project_path), load_json(geometry_path)),
-                ground_truth.get("annotation_regions", {}).get("walls"))}}
+        project, geometry = load_json(project_path), load_json(geometry_path)
+        coverage = ground_truth.get("coverage", {})
+        opening_coverage = {key: coverage[key] for key in ("doors", "windows") if key in coverage}
+        export_truth = {**ground_truth, "coverage": opening_coverage,
+                        "annotation_regions": {key: value for key, value in
+                            ground_truth.get("annotation_regions", {}).items()
+                            if key in opening_coverage}}
+        result["export_geometry"] = evaluate(export_truth, {
+            "meta": ground_truth["image"], **exported_openings(project, geometry)})["metrics"]
+        if coverage.get("walls") == "geometry":
+            result["export_geometry"]["walls"] = {
+                "coverage": "geometry",
+                **wall_overlap_metrics(
+                    ground_truth["walls"], exported_wall_shapes(project, geometry),
+                    ground_truth.get("annotation_regions", {}).get("walls"))}
         result["project"] = str(Path(project_path))
         result["geometry_report"] = str(Path(geometry_path))
     result["ground_truth"] = str(Path(ground_truth_path))
@@ -573,7 +632,7 @@ def main():
                         help="Rooms artifact containing walls/rooms/doors/windows")
     parser.add_argument("--image", type=Path, help="Verify source image SHA-256 when annotated")
     parser.add_argument("--project", type=Path,
-                        help="Optional exported project for wall geometry comparison")
+                        help="Optional exported project for wall and opening comparison")
     parser.add_argument("--geometry", type=Path,
                         help="Polygon adapter report with pixel-to-world transform")
     parser.add_argument("--output", type=Path)

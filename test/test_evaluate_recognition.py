@@ -7,7 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from evaluate_recognition import evaluate, evaluate_files, prediction_span, validate_ground_truth
+from evaluate_recognition import (evaluate, evaluate_files, exported_openings,
+                                 prediction_span, validate_ground_truth)
 
 
 def rectangle(x1, y1, x2, y2):
@@ -269,6 +270,61 @@ class EvaluateRecognitionTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["windows"]["expected"], 1)
         self.assertEqual(result["metrics"]["windows"]["predicted"], 1)
         self.assertFalse(result["all_annotated_counts_exact"])
+
+    def test_exported_windows_are_scored_at_actual_carrier_positions(self):
+        truth = {"version": 1, "image": {"width": 100, "height": 80},
+                 "coverage": {"windows": "geometry"},
+                 "annotation_regions": {"windows": [[10, 0, 50, 35]]},
+                 "tolerance": {"opening_center_px": 2},
+                 "windows": [{"id": "w", "span": [[20, 10], [40, 10]]}]}
+        found = {"meta": truth["image"], "windows": [rectangle(20, 8, 40, 12)]}
+        # Reversed carrier and unequal raster scales must preserve position/width.
+        project = {"levels": [{"connectors": [
+            {"uuid": "a", "x": 300, "y": -10}, {"uuid": "b", "x": 100, "y": -10}],
+            "segments": [{"uuid": "wall", "start": "a", "end": "b", "thickness": 30}],
+            "elements": [{"uuid": uid, "type": "windowItem", "size": {"x": 40},
+                          "wall": {"uuid": "wall", "position": position}}
+                         for uid, position in (("target", 70), ("outside-scope", 10))]}]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 2, "scale_y": 3, "origin_x": 100, "origin_y": -40}}
+        with tempfile.TemporaryDirectory() as temp:
+            paths = [Path(temp) / f"{name}.json" for name in
+                     ("truth", "found", "project", "geometry")]
+            for path, data in zip(paths, (truth, found, project, geometry)):
+                path.write_text(json.dumps(data), encoding="utf8")
+            result = evaluate_files(paths[0], paths[1], project_path=paths[2], geometry_path=paths[3])
+            exported = result["export_geometry"]["windows"]
+            self.assertEqual(exported["true_positive"], 1)
+            self.assertEqual(exported["excluded_prediction_count"], 1)
+            self.assertEqual(exported["matches"][0]["prediction_id"], "target")
+            self.assertEqual(exported["matches"][0]["center_error_px"], 0)
+            self.assertEqual(exported["matches"][0]["length_error_px"], 0)
+            self.assertEqual(exported["matches"][0]["predicted_thickness_px"], 10)
+            for node in project["levels"][0]["connectors"]:
+                node["y"] += 60
+            paths[2].write_text(json.dumps(project), encoding="utf8")
+            shifted = evaluate_files(paths[0], paths[1], project_path=paths[2], geometry_path=paths[3])
+        self.assertEqual(shifted["metrics"]["windows"]["true_positive"], 1)
+        self.assertEqual(shifted["export_geometry"]["windows"]["false_negative"], 1)
+        self.assertEqual(shifted["export_geometry"]["windows"]["false_positive"], 1)
+
+    def test_exported_door_on_diagonal_wall_and_missing_carrier(self):
+        project = {"levels": [{"connectors": [
+            {"uuid": "a", "x": 0, "y": 0}, {"uuid": "b", "x": 60, "y": 80}],
+            "segments": [{"uuid": "wall", "start": "a", "end": "b", "thickness": 20}],
+            "elements": [{"uuid": "door", "type": "doorItem", "size": {"x": 50},
+                          "wall": {"uuid": "wall", "position": 50}}]}]}
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        self.assertEqual(exported_openings(project, geometry)["doors"][0]["span"],
+                         [[15, 20], [45, 60]])
+        geometry["pixel_to_world"].update(scale_x=2, scale_y=4)
+        stretched = exported_openings(project, geometry)["doors"][0]
+        self.assertEqual(stretched["span"], [[7.5, 5], [22.5, 15]])
+        self.assertAlmostEqual(stretched["thickness_px"], 6.93375245)
+        project["levels"][0]["elements"][0]["wall"]["uuid"] = "missing"
+        with self.assertRaisesRegex(ValueError, "Invalid exported opening geometry"):
+            exported_openings(project, geometry)
 
 
 if __name__ == "__main__":

@@ -101,6 +101,28 @@ python scripts/evaluate_recognition.py `
 contains `ground_truth`. Its accuracy artifact is diagnostic: it does not
 change `good`, `review` or `invalid` and cannot allow export.
 
+With `--project` and `--geometry`, the evaluator also records `export_geometry`.
+For polygon adapter projects, door/window spans are reconstructed from the
+actual element's carrier segment, `wall.position` and `size.x`, then mapped
+back to raster coordinates. They are scored separately from recognition with
+the same tolerances and annotation regions. Matching records include element
+UUID, center error, width error and angle error. A correct source detection can
+therefore coexist with an incorrectly placed exported element. This measures
+planar placement; sill height, 3D models and hole shapes are not evaluated.
+
+Regression runs include these metrics whenever a final polygon project exists,
+including projects blocked by the quality gate. If an invalid exported element
+cannot be measured, `export_geometry_error` records the failure while source
+metrics remain available. Other adapters retain source metrics only.
+
+The 2026-11-08 replay of archived polygon projects covered seven annotated
+styles. On `open-zones`, all six annotated windows still match after export,
+but center errors range from 1.8 to 17.8 px (1.8 and 6 px for the two recovered
+thick windows). On `l-shaped-diagonal-bath`, export adds three false windows
+inside the scoped annotation region and a matched window has 42.75 px center
+error. These are measurements of saved artifacts, not a new CPU recognition
+benchmark; they identify carrier selection as a concrete next investigation.
+
 Current coverage is intentionally limited. Source-image geometry was manually
 traced by Codex on 2026-10-08, 2026-10-09 and 2026-10-14 for nine plans and has not been
 independently reviewed:

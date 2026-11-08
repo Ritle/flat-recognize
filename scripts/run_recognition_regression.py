@@ -180,7 +180,19 @@ def run_case(case, run_dir, env, pipeline_v2=False):
         ground_truth = case.get("ground_truth")
         if ground_truth:
             ground_truth_path = ROOT / ground_truth
-            accuracy = evaluate_files(ground_truth_path, rooms, image)
+            export_project = case_dir / "project.json"
+            export_geometry = changed.get(image.stem + "_geometry.json")
+            exact_export = (export_project.exists() and export_geometry is not None
+                            and load_json(export_geometry).get("adapter") == "polygon")
+            try:
+                accuracy = evaluate_files(ground_truth_path, rooms, image,
+                    project_path=export_project if exact_export else None,
+                    geometry_path=export_geometry if exact_export else None)
+            except ValueError as exc:
+                if not exact_export:
+                    raise
+                accuracy = evaluate_files(ground_truth_path, rooms, image)
+                accuracy["export_geometry_error"] = str(exc)
             accuracy_path = case_dir / "accuracy.json"
             accuracy_path.write_text(
                 json.dumps(accuracy, indent=2, ensure_ascii=False), encoding="utf-8")
