@@ -51,7 +51,7 @@ def make_review_questions(classified, quality, source_sha256):
         if issue.get("code") not in ("opening_perpendicular_wall", "opening_far_from_wall",
                                      "opening_exceeds_segment", "same_room_window_ambiguous",
                                      "parallel_window_ambiguous", "reviewed_window_unsupported",
-                                     "thick_window_geometry_unresolved"):
+                                     "thick_window_geometry_unresolved", "opening_unplaced"):
             continue
         uid = issue.get("opening_id")
         if not isinstance(uid, int):

@@ -1,9 +1,16 @@
 import sys
 import unittest
+import json
+import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from add_openings import choose_segment_binding, door_width_cm, opening_export_geometry
+from add_openings import (binding_rejection_reasons, choose_segment_binding,
+                          door_width_cm, opening_export_geometry)
+from test.test_validate_recognition import fixture
+from validate_recognition import validate_recognition
 
 
 def segment(uid, ax, ay, bx, by):
@@ -12,6 +19,57 @@ def segment(uid, ax, ay, bx, by):
 
 
 class OpeningBindingSelectionTests(unittest.TestCase):
+    def test_polygon_export_keeps_unplaced_openings_visible_and_invalid(self):
+        rooms, project, _ = fixture()
+        rooms["doors"] = []
+        rooms["windows"] = [
+            {"id": 1, "center": [50, 0], "bbox": [40, -3, 60, 3]},
+            {"id": 2, "center": [50, 200], "bbox": [40, 197, 60, 203]},
+            {"id": 3, "center": [50, 0], "bbox": [47, -10, 53, 10]}]
+        project["levels"][0]["elements"] = []
+        geometry = {"adapter": "polygon", "pixel_to_world": {
+            "scale_x": 1, "scale_y": 1, "origin_x": 0, "origin_y": 0}}
+        root = Path(__file__).resolve().parent.parent
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            for name, data in (("source", rooms), ("project", project), ("geometry", geometry)):
+                (folder / f"{name}.json").write_text(json.dumps(data), encoding="utf8")
+            commands = [
+                [sys.executable, str(root / "scripts/add_openings.py"),
+                 str(folder / "project.json"), str(folder / "source.json"),
+                 str(folder / "source.json"), str(root / "test/template.json"),
+                 "--output", str(folder / "doors.json"),
+                 "--windows-output", str(folder / "windows.json"),
+                 "--geometry-report", str(folder / "geometry.json"),
+                 "--bindings-output", str(folder / "bindings.json")],
+                [sys.executable, str(root / "scripts/add_windows.py"),
+                 str(folder / "doors.json"), str(folder / "windows.json"),
+                 str(root / "test/template_window.json"), "--output", str(folder / "final.json"),
+                 "--bindings-output", str(folder / "bindings.json")]]
+            for command in commands:
+                run = subprocess.run(command, capture_output=True, encoding="utf8",
+                    env={**os.environ, "PYTHONUTF8": "1"}, check=False)
+                self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+            final = json.loads((folder / "final.json").read_text(encoding="utf8"))
+            bindings = json.loads((folder / "bindings.json").read_text(encoding="utf8"))
+        self.assertEqual(len(final["levels"][0]["elements"]), 1)
+        self.assertEqual([item["opening_id"] for item in bindings["unplaced"]], [2, 3])
+        self.assertIn("far_from_wall", bindings["unplaced"][0]["reasons"])
+        self.assertIn("perpendicular_wall", bindings["unplaced"][1]["reasons"])
+        quality = validate_recognition(rooms, final, bindings, geometry=geometry)
+        self.assertEqual(quality["status"], "invalid")
+        self.assertEqual([item["opening_id"] for item in quality["issues"]
+                          if item["code"] == "opening_unplaced"], [2, 3])
+
+    def test_close_diagonal_or_thick_wall_is_not_rejected_as_perpendicular(self):
+        diagonal = choose_segment_binding([segment("diagonal", 0, 0, 100, 100)],
+                                           50, 50, 40, "horizontal")
+        self.assertEqual(binding_rejection_reasons(diagonal, 40), [])
+        thick = segment("thick", 0, 0, 100, 0)
+        thick["segment"]["thickness"] = 66
+        binding = choose_segment_binding([thick], 50, 70, 40, "horizontal")
+        self.assertEqual(binding_rejection_reasons(binding, 40), [])
+
     def test_recovered_window_uses_bounded_raster_bay_for_export(self):
         opening = {"id": 19, "center": [60, 42], "bbox": [0, 0, 120, 80],
                    "length": 120, "orientation": "horizontal",

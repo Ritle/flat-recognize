@@ -182,9 +182,12 @@ def choose_segment_binding(segments, wx, wy, required_width, orientation):
                        center + required_width / 2 - length)
         aligned = (orientation == "horizontal" and abs(dy) <= abs(dx) * .27
                    or orientation == "vertical" and abs(dx) <= abs(dy) * .27)
+        perpendicular = (orientation == "horizontal" and abs(dy) > abs(dx) * 3.7
+                         or orientation == "vertical" and abs(dx) > abs(dy) * 3.7)
         candidates.append({"segment": item["segment"], "distance": distance, "t": t,
                            "qx": qx, "qy": qy, "world_x": wx, "world_y": wy,
-                           "overhang": overhang, "aligned": aligned})
+                           "overhang": overhang, "aligned": aligned,
+                           "perpendicular": perpendicular})
     if not candidates:
         return None
     nearest = min(candidates, key=lambda candidate: candidate["distance"])
@@ -205,6 +208,22 @@ def choose_segment_binding(segments, wx, wy, required_width, orientation):
         nearest["alternative_wall_uuids"] = sorted(
             candidate["segment"]["uuid"] for candidate in feasible)
     return nearest
+
+
+def binding_rejection_reasons(binding, required_width):
+    """Reject placements already considered severe by the final quality gate."""
+    if binding is None:
+        return ["no_wall_segments"]
+    thickness = float(binding["segment"].get("thickness", 20))
+    threshold = max(20, thickness * 1.5)
+    reasons = []
+    if binding.get("perpendicular"):
+        reasons.append("perpendicular_wall")
+    if binding["distance"] > threshold * 2:
+        reasons.append("far_from_wall")
+    if binding["overhang"] > max(20, required_width * .25):
+        reasons.append("exceeds_segment")
+    return reasons
 
 
 def door_width_cm(recognized_width):
@@ -506,6 +525,8 @@ def main():
             "by": float(b["y"]),
         })
 
+    unplaced = []
+
     def bind_opening(opening, door=False):
         export_geometry = opening_export_geometry(opening, door=door)
         px, py = export_geometry["center"]
@@ -535,6 +556,17 @@ def main():
         required_width = door_width_cm(width_cm) if door else width_cm
         best = choose_segment_binding(segment_geometry, wx, wy,
                                       required_width, orientation)
+        if geometry_transform is not None:
+            reasons = binding_rejection_reasons(best, required_width)
+            if reasons:
+                unplaced.append({"opening_id": opening.get("id"),
+                    "opening_kind": "doors" if door else "windows",
+                    "pixel_center": [px, py], "bbox": opening.get("bbox"),
+                    "reasons": reasons,
+                    "wall_uuid": best["segment"]["uuid"] if best else None,
+                    "distance_to_wall_cm": round(best["distance"], 2) if best else None,
+                    "overhang_cm": round(best["overhang"], 2) if best else None})
+                return None
         if best is None:
             return None
 
@@ -847,7 +879,8 @@ def main():
     if args.bindings_output:
         bindings_path = Path(args.bindings_output)
         bindings_path.parent.mkdir(parents=True, exist_ok=True)
-        bindings_path.write_text(json.dumps({"doors": door_bindings, "windows": window_bindings},
+        bindings_path.write_text(json.dumps({"doors": door_bindings, "windows": window_bindings,
+                                            "unplaced": unplaced},
                                             indent=2, ensure_ascii=False), encoding="utf-8")
 
     print()

@@ -48,6 +48,16 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertEqual([q["opening_id"] for q in
                           make_review_questions(self.classified, quality, "a" * 64)], [1])
 
+    def test_unplaced_opening_still_has_a_locatable_error_question(self):
+        quality = {"issues": [{"code": "opening_unplaced", "severity": "error",
+                               "opening_kind": "windows", "opening_id": 2}]}
+        question = make_review_questions(self.classified, quality, "a" * 64)[0]
+        self.assertEqual(question["opening_id"], 2)
+        self.assertEqual(question["center"], [44, 30])
+        self.assertEqual(question["severity"], "error")
+        self.assertEqual(question["reasons"], ["opening_unplaced"])
+        self.assertEqual(question["choices"], ["door", "window", "ignore"])
+
     def test_thick_window_question_keeps_geometry_reason_after_type_choice(self):
         recovered = {"method": "topology_recovered_thick_window", "requires_review": True}
         self.classified["windows"][0]["classification"] = recovered

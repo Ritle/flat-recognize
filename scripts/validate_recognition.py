@@ -246,6 +246,20 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     windows = objects(rooms, "windows", "recognition")
     if not windows:
         issue("no_windows", "warning", "Окна не распознаны; проверьте проёмы на исходном изображении.")
+    if isinstance(bindings, dict):
+        unplaced = bindings.get("unplaced", [])
+        if not isinstance(unplaced, list) or any(not isinstance(item, dict) for item in unplaced):
+            issue("invalid_binding", "error", "Некорректная диагностика неразмещённых проёмов.")
+        else:
+            metrics["unplaced_openings"] = len(unplaced)
+            for item in unplaced:
+                issue("opening_unplaced", "error",
+                      f"Проём {item.get('opening_id')}: подходящая стена не найдена; "
+                      "проверьте распознавание проёма и геометрию стен.",
+                      opening_id=item.get("opening_id"), opening_kind=item.get("opening_kind"),
+                      pixel_center=item.get("pixel_center"), reasons=item.get("reasons"),
+                      attempted_wall_uuid=item.get("wall_uuid"),
+                      distance_to_wall_cm=item.get("distance_to_wall_cm"))
     for window in windows:
         if original_classification_method(window) == "topology_recovered_thick_window":
             issue("thick_window_geometry_unresolved",
