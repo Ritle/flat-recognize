@@ -217,6 +217,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     if isinstance(interior_filter, dict):
         if interior_filter.get("method") == "reviewed_window_uncertainty":
             for key, description in (("deep_interior_candidates", "находится глубоко внутри комнаты"),
+                                     ("detached_interior_candidates", "опирается на изолированные контуры внутри комнаты"),
                                      ("perpendicular_endcaps", "похоже на неподтверждённый край другого окна")):
                 for candidate in interior_filter.get(key, []):
                     if isinstance(candidate, dict) and isinstance(candidate.get("id"), int):

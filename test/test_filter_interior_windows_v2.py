@@ -5,17 +5,20 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
+from shapely.ops import unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from filter_interior_windows_v2 import (
     duplicate_parallel_window_layers,
+    detached_interior_windows,
     endcap_room_geometry_changes,
     filter_interior_windows,
     no_jamb_unconfirmed_windows,
     one_sided_unconfirmed_windows,
     one_sided_window_endcaps,
     parallel_weak_window_pairs,
+    reviewed_window_report,
 )
 from recheck_reviewed_rooms import recheck_reviewed_rooms
 from review_decisions import apply_review_decisions, make_review_questions, opening_fingerprint
@@ -29,6 +32,46 @@ def window(uid, x1, y1, x2, y2):
 
 
 class InteriorWindowFilterTests(unittest.TestCase):
+    def test_detached_partial_jambs_become_review_without_changing_room_mask(self):
+        candidate = window(3, 80, 97, 120, 103)
+        candidate.update(source_class="door", classification={"method": "jamb_leaf_and_arc"})
+        ring = box(10, 10, 190, 190).difference(box(20, 20, 180, 180))
+        walls = unary_union([ring, box(80, 99, 81, 101), box(119, 99, 120, 101)])
+        self.classified["walls"] = [{"outer": list(part.exterior.coords),
+            "holes": [list(inner.coords) for inner in part.interiors]} for part in walls.geoms]
+        self.classified["windows"] = [candidate]
+        self.classified["openings"] = copy.deepcopy([candidate])
+        self.rooms["windows"] = [candidate]
+        original = copy.deepcopy((self.classified, self.rooms))
+        with patch("filter_interior_windows_v2.extract_rooms") as extract:
+            classified, rooms, report = filter_interior_windows(
+                self.classified, self.rooms, self.rgb)
+        extract.assert_not_called()
+        self.assertEqual(classified["windows"], [])
+        self.assertEqual(rooms["windows"], [])
+        self.assertEqual(rooms["rooms"], self.rooms["rooms"])
+        self.assertEqual(report["detached_interior_windows"][0]["jamb_support"], [1, 1])
+        self.assertEqual(classified["topology_only_openings"][0]["id"], 3)
+        self.assertEqual((self.classified, self.rooms), original)
+        question = make_review_questions(classified, {"issues": []}, "a" * 64)[0]
+        self.assertEqual(question["reasons"], ["detached_interior_window"])
+        reviewed = apply_review_decisions(classified, {"version": 1, "image_sha256": "a" * 64,
+            "answers": [{"opening_id": 3, "choice": "window",
+                         "fingerprint": question["fingerprint"]}]}, "a" * 64)
+        self.assertEqual([item["id"] for item in reviewed["windows"]], [3])
+        uncertainty = reviewed_window_report(reviewed, rooms, self.rgb)
+        self.assertEqual(uncertainty["detached_interior_candidates"][0]["id"], 3)
+
+        gray = self.rgb[:, :, 0]
+        attached = walls.union(box(80, 10, 81, 99))
+        self.assertEqual(detached_interior_windows([candidate], attached,
+                                                  self.rooms["rooms"], gray), [])
+        boundary_room = [{"id": 0, "polygon": [[20, 94], [180, 94], [180, 180], [20, 180]]}]
+        self.assertEqual(detached_interior_windows([candidate], walls, boundary_room, gray), [])
+        with patch("filter_interior_windows_v2.leaf_and_arc", return_value={"arc_hits": 9}):
+            self.assertEqual(detached_interior_windows([candidate], walls,
+                                                      self.rooms["rooms"], gray), [])
+
     def test_zero_jamb_interior_model_window_waits_for_review(self):
         candidate = window(3, 70, 95, 110, 101)
         candidate["source_class"] = "window"

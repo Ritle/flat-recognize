@@ -90,6 +90,7 @@ def make_review_questions(classified, quality, source_sha256):
                                           "one_sided_window_endcap",
                                           "one_sided_unconfirmed_window",
                                           "no_jamb_unconfirmed_window",
+                                          "detached_interior_window",
                                           "topology_recovered_thick_window")
                       else "classification_uncertain")
             reasons.setdefault(uid, set()).add(reason)

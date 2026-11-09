@@ -269,6 +269,47 @@ def no_jamb_unconfirmed_windows(windows, wall_shapes):
     return candidates
 
 
+def detached_interior_windows(windows, wall_shapes, rooms, gray, include_reviewed=False):
+    """Question weak bays supported only by small isolated interior contours."""
+    if wall_shapes.is_empty:
+        return []
+    components = ([wall_shapes] if wall_shapes.geom_type == "Polygon" else
+                  [part for part in wall_shapes.geoms if part.geom_type == "Polygon"])
+    largest = max((part.area for part in components), default=0)
+    room_shapes = [(room.get("id"), Polygon(room["polygon"])) for room in rooms]
+    candidates = []
+    for window in windows:
+        classification = window.get("classification") or {}
+        if include_reviewed:
+            while classification.get("method") in ("user_selected", "detached_interior_window"):
+                classification = classification.get("previous") or {}
+        if (window.get("recovery") or classification.get("method") != "jamb_leaf_and_arc"
+                or classification.get("confirmed") or classification.get("user_confirmed")):
+            continue
+        start, end, width = opening_axis(window)
+        support = wall_jamb_support(start, end, width, wall_shapes)
+        if support != [1, 1]:
+            continue
+        opening = Polygon(window["outer"])
+        if not opening.is_valid or opening.is_empty:
+            continue
+        nearby = [part for part in components if part.distance(opening) <= width * 1.5 + 3]
+        area = sum(part.area for part in nearby)
+        if not nearby or area >= largest * .05:
+            continue
+        local = unary_union([opening, *nearby])
+        owner = next((uid for uid, shape in room_shapes if shape.is_valid
+                      and shape.buffer(-max(6, width)).covers(local)), None)
+        if owner is None or leaf_and_arc(gray, start, end, width, wall_shapes):
+            continue
+        candidates.append({"id": window.get("id"), "bbox": window.get("bbox"),
+                           "room_id": owner, "paired_with": None, "jamb_support": support,
+                           "support_area_px2": round(area, 2),
+                           "largest_wall_component_area_px2": round(largest, 2),
+                           "reason": "detached_interior_window"})
+    return candidates
+
+
 def without_windows(classified, candidates):
     result = copy.deepcopy(classified)
     reasons = {candidate["id"]: candidate["reason"] for candidate in candidates}
@@ -335,6 +376,9 @@ def reviewed_window_report(classified, rooms, rgb):
             "examined_windows": len(windows), "rejected_windows": 0,
             "candidates": [], "ambiguous_windows": len(across),
             "ambiguous_candidates": across, "deep_interior_candidates": deep,
+            "detached_interior_candidates": detached_interior_windows(
+                windows, wall_shapes, rooms.get("rooms", []),
+                cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY), include_reviewed=True),
             "perpendicular_endcaps": endcaps,
             "parallel_window_candidates": parallel_weak_window_pairs(
                 [window for window in windows if window.get("id") not in endcap_ids],
@@ -427,7 +471,12 @@ def filter_interior_windows(classified, rooms, rgb):
     no_jamb = no_jamb_unconfirmed_windows(
         [window for window in filtered_classified.get("windows", [])
          if window.get("id") not in already_demoted], wall_shapes)
-    demoted = endcaps_one_sided + duplicates + one_sided + no_jamb
+    already_demoted.update(item["id"] for item in no_jamb)
+    detached = detached_interior_windows(
+        [window for window in filtered_classified.get("windows", [])
+         if window.get("id") not in already_demoted], wall_shapes,
+        filtered_rooms.get("rooms", []), cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY))
+    demoted = endcaps_one_sided + duplicates + one_sided + no_jamb + detached
     if demoted:
         source_windows = {window.get("id"): window
                           for window in filtered_classified["windows"]}
@@ -459,6 +508,7 @@ def filter_interior_windows(classified, rooms, rgb):
     report["one_sided_window_endcaps"] = endcaps_one_sided
     report["one_sided_unconfirmed_windows"] = one_sided
     report["no_jamb_unconfirmed_windows"] = no_jamb
+    report["detached_interior_windows"] = detached
     filtered_rooms.setdefault("diagnostics", {})["interior_window_filter"] = report
     return filtered_classified, filtered_rooms, report
 
