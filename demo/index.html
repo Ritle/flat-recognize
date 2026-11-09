@@ -715,7 +715,10 @@ async function showResult(data) {
     const partitionNote = possiblePartitions > 0
         ? `Возможные незамкнутые границы комнат — ${possiblePartitions}; оранжевые линии требуют проверки, голубые разделены по вашему выбору.`
         : null;
-    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote, partitionNote,
+    const exteriorNote = data.exterior_enclosures?.length
+        ? `Возможных внешних контуров: ${data.exterior_enclosures.length}. Они показаны оранжевым и ещё не добавлены в проект.`
+        : null;
+    warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote, partitionNote, exteriorNote,
         ...(data.warnings || [])].filter(Boolean).join('\n');
     warnings.classList.toggle('invalid', quality?.status === 'invalid');
     warnings.style.display = warnings.textContent ? 'block' : 'none';
@@ -989,6 +992,11 @@ function setupImages(data) {
             label: 'Проверка стен',
             url: data.images.wall_geometry,
             caption: 'Красный — ось стены в проекте, жёлтый — предполагаемая середина опорной полосы на исходном плане. Предложение диагностическое: оно не меняет проект.'
+        },
+        {
+            label: 'Возможные внешние контуры',
+            url: data.images.exterior_enclosures,
+            caption: 'Оранжевый — внешний контур по линиям остекления и примыканиям к стенам. Требует проверки; комнаты и стены проекта пока не изменены.'
         },
         {
             label: 'Область плана',

@@ -324,6 +324,10 @@ def main():
     opening_preflight_json.unlink(missing_ok=True)
     wall_geometry_overlay = OUTPUT / f"{stem}_wall_geometry_overlay.png"
     wall_geometry_overlay.unlink(missing_ok=True)
+    exterior_enclosures_json = OUTPUT / f"{stem}_exterior_enclosures.json"
+    exterior_enclosures_overlay = OUTPUT / f"{stem}_exterior_enclosures_overlay.png"
+    exterior_enclosures_json.unlink(missing_ok=True)
+    exterior_enclosures_overlay.unlink(missing_ok=True)
     export_overlay = OUTPUT / f"{stem}_export_overlay.png"
 
     if args.output:
@@ -521,6 +525,12 @@ def main():
                      "--overlay", selected_overlay])
         rooms_json = require_file(selected_rooms, "Reviewed rooms")
         rooms_overlay = selected_overlay
+
+    if args.pipeline_v2:
+        run_command("V2 - Propose exterior enclosures",
+                    [python, SCRIPTS / "detect_exterior_enclosures_v2.py", image,
+                     classified_json, rooms_json, "--output", exterior_enclosures_json,
+                     "--overlay", exterior_enclosures_overlay], required=False)
 
     validation_command = [python, SCRIPTS / "validate_recognition.py",
                           "--rooms", rooms_json, "--scale", str(args.scale),

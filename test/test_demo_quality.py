@@ -244,6 +244,10 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                     encoding="utf-8")
                 (output / f"{stem}_interior_windows.json").write_text(
                     json.dumps({"rejected_windows": 0, "ambiguous_windows": 1}), encoding="utf-8")
+                (output / f"{stem}_exterior_enclosures.json").write_text(
+                    json.dumps({"candidates": [{"id": 0, "requires_review": True}]}), encoding="utf-8")
+                Image.new("RGB", (10, 10), "white").save(
+                    output / f"{stem}_exterior_enclosures_overlay.png")
                 for suffix in ("_preprocess.json", "_inference.json"):
                     (output / f"{stem}{suffix}").write_text("{}", encoding="utf-8")
                 Image.new("RGB", (10, 10), "white").save(
@@ -260,6 +264,10 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response["quality"]["status"], "invalid")
                 self.assertIn("interior_windows", response["images"])
                 self.assertIn("wall_geometry", response["images"])
+                self.assertEqual(len(response["exterior_enclosures"]), 1)
+                self.assertIn("exterior_enclosures", response["images"])
+                image = await api.job_image(response["job_id"], "exterior_enclosures")
+                self.assertTrue(Path(image.path).exists())
                 image = await api.job_image(response["job_id"], "interior_windows")
                 self.assertTrue(Path(image.path).exists())
                 image = await api.job_image(response["job_id"], "wall_geometry")

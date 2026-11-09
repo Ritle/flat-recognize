@@ -354,6 +354,11 @@ async def recognize(
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
     preflight_path = OUTPUT_DIR / f"{job_id}_opening_preflight.json"
+    exterior_candidates = []
+    exterior_path = OUTPUT_DIR / f"{job_id}_exterior_enclosures.json"
+    if pipeline_v2 and exterior_path.exists():
+        shutil.copy2(exterior_path, job_dir / "exterior_enclosures.json")
+        exterior_candidates = json.loads(exterior_path.read_text(encoding="utf-8")).get("candidates", [])
     opening_preflight = None
     if preflight_path.exists():
         shutil.copy2(preflight_path, job_dir / "opening_preflight.json")
@@ -413,6 +418,8 @@ async def recognize(
     warnings = quality["warnings"]
     inference = None
     if pipeline_v2:
+        if exterior_candidates:
+            generated_images["exterior_enclosures"] = OUTPUT_DIR / f"{job_id}_exterior_enclosures_overlay.png"
         generated_images.update({
             "preprocessing": OUTPUT_DIR / f"{job_id}_preprocess_preview.png",
             "normalized": OUTPUT_DIR / f"{job_id}_preprocessed.png",
@@ -518,6 +525,7 @@ async def recognize(
         "possible_room_partitions": room_data.get("diagnostics", {}).get(
             "possible_room_partitions", []),
         "opening_preflight": opening_preflight,
+        "exterior_enclosures": exterior_candidates,
         "applied_decisions": applied_decisions,
         "image_sha256": source_hash,
     }
@@ -694,6 +702,7 @@ async def job_image(
         "topology_windows",
         "interior_windows",
         "wall_geometry",
+        "exterior_enclosures",
     }
 
     if kind not in allowed:
