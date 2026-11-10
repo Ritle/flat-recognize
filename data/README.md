@@ -9,8 +9,10 @@ The seven images added on 2026-11-10 are inventoried in
 [`configs/training_samples.json`](../configs/training_samples.json).
 See [`docs/TRAINING_PLAN.md`](../docs/TRAINING_PLAN.md) for annotation priorities,
 the planned train/validation/test split and evaluation criteria. They are not
-training-ready: masks and a raster-pair loader are still required. The current
-trainer consumes CubiCasa SVG samples only.
+training-ready: reviewed masks are still required. The trainer supports mixing
+CubiCasa SVG samples with reviewed raster pairs using `data.raster_manifest`.
+See [`docs/RASTER_ANNOTATIONS.md`](../docs/RASTER_ANNOTATIONS.md) for preparation,
+configuration and the `--check-data` command.
 
 ## CubiCasa5K
 

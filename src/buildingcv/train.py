@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -11,11 +12,10 @@ from typing import Any
 import torch
 import torch.nn as nn
 import yaml
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Subset
 
 from .data import CubiCasaDataset
 from .labels import CLASS_NAMES, NUM_CLASSES
-from .model import build_model
 
 
 class Tee:
@@ -64,6 +64,44 @@ def maybe_subset(ds, limit: int | None):
     if limit is None or limit >= len(ds):
         return ds
     return Subset(ds, range(limit))
+
+
+def build_datasets(cfg, limit_train=None, limit_val=None):
+    """Keep the existing SVG path; optionally concatenate reviewed raster data."""
+    data = cfg["data"]
+    kwargs = dict(size=tuple(data["image_size"]), normalize=data["normalize"],
+                  letterbox=data.get("letterbox", False))
+    raster_manifest = data.get("raster_manifest")
+    if not data.get("include_cubicasa", True) and not raster_manifest:
+        raise ValueError("Enable CubiCasa or supply a reviewed raster_manifest")
+    datasets = []
+    for split, limit in (("train", limit_train), ("val", limit_val)):
+        if limit is not None and (type(limit) is not int or limit <= 0):
+            raise ValueError("Dataset debug limits must be positive integers")
+        parts = []
+        if data.get("include_cubicasa", True):
+            parts.append(CubiCasaDataset(data["data_dir"], split, **kwargs))
+        if raster_manifest:
+            from .raster_data import RasterMaskDataset
+            parts.append(RasterMaskDataset(raster_manifest, split,
+                                           root=data.get("raster_root", "."), **kwargs))
+        dataset = parts[0] if len(parts) == 1 else ConcatDataset(parts)
+        if not len(dataset):
+            raise ValueError(f"Empty training/evaluation dataset: {split}")
+        datasets.append(maybe_subset(dataset, limit))
+    return tuple(datasets)
+
+
+def check_data(cfg, args):
+    """Exercise selected samples without allocating a model or creating a run."""
+    datasets = build_datasets(cfg, args.limit_train, args.limit_val)
+    for split, dataset in zip(("train", "val"), datasets):
+        counts = torch.zeros(NUM_CLASSES, dtype=torch.long)
+        for index in range(len(dataset)):
+            _, mask = dataset[index]
+            counts += torch.bincount(mask.flatten(), minlength=NUM_CLASSES)
+        print(f"{split}: {len(dataset)} samples; resized class pixels: "
+              + ", ".join(f"{name}={count}" for name, count in zip(CLASS_NAMES, counts.tolist())))
 
 
 @torch.no_grad()
@@ -150,6 +188,14 @@ def save_checkpoint(path: Path, *, epoch: int, model, optimizer, cfg, best_miou:
 
 def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     device = resolve_device(cfg["train"]["device"])
+    train_ds, val_ds = build_datasets(cfg, args.limit_train, args.limit_val)
+    raster_manifest = cfg["data"].get("raster_manifest")
+    if args.resume is not None:
+        snapshot = Path(args.resume).parent / "raster_masks.json"
+        if ((raster_manifest and (not snapshot.is_file() or
+             snapshot.read_bytes() != Path(raster_manifest).read_bytes())) or
+                (not raster_manifest and snapshot.exists())):
+            raise ValueError("Raster dataset changed or lacks a snapshot; start a new run")
 
     # Resume-vs-fresh-run setup. On resume we reuse the original run dir so
     # logs and metrics.csv accumulate; otherwise we make a new timestamped one.
@@ -164,19 +210,11 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     log = Tee(run_dir / "train.log")
     log(f"device: {device}   run dir: {run_dir}")
 
-    H, W = cfg["data"]["image_size"]
-    data_dir = cfg["data"]["data_dir"]
-    normalize = cfg["data"]["normalize"]
-    letterbox = cfg["data"].get("letterbox", False)
-
-    train_ds = maybe_subset(
-        CubiCasaDataset(data_dir, "train", size=(H, W), normalize=normalize, letterbox=letterbox),
-        args.limit_train,
-    )
-    val_ds = maybe_subset(
-        CubiCasaDataset(data_dir, "val", size=(H, W), normalize=normalize, letterbox=letterbox),
-        args.limit_val,
-    )
+    if raster_manifest:
+        snapshot = run_dir / "raster_masks.json"
+        if args.resume is None:
+            shutil.copy(raster_manifest, snapshot)
+        log(f"raster manifest SHA-256: {hashlib.sha256(snapshot.read_bytes()).hexdigest()}")
     log(f"train samples: {len(train_ds)}   val samples: {len(val_ds)}")
 
     loader_kwargs = dict(
@@ -188,6 +226,7 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     train_loader = DataLoader(train_ds, shuffle=True, **loader_kwargs)
     val_loader = DataLoader(val_ds, shuffle=False, **loader_kwargs)
 
+    from .model import build_model
     model = build_model(
         encoder_name=cfg["model"]["encoder_name"],
         encoder_weights=cfg["model"]["encoder_weights"],
@@ -283,6 +322,8 @@ def main() -> None:
     p.add_argument("--epochs", type=int, default=None, help="override cfg.train.epochs")
     p.add_argument("--limit-train", type=int, default=None, help="cap train samples (debug)")
     p.add_argument("--limit-val", type=int, default=None, help="cap val samples (debug)")
+    p.add_argument("--check-data", action="store_true",
+                   help="validate train/val pairs without creating a model or training run")
     p.add_argument(
         "--resume", type=Path, default=None,
         help="path to a checkpoint (last.pt / best.pt / epoch_NN.pt). "
@@ -290,9 +331,12 @@ def main() -> None:
     )
     args = p.parse_args()
 
-    with open(args.config) as f:
+    with open(args.config, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    train(cfg, args)
+    if args.check_data:
+        check_data(cfg, args)
+    else:
+        train(cfg, args)
 
 
 if __name__ == "__main__":
