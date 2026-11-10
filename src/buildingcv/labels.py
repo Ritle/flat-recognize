@@ -12,6 +12,8 @@ CLASS_NAMES: tuple[str, ...] = ("floor", "wall", "door", "window")
 CLASS_TO_ID: dict[str, int] = {n: i for i, n in enumerate(CLASS_NAMES)}
 NUM_CLASSES: int = len(CLASS_NAMES)
 FLOOR_ID: int = CLASS_TO_ID["floor"]
+# Annotation-only sentinel; the model still predicts exactly four classes.
+IGNORE_ID: int = 255
 
 # Map: a single class token from a CubiCasa SVG → our class.
 # Order = priority. When a polygon's effective class set (own + inherited)

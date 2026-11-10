@@ -11,6 +11,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
+from buildingcv.labels import IGNORE_ID
+from buildingcv.raster_annotations import reviewed_ignore_mask, unresolved_mask
+
 ROOT = Path(__file__).resolve().parent.parent
 CLASSES = {"floor": 0, "wall": 1, "door": 2, "window": 3}
 COLORS = np.array([[240, 240, 235], [40, 40, 45], [230, 120, 50],
@@ -138,16 +141,19 @@ def _annotation_source(annotation, sample, root):
     return verify_source(sample, root)
 
 
-def render_annotation(annotation, sample, root):
+def render_annotation(annotation, sample, root, *, allow_partial=False):
     source = _annotation_source(annotation, sample, root)
-    review = annotation.get("review", {})
-    if (not isinstance(review, dict) or review.get("status") != "reviewed" or
-            review.get("coverage") != "full" or
-            not isinstance(review.get("reviewer"), str) or not review["reviewer"].strip()):
-        raise ValueError("A named reviewer must explicitly confirm full-image coverage")
-    if annotation.get("unresolved") != []:
-        raise ValueError("Resolve all ambiguous regions before building a training mask")
-    return _render_objects(annotation, source)
+    ignored = reviewed_ignore_mask(annotation, source.size, allow_partial=allow_partial)
+    mask, overlay = _render_objects(annotation, source)
+    values = np.array(mask)
+    values[ignored] = IGNORE_ID
+    if not np.any(values == CLASSES["wall"]):
+        raise ValueError("No reviewed wall pixels remain outside unresolved regions")
+    if ignored.any():
+        pixels = np.array(overlay)
+        pixels[ignored] = (0.5 * pixels[ignored] + 0.5 * np.array([220, 90, 210])).astype(np.uint8)
+        overlay = Image.fromarray(pixels)
+    return Image.fromarray(values), overlay
 
 
 def _render_objects(annotation, source):
@@ -193,8 +199,7 @@ def preview_annotation(annotation, sample, root):
     source = _annotation_source(annotation, sample, root)
     _, overlay = _render_objects(annotation, source)
     unresolved = annotation.get("unresolved")
-    if not isinstance(unresolved, list):
-        raise ValueError("Unresolved regions must be a list")
+    unresolved_mask(unresolved, source.size)
     draw = ImageDraw.Draw(overlay)
     for index, region in enumerate(unresolved, 1):
         bbox = region.get("bbox") if isinstance(region, dict) else None
@@ -225,7 +230,7 @@ def prepare_drafts(manifest, output, root=ROOT):
     return len(samples)
 
 
-def build_masks(manifest, annotations, output, root=ROOT):
+def build_masks(manifest, annotations, output, root=ROOT, *, allow_partial=False):
     samples = load_samples(manifest, root)
     rendered, seen = [], set()
     # Validate everything before creating the destination or publishing any mask.
@@ -237,7 +242,7 @@ def build_masks(manifest, annotations, output, root=ROOT):
         if not isinstance(sid, str) or sid not in samples or sid in seen:
             raise ValueError("Unknown or duplicate annotation sample ID")
         sample = samples[sid]
-        mask, overlay = render_annotation(annotation, sample, root)
+        mask, overlay = render_annotation(annotation, sample, root, allow_partial=allow_partial)
         rendered.append((sample, annotation, mask, overlay))
         seen.add(sid)
     if not rendered:
@@ -254,6 +259,8 @@ def build_masks(manifest, annotations, output, root=ROOT):
                      "mask": f"{sid}.mask.png", "group_id": sample["group_id"],
                      "group_review": sample.get("group_review", "pending"),
                      "training_ready": sample.get("group_review") == "reviewed",
+                     "coverage": annotation["review"]["coverage"],
+                     "ignore_index": IGNORE_ID if annotation["review"]["coverage"] == "outside_unresolved" else None,
                      "image": annotation["image"],
                      "mask_sha256": hashlib.sha256(
                          (output / f"{sid}.mask.png").read_bytes()).hexdigest(),
@@ -275,6 +282,8 @@ def main():
     build = sub.add_parser("build", help="Validate full reviewed annotations and render masks")
     build.add_argument("annotations", type=Path, nargs="+")
     build.add_argument("--output", type=Path, required=True)
+    build.add_argument("--allow-partial", action="store_true",
+                       help="allow reviewed coverage outside explicitly excluded rectangles")
     preview = sub.add_parser("preview", help="Inspect draft geometry without producing a training mask")
     preview.add_argument("annotation", type=Path)
     preview.add_argument("--output", type=Path, required=True)
@@ -284,7 +293,8 @@ def main():
             count = prepare_drafts(args.manifest, args.output)
             print(f"Prepared {count} drafts; no training masks were created: {args.output}")
         elif args.command == "build":
-            count = build_masks(args.manifest, args.annotations, args.output)
+            count = build_masks(args.manifest, args.annotations, args.output,
+                                allow_partial=args.allow_partial)
             print(f"Rendered {count} reviewed masks and overlays: {args.output}")
         else:
             samples = load_samples(args.manifest, ROOT)

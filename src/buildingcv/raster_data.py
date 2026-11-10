@@ -12,7 +12,8 @@ import torch
 from torch.utils.data import Dataset
 
 from .data import IMAGENET_MEAN, IMAGENET_STD
-from .labels import CLASS_TO_ID, FLOOR_ID, NUM_CLASSES
+from .labels import CLASS_TO_ID, FLOOR_ID, IGNORE_ID, NUM_CLASSES
+from .raster_annotations import reviewed_ignore_mask
 
 
 def _read_json(path):
@@ -39,7 +40,7 @@ class RasterMaskDataset(Dataset):
     """
 
     def __init__(self, manifest, split, *, root=".", size=(512, 512),
-                 normalize=True, letterbox=True):
+                 normalize=True, letterbox=True, allow_partial=False):
         if split not in ("train", "val", "test"):
             raise ValueError("Raster split must be train, val or test")
         if len(size) != 2 or any(type(v) is not int or v <= 0 for v in size):
@@ -51,6 +52,7 @@ class RasterMaskDataset(Dataset):
         self.normalize = normalize
         self.letterbox = letterbox
         self.split = split
+        self.allow_partial = allow_partial
         self._mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
         self._std = torch.tensor(IMAGENET_STD).view(3, 1, 1)
         payload = _read_json(self.manifest)
@@ -102,9 +104,8 @@ class RasterMaskDataset(Dataset):
         review = annotation.get("review", {})
         if (annotation.get("version") != 1 or annotation.get("sample_id") != sid or
                 annotation.get("image") != meta or not isinstance(review, dict) or
-                review.get("status") != "reviewed" or review.get("coverage") != "full" or
+                review.get("status") != "reviewed" or
                 not isinstance(review.get("reviewer"), str) or not review["reviewer"].strip() or
-                annotation.get("unresolved") != [] or
                 not isinstance(annotation.get("objects"), list) or not annotation["objects"]):
             raise ValueError(f"Raster annotation is incomplete or does not match source: {sid}")
         with Image.open(BytesIO(_verified_bytes(image_path, meta.get("sha256")))) as image:
@@ -112,12 +113,21 @@ class RasterMaskDataset(Dataset):
                     image.getexif().get(274, 1) != 1):
                 raise ValueError(f"Raster source dimensions or orientation changed: {sid}")
             source = image.convert("RGB")
+        ignored = reviewed_ignore_mask(annotation, source.size, allow_partial=self.allow_partial)
+        if review["coverage"] == "outside_unresolved":
+            if row.get("coverage") != "outside_unresolved" or row.get("ignore_index") != IGNORE_ID:
+                raise ValueError(f"Partial raster metadata does not match annotation: {sid}")
+        elif row.get("coverage", "full") != "full" or row.get("ignore_index") is not None:
+            raise ValueError(f"Full raster metadata does not match annotation: {sid}")
         with Image.open(BytesIO(_verified_bytes(mask_path, row.get("mask_sha256")))) as mask:
             if mask.format != "PNG" or mask.mode not in ("L", "P") or mask.size != source.size:
                 raise ValueError(f"Raster mask must be an indexed PNG in source dimensions: {sid}")
             values = np.array(mask)
-        if np.any(values >= NUM_CLASSES) or not np.any(values == CLASS_TO_ID["wall"]):
+        if (np.any((values >= NUM_CLASSES) & (values != IGNORE_ID)) or
+                not np.any(values == CLASS_TO_ID["wall"])):
             raise ValueError(f"Raster mask contains unknown labels or no walls: {sid}")
+        if not np.array_equal(values == IGNORE_ID, ignored):
+            raise ValueError(f"Ignored mask pixels do not match unresolved regions: {sid}")
         return source, Image.fromarray(values)
 
     def __getitem__(self, index):
@@ -135,11 +145,14 @@ class RasterMaskDataset(Dataset):
         if self.normalize:
             image_t = (image_t - self._mean) / self._std
         mask_t = torch.from_numpy(np.array(mask)).long()
+        if not torch.any(mask_t != IGNORE_ID):
+            raise ValueError("No reviewed pixels remain after raster resizing")
         if (inner_h, inner_w) != (height, width):
             top, left = (height - inner_h) // 2, (width - inner_w) // 2
             canvas = (torch.zeros(3, height, width) if self.normalize else
                       self._mean.expand(3, height, width).clone())
-            labels = torch.full((height, width), FLOOR_ID, dtype=torch.long)
+            padding = IGNORE_ID if self.samples[index].get("coverage") == "outside_unresolved" else FLOOR_ID
+            labels = torch.full((height, width), padding, dtype=torch.long)
             canvas[:, top:top + inner_h, left:left + inner_w] = image_t
             labels[top:top + inner_h, left:left + inner_w] = mask_t
             return canvas, labels

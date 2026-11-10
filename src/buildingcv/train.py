@@ -15,7 +15,7 @@ import yaml
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
 from .data import CubiCasaDataset
-from .labels import CLASS_NAMES, NUM_CLASSES
+from .labels import CLASS_NAMES, IGNORE_ID, NUM_CLASSES
 
 
 class Tee:
@@ -84,7 +84,8 @@ def build_datasets(cfg, limit_train=None, limit_val=None):
         if raster_manifest:
             from .raster_data import RasterMaskDataset
             parts.append(RasterMaskDataset(raster_manifest, split,
-                                           root=data.get("raster_root", "."), **kwargs))
+                                           root=data.get("raster_root", "."),
+                                           allow_partial=data.get("allow_partial_annotations", False), **kwargs))
         dataset = parts[0] if len(parts) == 1 else ConcatDataset(parts)
         if not len(dataset):
             raise ValueError(f"Empty training/evaluation dataset: {split}")
@@ -97,11 +98,14 @@ def check_data(cfg, args):
     datasets = build_datasets(cfg, args.limit_train, args.limit_val)
     for split, dataset in zip(("train", "val"), datasets):
         counts = torch.zeros(NUM_CLASSES, dtype=torch.long)
+        ignored = 0
         for index in range(len(dataset)):
             _, mask = dataset[index]
-            counts += torch.bincount(mask.flatten(), minlength=NUM_CLASSES)
+            ignored += int((mask == IGNORE_ID).sum())
+            counts += torch.bincount(mask[mask != IGNORE_ID], minlength=NUM_CLASSES)
         print(f"{split}: {len(dataset)} samples; resized class pixels: "
-              + ", ".join(f"{name}={count}" for name, count in zip(CLASS_NAMES, counts.tolist())))
+              + ", ".join(f"{name}={count}" for name, count in zip(CLASS_NAMES, counts.tolist()))
+              + f"; ignored={ignored}")
 
 
 @torch.no_grad()
@@ -118,6 +122,7 @@ def evaluate(model, loader, loss_fn, device) -> dict[str, Any]:
     total_loss = 0.0
     total_correct = 0
     total_pixels = 0
+    ignored_pixels = 0
     tp = torch.zeros(NUM_CLASSES, dtype=torch.long, device=device)
     fp = torch.zeros(NUM_CLASSES, dtype=torch.long, device=device)
     fn = torch.zeros(NUM_CLASSES, dtype=torch.long, device=device)
@@ -125,14 +130,19 @@ def evaluate(model, loader, loss_fn, device) -> dict[str, Any]:
     for images, masks in loader:
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
+        valid = masks != IGNORE_ID
+        pixels = int(valid.sum())
+        if not pixels:
+            raise ValueError("Evaluation batch has no reviewed pixels")
         logits = model(images)
         loss = loss_fn(logits, masks)
-        total_loss += loss.item() * images.size(0)
+        total_loss += loss.item() * pixels
         preds = logits.argmax(dim=1)
-        total_correct += (preds == masks).sum().item()
-        total_pixels += masks.numel()
+        total_correct += ((preds == masks) & valid).sum().item()
+        total_pixels += pixels
+        ignored_pixels += masks.numel() - pixels
         for c in range(NUM_CLASSES):
-            pred_c = preds == c
+            pred_c = (preds == c) & valid
             true_c = masks == c
             tp[c] += (pred_c & true_c).sum()
             fp[c] += (pred_c & ~true_c).sum()
@@ -141,7 +151,9 @@ def evaluate(model, loader, loss_fn, device) -> dict[str, Any]:
     denom = (tp + fp + fn).clamp(min=1).float()
     iou = (tp.float() / denom).cpu().tolist()
     return {
-        "loss": total_loss / len(loader.dataset),
+        "loss": total_loss / total_pixels,
+        "evaluated_pixels": total_pixels,
+        "ignored_pixels": ignored_pixels,
         "pixel_acc": total_correct / total_pixels,
         "iou": iou,
         "miou": sum(iou) / len(iou),
@@ -233,7 +245,7 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     ).to(device)
     log(f"params: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M")
 
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.CrossEntropyLoss(ignore_index=IGNORE_ID)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=cfg["optim"]["lr"],
@@ -264,6 +276,8 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
         for step, (images, masks) in enumerate(train_loader, start=1):
             images = images.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
+            if not torch.any(masks != IGNORE_ID):
+                raise ValueError("Training batch has no reviewed pixels")
 
             logits = model(images)
             loss = loss_fn(logits, masks)
@@ -287,6 +301,7 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
             f"pixel acc {metrics['pixel_acc']:.4f}   mIoU {metrics['miou']:.4f}"
         )
         log(f"  per-class IoU: {format_iou(metrics['iou'])}")
+        log(f"  validation pixels: reviewed {metrics['evaluated_pixels']} | ignored {metrics['ignored_pixels']}")
         append_metrics_row(metrics_csv, epoch, train_loss_avg, metrics)
 
         is_best = metrics["miou"] > best_miou
