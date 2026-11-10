@@ -333,6 +333,13 @@ furniture/text/dimensions != structure
 
 ## Phase 7 — Fine-tune current model
 
+Актуальный состав новой партии и порядок подготовки —
+[`TRAINING_PLAN.md`](TRAINING_PLAN.md), реестр —
+[`configs/training_samples.json`](../configs/training_samples.json).
+На 10.11.2026 добавлены 7 изображений: 4 запланированы для обучения,
+2 для промежуточной проверки, 1 для итоговой. Разметки ещё нет;
+существующий загрузчик SVG необходимо дополнить поддержкой растровых пар.
+
 Сначала дообучать текущую архитектуру, потому что:
 - CPU pipeline уже работает;
 - integration готова;

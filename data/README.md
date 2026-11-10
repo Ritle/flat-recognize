@@ -1,6 +1,16 @@
 # data/
 
-Datasets live here. Everything in this directory except this README is gitignored.
+Datasets live here. Keep private images and generated annotations out of Git;
+the new source images currently remain in the ignored `exmpls/` directory.
+
+## Local raster training plan
+
+The seven images added on 2026-11-10 are inventoried in
+[`configs/training_samples.json`](../configs/training_samples.json).
+See [`docs/TRAINING_PLAN.md`](../docs/TRAINING_PLAN.md) for annotation priorities,
+the planned train/validation/test split and evaluation criteria. They are not
+training-ready: masks and a raster-pair loader are still required. The current
+trainer consumes CubiCasa SVG samples only.
 
 ## CubiCasa5K
 

@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "updated": "2026-11-10",
+  "purpose": "Planned local raster fine-tuning samples; not consumed by the current SVG trainer.",
+  "split_status": "provisional_until_family_review",
+  "samples": [
+    {
+      "id": "colored-dimensions-eight-meter",
+      "image": "exmpls/planvosem5.jpg",
+      "sha256": "b3384f9ea70297dbafce81f45d65510113e30b2bece750c6ccc7f2a53406bf40",
+      "width": 477,
+      "height": 480,
+      "split": "train",
+      "group_id": "colored-dimensions-eight-meter",
+      "group_review": "pending",
+      "tags": [
+        "colored_walls",
+        "dimensions",
+        "text",
+        "watermark",
+        "thin_openings"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    },
+    {
+      "id": "measured-orange-openings",
+      "image": "exmpls/kak-sdjelat-obmjernyj-plan-zhilja.png",
+      "sha256": "d24be1c46f29cab4b2fa43f731b43ab7272df3b40479b6729725880f215f049e",
+      "width": 1160,
+      "height": 656,
+      "split": "train",
+      "group_id": "measured-orange-openings",
+      "group_review": "pending",
+      "tags": [
+        "gray_walls",
+        "dimensions",
+        "colored_openings",
+        "open_zones",
+        "non_rectangular"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    },
+    {
+      "id": "stairs-terrace-furnished",
+      "image": "exmpls/coffee1plan.jpg",
+      "sha256": "23e71e2141eb54d361f6823bdc998d158f58ada6b0757f54ccf362ae8322e2b2",
+      "width": 640,
+      "height": 714,
+      "split": "train",
+      "group_id": "stairs-terrace-furnished",
+      "group_review": "pending",
+      "tags": [
+        "stairs",
+        "terrace",
+        "furniture",
+        "dimensions",
+        "gray_walls"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    },
+    {
+      "id": "colored-house-terraces",
+      "image": "exmpls/645adcf0e951d050d5816292bc6c3b93.png",
+      "sha256": "89553b78d050dcaba4d2315ff74b0366b4751a877938c3d8984cae7b722f6de8",
+      "width": 800,
+      "height": 551,
+      "split": "train",
+      "group_id": "colored-house-terraces",
+      "group_review": "pending",
+      "tags": [
+        "colored",
+        "terrace",
+        "furniture",
+        "watermark",
+        "non_rectangular"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    },
+    {
+      "id": "dimension-axes-no-leaves",
+      "image": "exmpls/36743.jpg",
+      "sha256": "a3a2f4073b4b9a674546ae8df5805ce86f06829c50ea22cebbccd7d6eac03004",
+      "width": 586,
+      "height": 452,
+      "split": "val",
+      "group_id": "dimension-axes-no-leaves",
+      "group_review": "pending",
+      "tags": [
+        "dimensions",
+        "grid_axes",
+        "thick_walls",
+        "openings_without_leaves"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    },
+    {
+      "id": "tiny-gray-balcony",
+      "image": "exmpls/2020-04-18_18-22-57.png",
+      "sha256": "a35af51d72a510c4c00d062bcf6bb7a1d637bc7cb819768fe1735eb23627f4e3",
+      "width": 323,
+      "height": 339,
+      "split": "val",
+      "group_id": "tiny-gray-balcony",
+      "group_review": "pending",
+      "tags": [
+        "small_resolution",
+        "thin_walls",
+        "text",
+        "colored_symbols",
+        "balcony"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    },
+    {
+      "id": "house-garage-curved-exterior",
+      "image": "exmpls/Fasad-10-1-1030x721.jpg",
+      "sha256": "9b131b7577cecc34f01f5f5ac0d79eb005412fc77f3d07113d0c78260348e639",
+      "width": 1030,
+      "height": 721,
+      "split": "test",
+      "group_id": "house-garage-curved-exterior",
+      "group_review": "pending",
+      "tags": [
+        "garage",
+        "cars",
+        "stairs",
+        "terrace",
+        "curved_exterior_lines",
+        "furniture",
+        "dimensions"
+      ],
+      "annotation_status": "pending",
+      "training_ready": false
+    }
+  ]
+}
