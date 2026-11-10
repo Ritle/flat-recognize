@@ -2,7 +2,17 @@
   "version": 1,
   "updated": "2026-11-10",
   "purpose": "Planned local raster fine-tuning samples; not consumed by the current SVG trainer.",
-  "split_status": "provisional_until_family_review",
+  "split_status": "provisional_until_base_dataset_family_review",
+  "family_review": {
+    "local_status": "reviewed",
+    "local_image_count": 26,
+    "local_cross_split_matches_found": false,
+    "reviewer": "Codex",
+    "date": "2026-11-10",
+    "report": "output/training_annotations/family-audit-20261110-v2/report.json",
+    "base_dataset_status": "not_available_locally",
+    "automatic_approval": false
+  },
   "samples": [
     {
       "id": "colored-dimensions-eight-meter",
@@ -135,7 +145,7 @@
         "furniture",
         "dimensions"
       ],
-      "annotation_status": "pending",
+      "annotation_status": "draft",
       "training_ready": false
     }
   ]
