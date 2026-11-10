@@ -10,8 +10,9 @@
     "reviewer": "Codex",
     "date": "2026-11-10",
     "report": "output/training_annotations/family-audit-20261110-v2/report.json",
-    "base_dataset_status": "not_available_locally",
-    "automatic_approval": false
+    "base_dataset_status": "not_downloaded_user_confirmed",
+    "automatic_approval": false,
+    "base_dataset_user_response_date": "2026-11-10"
   },
   "samples": [
     {
@@ -68,8 +69,11 @@
         "dimensions",
         "gray_walls"
       ],
-      "annotation_status": "draft",
-      "training_ready": false
+      "annotation_status": "reviewed_partial",
+      "training_ready": false,
+      "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/stairs-terrace-furnished.annotation.json",
+      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "annotation_review_independent": false
     },
     {
       "id": "colored-house-terraces",
@@ -87,8 +91,11 @@
         "watermark",
         "non_rectangular"
       ],
-      "annotation_status": "draft",
-      "training_ready": false
+      "annotation_status": "reviewed_partial",
+      "training_ready": false,
+      "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/colored-house-terraces.annotation.json",
+      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "annotation_review_independent": false
     },
     {
       "id": "dimension-axes-no-leaves",
@@ -105,8 +112,11 @@
         "thick_walls",
         "openings_without_leaves"
       ],
-      "annotation_status": "draft",
-      "training_ready": false
+      "annotation_status": "reviewed_partial",
+      "training_ready": false,
+      "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/dimension-axes-no-leaves.annotation.json",
+      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "annotation_review_independent": false
     },
     {
       "id": "tiny-gray-balcony",
@@ -124,8 +134,11 @@
         "colored_symbols",
         "balcony"
       ],
-      "annotation_status": "draft",
-      "training_ready": false
+      "annotation_status": "reviewed_partial",
+      "training_ready": false,
+      "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/tiny-gray-balcony.annotation.json",
+      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "annotation_review_independent": false
     },
     {
       "id": "house-garage-curved-exterior",
@@ -145,8 +158,11 @@
         "furniture",
         "dimensions"
       ],
-      "annotation_status": "draft",
-      "training_ready": false
+      "annotation_status": "reviewed_partial",
+      "training_ready": false,
+      "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/house-garage-curved-exterior.annotation.json",
+      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "annotation_review_independent": false
     }
   ]
 }
