@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 from PIL import Image
@@ -12,8 +13,9 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from prepare_training_annotations import (
     build_masks, checked_polygon, draft_annotation, load_samples, prepare_drafts,
-    read_json, render_annotation, write_json,
+    preview_annotation, read_json, render_annotation, write_json,
 )
+import prepare_training_annotations as annotation_cli
 
 
 class TrainingAnnotationTests(unittest.TestCase):
@@ -65,6 +67,39 @@ class TrainingAnnotationTests(unittest.TestCase):
         self.assertEqual(set(np.unique(mask)), {0, 1, 2, 3})
         self.assertEqual(overlay.getpixel((12, 15)), (255, 255, 255))
         self.assertNotEqual(overlay.getpixel((25, 3)), (255, 255, 255))
+
+    def test_draft_preview_marks_questions_without_enabling_training(self):
+        annotation = self.reviewed()
+        annotation["review"] = {"status": "draft", "coverage": "partial", "reviewer": ""}
+        annotation["unresolved"] = [{"bbox": [20, 17, 35, 27], "question": "wall or furniture?"}]
+        original = copy.deepcopy(annotation)
+        overlay = preview_annotation(annotation, self.sample, self.root)
+        self.assertEqual(overlay.size, (40, 30))
+        self.assertEqual(overlay.getpixel((20, 24)), (220, 0, 0))
+        self.assertEqual(annotation, original)
+        with self.assertRaisesRegex(ValueError, "full-image"):
+            render_annotation(annotation, self.sample, self.root)
+        annotation["unresolved"][0]["bbox"] = [0, 0, 40, 20]
+        with self.assertRaisesRegex(ValueError, "within"):
+            preview_annotation(annotation, self.sample, self.root)
+
+    def test_preview_cli_writes_only_diagnostic_image_and_preserves_existing_output(self):
+        annotation = self.reviewed()
+        annotation["review"] = {"status": "draft", "coverage": "partial", "reviewer": ""}
+        path = self.root / "draft.annotation.json"
+        write_json(path, annotation)
+        output = self.root / "preview.png"
+        argv = ["prepare_training_annotations", "--manifest", str(self.manifest),
+                "preview", str(path), "--output", str(output)]
+        with patch.object(annotation_cli, "ROOT", self.root), patch.object(sys, "argv", argv):
+            annotation_cli.main()
+            before = output.read_bytes()
+            with self.assertRaises(SystemExit) as error:
+                annotation_cli.main()
+            self.assertEqual(error.exception.code, 2)
+            self.assertEqual(output.read_bytes(), before)
+        self.assertFalse(list(self.root.glob("*.mask.png")))
+        self.assertEqual(read_json(path)["review"]["status"], "draft")
 
     def test_incomplete_or_ambiguous_annotations_are_rejected(self):
         for patch in (

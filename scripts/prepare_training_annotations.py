@@ -128,13 +128,18 @@ def checked_polygon(points, width, height):
     return result
 
 
-def render_annotation(annotation, sample, root):
+def _annotation_source(annotation, sample, root):
     if (not isinstance(annotation, dict) or annotation.get("version") != 1 or
             annotation.get("sample_id") != sample["id"]):
         raise ValueError("Annotation version or sample ID does not match")
     expected = {key: sample[key] for key in ("image", "sha256", "width", "height")}
     if annotation.get("image") != expected:
         raise ValueError("Annotation refers to a different image or coordinate system")
+    return verify_source(sample, root)
+
+
+def render_annotation(annotation, sample, root):
+    source = _annotation_source(annotation, sample, root)
     review = annotation.get("review", {})
     if (not isinstance(review, dict) or review.get("status") != "reviewed" or
             review.get("coverage") != "full" or
@@ -142,7 +147,10 @@ def render_annotation(annotation, sample, root):
         raise ValueError("A named reviewer must explicitly confirm full-image coverage")
     if annotation.get("unresolved") != []:
         raise ValueError("Resolve all ambiguous regions before building a training mask")
-    source = verify_source(sample, root)
+    return _render_objects(annotation, source)
+
+
+def _render_objects(annotation, source):
     objects = annotation.get("objects")
     if not isinstance(objects, list) or not objects:
         raise ValueError("An empty draft must not become an all-background training mask")
@@ -178,6 +186,29 @@ def render_annotation(annotation, sample, root):
     selected = array != 0
     blended[selected] = (0.45 * blended[selected] + 0.55 * colored[selected]).astype(np.uint8)
     return mask, Image.fromarray(blended)
+
+
+def preview_annotation(annotation, sample, root):
+    """Render draft geometry and questions, without returning a training mask."""
+    source = _annotation_source(annotation, sample, root)
+    _, overlay = _render_objects(annotation, source)
+    unresolved = annotation.get("unresolved")
+    if not isinstance(unresolved, list):
+        raise ValueError("Unresolved regions must be a list")
+    draw = ImageDraw.Draw(overlay)
+    for index, region in enumerate(unresolved, 1):
+        bbox = region.get("bbox") if isinstance(region, dict) else None
+        if (not isinstance(bbox, list) or len(bbox) != 4 or
+                any(type(v) not in (int, float) or not math.isfinite(v) for v in bbox)):
+            raise ValueError("Unresolved regions need finite bbox coordinates")
+        x1, y1, x2, y2 = bbox
+        if not (0 <= x1 < x2 < source.width and 0 <= y1 < y2 < source.height):
+            raise ValueError("Unresolved region bbox must lie within the source image")
+        draw.rectangle(bbox, outline=(220, 0, 0), width=2)
+        draw.text((x1 + 2, y1 + 2), f"?{index}", fill=(220, 0, 0))
+    draw.rectangle((0, 0, source.width - 1, 15), fill="white")
+    draw.text((3, 1), "DRAFT PREVIEW - NOT FOR TRAINING", fill=(190, 0, 0))
+    return overlay
 
 
 def prepare_drafts(manifest, output, root=ROOT):
@@ -244,14 +275,31 @@ def main():
     build = sub.add_parser("build", help="Validate full reviewed annotations and render masks")
     build.add_argument("annotations", type=Path, nargs="+")
     build.add_argument("--output", type=Path, required=True)
+    preview = sub.add_parser("preview", help="Inspect draft geometry without producing a training mask")
+    preview.add_argument("annotation", type=Path)
+    preview.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == "init":
             count = prepare_drafts(args.manifest, args.output)
             print(f"Prepared {count} drafts; no training masks were created: {args.output}")
-        else:
+        elif args.command == "build":
             count = build_masks(args.manifest, args.annotations, args.output)
             print(f"Rendered {count} reviewed masks and overlays: {args.output}")
+        else:
+            samples = load_samples(args.manifest, ROOT)
+            annotation = read_json(args.annotation)
+            sid = annotation.get("sample_id") if isinstance(annotation, dict) else None
+            if not isinstance(sid, str) or sid not in samples:
+                raise ValueError("Unknown annotation sample ID")
+            if args.output.exists():
+                raise ValueError("Preview output already exists; choose a new filename")
+            if args.output.suffix.lower() != ".png":
+                raise ValueError("Preview output must be PNG")
+            overlay = preview_annotation(annotation, samples[sid], ROOT)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            overlay.save(args.output)
+            print(f"Draft preview only; no training mask created: {args.output}")
     except (ValueError, OSError, KeyError, TypeError) as exc:
         parser.exit(2, f"ANNOTATION_ERROR: {exc}\n")
 

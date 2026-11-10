@@ -20,7 +20,7 @@
         "watermark",
         "thin_openings"
       ],
-      "annotation_status": "pending",
+      "annotation_status": "draft",
       "training_ready": false
     },
     {
@@ -39,7 +39,7 @@
         "open_zones",
         "non_rectangular"
       ],
-      "annotation_status": "pending",
+      "annotation_status": "draft",
       "training_ready": false
     },
     {

@@ -63,6 +63,20 @@ SHA-256, размеры, состояние проверки и список о�
 
 ## Маски и визуальная проверка
 
+Черновую разметку можно посмотреть до подтверждения полного охвата:
+
+```powershell
+& .\.venv\Scripts\python.exe scripts/prepare_training_annotations.py preview `
+  output/training_annotations/2026-11-10-drafts/colored-dimensions-eight-meter.annotation.json `
+  --output output/training_annotations/first-plan-draft-preview.png
+```
+
+Команда сохраняет только диагностическое наложение с пометкой черновика;
+вопросы из `unresolved` выделяются красными рамками. Она не создаёт маску,
+не меняет состояние проверки и не перезаписывает существующий файл.
+Участки вне нарисованных полигонов на таком просмотре не считаются
+подтверждённым фоном.
+
 Когда конкретный файл действительно проверен:
 
 ```powershell
