@@ -17,7 +17,25 @@ configuration and the `--check-data` command.
 
 ## CubiCasa5K
 
-Download from https://zenodo.org/records/2613548 — direct link is `cubicasa5k.zip` (~3 GB).
+Official dataset: [CubiCasa5K on Zenodo](https://zenodo.org/records/2613548),
+linked by the [authors' repository](https://github.com/CubiCasa/CubiCasa5k).
+The `cubicasa5k.zip` archive is **5,469,495,706 bytes** (about 5.47 GB).
+Official MD5: `0ce0b203d1e3c125b51087b219bd23b9`.
+Downloads and the extracted dataset stay under the ignored `data/cubicasa5k/`.
+
+Downloaded and verified locally on 2026-11-10:
+
+- Extracted root: `data/cubicasa5k/`.
+- Archive: `data/cubicasa5k/_download/cubicasa5k.zip`.
+- Receipt: `data/cubicasa5k/download-receipt.json`.
+- 5,000 `model.svg` annotations; original PNG/SVG pairs exist for every split entry.
+- Official split: 4,200 train / 400 validation / 400 test, with no overlapping paths.
+- Official MD5 matches; ZIP member CRCs checked during extraction.
+- Archive SHA-256: `a4a3398534d6abb7db7b8c6ca8877a6edf18897dcbd20f4582b3fdd3c46632a5`.
+
+Temporary download parts were removed after verification; the complete ZIP is retained.
+Family comparison against the new local plans is still pending. Downloading the
+dataset does not enable training or approve the new annotations.
 
 Expected layout after extraction:
 

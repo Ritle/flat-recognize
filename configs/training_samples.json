@@ -10,9 +10,12 @@
     "reviewer": "Codex",
     "date": "2026-11-10",
     "report": "output/training_annotations/family-audit-20261110-v2/report.json",
-    "base_dataset_status": "not_downloaded_user_confirmed",
+    "base_dataset_status": "downloaded_verified",
     "automatic_approval": false,
-    "base_dataset_user_response_date": "2026-11-10"
+    "base_dataset_user_response_date": "2026-11-10",
+    "base_dataset_path": "data/cubicasa5k",
+    "base_dataset_receipt": "data/cubicasa5k/download-receipt.json",
+    "base_dataset_family_review": "pending"
   },
   "samples": [
     {
