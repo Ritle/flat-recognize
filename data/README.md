@@ -9,8 +9,8 @@ The seven images added on 2026-11-10 are inventoried in
 [`configs/training_samples.json`](../configs/training_samples.json).
 See [`docs/TRAINING_PLAN.md`](../docs/TRAINING_PLAN.md) for annotation priorities,
 the planned train/validation/test split and evaluation criteria. They are not
-training-ready: five partially reviewed masks are prepared locally, but base-dataset
-family review is pending and two images remain deferred drafts. The trainer supports mixing
+training-ready as a whole: five partially reviewed masks passed the local/base
+family screen, while two images remain deferred drafts. The trainer supports mixing
 CubiCasa SVG samples with reviewed raster pairs using `data.raster_manifest`.
 See [`docs/RASTER_ANNOTATIONS.md`](../docs/RASTER_ANNOTATIONS.md) for preparation,
 configuration and the `--check-data` command.
@@ -34,8 +34,47 @@ Downloaded and verified locally on 2026-11-10:
 - Archive SHA-256: `a4a3398534d6abb7db7b8c6ca8877a6edf18897dcbd20f4582b3fdd3c46632a5`.
 
 Temporary download parts were removed after verification; the complete ZIP is retained.
-Family comparison against the new local plans is still pending. Downloading the
-dataset does not enable training or approve the new annotations.
+Family screening of the seven new plans against all 5,000 originals is recorded
+in `output/training_annotations/cubicasa-family-audit-20261110/`. No exact matches
+or visually matching nearest candidates were found. This is a hash/nearest-image
+screen, not exhaustive verification of every transformed or cropped derivative.
+
+Five identical-image pairs cross the official train/evaluation lists. Derived
+lists in `output/training_annotations/cubicasa-deduplicated-20261110/` exclude
+the five training-side copies (4,195 train / 400 val / 400 test). Original files
+and evaluation lists are preserved. Use `data.split_dir` to select these lists.
+
+Mixed data preflight config:
+`output/training_annotations/mixed-ready-20261110/mixed-cpu.yaml`.
+It combines 4,195 base training samples with two new partial masks, and 400
+validation samples with two new partial masks. The extra test plan stays in test.
+
+## Windows Cairo runtime
+
+SVG loading additionally needs native Cairo. The project-local runtime lives in
+`.tools/gtk-cairo-2026.10.0/bin/`, from the
+[gvsbuild release](https://github.com/wingtk/gvsbuild/releases/tag/2026.10.0),
+a Windows installation method listed by the [GTK project](https://www.gtk.org/docs/installations/windows/).
+The downloaded ZIP SHA-256 was verified against its release metadata:
+`8005b860447e73b10c7f508b1f348e2b6390e01dd61fd5c617b8190a046022fe`.
+Version checked locally: Cairo 1.18.6, CairoSVG 2.9.1. DLLs, license files and font
+configuration are local; no global installation or PATH change was made.
+
+From the project root, set variables for the current PowerShell process:
+
+```powershell
+$env:CAIROCFFI_DLL_DIRECTORIES = (Resolve-Path .tools/gtk-cairo-2026.10.0/bin).Path
+$env:PATH = $env:CAIROCFFI_DLL_DIRECTORIES + ';' + $env:PATH
+& .\.venv\Scripts\python.exe -m buildingcv.train `
+  --config output/training_annotations/mixed-ready-20261110/mixed-cpu.yaml `
+  --check-data --check-data-per-source --limit-train 2 --limit-val 2
+```
+
+This checks two SVG and two raster examples in each of train/val, using strict
+SVG reads without fallback substitution. The log is saved locally as
+`output/training_annotations/mixed-ready-20261110/check-data.log`.
+It does not create a model, train weights, or evaluate test images. No performance
+claim is made for uninspected SVGs elsewhere in the base dataset.
 
 Expected layout after extraction:
 

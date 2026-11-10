@@ -160,6 +160,12 @@ class RasterTrainingTests(unittest.TestCase):
         self.assertEqual((len(training), len(validation)), (3, 3))
         self.assertEqual([c.args[1] for c in factory.call_args_list], ["train", "val"])
         self.assertEqual(training.datasets[1].samples[0]["split"], "train")
+        with patch("buildingcv.train.CubiCasaDataset", return_value=old):
+            selected, _ = build_datasets(cfg, limit_train=1, limit_val=1, limits_per_source=True)
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(len(selected.datasets[0]), 1)
+        self.assertEqual(len(selected.datasets[1]), 1)
+        self.assertEqual(selected.datasets[1].samples[0]["split"], "train")
         cfg["data"].pop("raster_manifest")
         cfg["data"].pop("include_cubicasa")
         with patch("buildingcv.train.CubiCasaDataset", return_value=old):

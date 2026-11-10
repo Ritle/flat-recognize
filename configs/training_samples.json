@@ -2,7 +2,7 @@
   "version": 1,
   "updated": "2026-11-10",
   "purpose": "Planned local raster fine-tuning samples; not consumed by the current SVG trainer.",
-  "split_status": "provisional_until_base_dataset_family_review",
+  "split_status": "reviewed_with_base_hash_screen_and_nearest_visual_review",
   "family_review": {
     "local_status": "reviewed",
     "local_image_count": 26,
@@ -15,7 +15,12 @@
     "base_dataset_user_response_date": "2026-11-10",
     "base_dataset_path": "data/cubicasa5k",
     "base_dataset_receipt": "data/cubicasa5k/download-receipt.json",
-    "base_dataset_family_review": "pending"
+    "base_dataset_family_review": "screened_5000_and_nearest_visuals_reviewed",
+    "base_dataset_report": "output/training_annotations/cubicasa-family-audit-20261110/report.json",
+    "base_exact_local_matches": 0,
+    "base_nearest_pairs_manually_inspected": 35,
+    "base_cross_split_exact_duplicate_pairs": 5,
+    "derived_base_split_dir": "output/training_annotations/cubicasa-deduplicated-20261110"
   },
   "samples": [
     {
@@ -64,7 +69,7 @@
       "height": 714,
       "split": "train",
       "group_id": "stairs-terrace-furnished",
-      "group_review": "pending",
+      "group_review": "reviewed",
       "tags": [
         "stairs",
         "terrace",
@@ -73,9 +78,9 @@
         "gray_walls"
       ],
       "annotation_status": "reviewed_partial",
-      "training_ready": false,
+      "training_ready": true,
       "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/stairs-terrace-furnished.annotation.json",
-      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "mask_manifest": "output/training_annotations/mixed-ready-20261110/masks/masks.json",
       "annotation_review_independent": false
     },
     {
@@ -86,7 +91,7 @@
       "height": 551,
       "split": "train",
       "group_id": "colored-house-terraces",
-      "group_review": "pending",
+      "group_review": "reviewed",
       "tags": [
         "colored",
         "terrace",
@@ -95,9 +100,9 @@
         "non_rectangular"
       ],
       "annotation_status": "reviewed_partial",
-      "training_ready": false,
+      "training_ready": true,
       "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/colored-house-terraces.annotation.json",
-      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "mask_manifest": "output/training_annotations/mixed-ready-20261110/masks/masks.json",
       "annotation_review_independent": false
     },
     {
@@ -108,7 +113,7 @@
       "height": 452,
       "split": "val",
       "group_id": "dimension-axes-no-leaves",
-      "group_review": "pending",
+      "group_review": "reviewed",
       "tags": [
         "dimensions",
         "grid_axes",
@@ -116,9 +121,9 @@
         "openings_without_leaves"
       ],
       "annotation_status": "reviewed_partial",
-      "training_ready": false,
+      "training_ready": true,
       "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/dimension-axes-no-leaves.annotation.json",
-      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "mask_manifest": "output/training_annotations/mixed-ready-20261110/masks/masks.json",
       "annotation_review_independent": false
     },
     {
@@ -129,7 +134,7 @@
       "height": 339,
       "split": "val",
       "group_id": "tiny-gray-balcony",
-      "group_review": "pending",
+      "group_review": "reviewed",
       "tags": [
         "small_resolution",
         "thin_walls",
@@ -138,9 +143,9 @@
         "balcony"
       ],
       "annotation_status": "reviewed_partial",
-      "training_ready": false,
+      "training_ready": true,
       "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/tiny-gray-balcony.annotation.json",
-      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "mask_manifest": "output/training_annotations/mixed-ready-20261110/masks/masks.json",
       "annotation_review_independent": false
     },
     {
@@ -151,7 +156,7 @@
       "height": 721,
       "split": "test",
       "group_id": "house-garage-curved-exterior",
-      "group_review": "pending",
+      "group_review": "reviewed",
       "tags": [
         "garage",
         "cars",
@@ -162,9 +167,9 @@
         "dimensions"
       ],
       "annotation_status": "reviewed_partial",
-      "training_ready": false,
+      "training_ready": true,
       "annotation_file": "output/training_annotations/reviewed-partial-20261110/annotations/house-garage-curved-exterior.annotation.json",
-      "mask_manifest": "output/training_annotations/reviewed-partial-20261110/masks/masks.json",
+      "mask_manifest": "output/training_annotations/mixed-ready-20261110/masks/masks.json",
       "annotation_review_independent": false
     }
   ]

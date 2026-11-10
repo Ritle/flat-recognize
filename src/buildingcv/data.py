@@ -20,9 +20,9 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
-def _read_split(data_dir: Path, split: str) -> list[str]:
+def _read_split(data_dir: Path, split: str, split_dir: str | Path | None = None) -> list[str]:
     """Return cleaned relative sample paths from train.txt / val.txt / test.txt."""
-    p = data_dir / f"{split}.txt"
+    p = (Path(split_dir) if split_dir is not None else data_dir) / f"{split}.txt"
     return [line.strip().strip("/") for line in p.read_text().splitlines() if line.strip()]
 
 
@@ -51,6 +51,8 @@ class CubiCasaDataset(Dataset):
             ImageNet mean (zero in normalized space), mask padded with `floor`.
             If False (default), the SVG is rendered directly at (H, W), which
             stretches non-square plans.
+        split_dir: optional directory containing derived train/val/test lists;
+            images and SVG annotations still come from data_dir.
 
     Each item:
         image: float32 tensor of shape (3, H, W). Channel-first, in [0, 1] or
@@ -65,6 +67,7 @@ class CubiCasaDataset(Dataset):
         size: tuple[int, int] = (384, 384),
         normalize: bool = True,
         letterbox: bool = False,
+        split_dir: str | Path | None = None,
     ) -> None:
         super().__init__()
         self.data_dir = Path(data_dir)
@@ -72,7 +75,7 @@ class CubiCasaDataset(Dataset):
         self.size = size  # (H, W)
         self.normalize = normalize
         self.letterbox = letterbox
-        self.samples = _read_split(self.data_dir, split)
+        self.samples = _read_split(self.data_dir, split, split_dir)
 
         if normalize:
             self._mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
@@ -85,6 +88,10 @@ class CubiCasaDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.samples)
+
+    def load_strict(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Read the requested sample without substituting a later valid SVG."""
+        return self._load(idx)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         n = len(self.samples)

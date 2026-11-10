@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from bisect import bisect_right
 import hashlib
 import shutil
 from datetime import datetime
@@ -66,7 +67,7 @@ def maybe_subset(ds, limit: int | None):
     return Subset(ds, range(limit))
 
 
-def build_datasets(cfg, limit_train=None, limit_val=None):
+def build_datasets(cfg, limit_train=None, limit_val=None, *, limits_per_source=False):
     """Keep the existing SVG path; optionally concatenate reviewed raster data."""
     data = cfg["data"]
     kwargs = dict(size=tuple(data["image_size"]), normalize=data["normalize"],
@@ -80,27 +81,43 @@ def build_datasets(cfg, limit_train=None, limit_val=None):
             raise ValueError("Dataset debug limits must be positive integers")
         parts = []
         if data.get("include_cubicasa", True):
-            parts.append(CubiCasaDataset(data["data_dir"], split, **kwargs))
+            parts.append(CubiCasaDataset(data["data_dir"], split,
+                                        split_dir=data.get("split_dir"), **kwargs))
         if raster_manifest:
             from .raster_data import RasterMaskDataset
             parts.append(RasterMaskDataset(raster_manifest, split,
                                            root=data.get("raster_root", "."),
                                            allow_partial=data.get("allow_partial_annotations", False), **kwargs))
+        if limits_per_source:
+            parts = [maybe_subset(part, limit) for part in parts]
         dataset = parts[0] if len(parts) == 1 else ConcatDataset(parts)
         if not len(dataset):
             raise ValueError(f"Empty training/evaluation dataset: {split}")
-        datasets.append(maybe_subset(dataset, limit))
+        datasets.append(dataset if limits_per_source else maybe_subset(dataset, limit))
     return tuple(datasets)
+
+
+def checked_item(dataset, index):
+    """Preflight must fail on a bad SVG instead of silently replacing it."""
+    if isinstance(dataset, Subset):
+        return checked_item(dataset.dataset, dataset.indices[index])
+    if isinstance(dataset, ConcatDataset):
+        part = bisect_right(dataset.cumulative_sizes, index)
+        offset = dataset.cumulative_sizes[part - 1] if part else 0
+        return checked_item(dataset.datasets[part], index - offset)
+    strict = getattr(dataset, "load_strict", None)
+    return strict(index) if strict is not None else dataset[index]
 
 
 def check_data(cfg, args):
     """Exercise selected samples without allocating a model or creating a run."""
-    datasets = build_datasets(cfg, args.limit_train, args.limit_val)
+    datasets = build_datasets(cfg, args.limit_train, args.limit_val,
+                              limits_per_source=getattr(args, "check_data_per_source", False))
     for split, dataset in zip(("train", "val"), datasets):
         counts = torch.zeros(NUM_CLASSES, dtype=torch.long)
         ignored = 0
         for index in range(len(dataset)):
-            _, mask = dataset[index]
+            _, mask = checked_item(dataset, index)
             ignored += int((mask == IGNORE_ID).sum())
             counts += torch.bincount(mask[mask != IGNORE_ID], minlength=NUM_CLASSES)
         print(f"{split}: {len(dataset)} samples; resized class pixels: "
@@ -339,12 +356,16 @@ def main() -> None:
     p.add_argument("--limit-val", type=int, default=None, help="cap val samples (debug)")
     p.add_argument("--check-data", action="store_true",
                    help="validate train/val pairs without creating a model or training run")
+    p.add_argument("--check-data-per-source", action="store_true",
+                   help="with --check-data, cap each SVG/raster source separately so both are checked")
     p.add_argument(
         "--resume", type=Path, default=None,
         help="path to a checkpoint (last.pt / best.pt / epoch_NN.pt). "
              "Loads model+optimizer+epoch and continues into the same run dir.",
     )
     args = p.parse_args()
+    if args.check_data_per_source and not args.check_data:
+        p.error("--check-data-per-source requires --check-data")
 
     with open(args.config, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
