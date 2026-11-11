@@ -188,6 +188,15 @@
     ],
     "candidate_config": "output/training_annotations/finetune-ready-20261110/finetune-cpu.yaml",
     "working_weights_unchanged": true,
-    "training_started": false
+    "training_started": false,
+    "initial_baseline": {
+      "date": "2026-11-11",
+      "summary": "output/training_annotations/baseline-20261111/summary.json",
+      "base_val_samples": 400,
+      "base_val_miou": 0.9832316637039185,
+      "raster_val_samples": 2,
+      "raster_val_miou": 0.27069491520524025,
+      "test_evaluated": false
+    }
   }
 }
