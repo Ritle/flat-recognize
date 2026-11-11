@@ -44,7 +44,7 @@ lists in `output/training_annotations/cubicasa-deduplicated-20261110/` exclude
 the five training-side copies (4,195 train / 400 val / 400 test). Original files
 and evaluation lists are preserved. Use `data.split_dir` to select these lists.
 
-Mixed data preflight config:
+Initial mixed data preflight config (before the full SVG audit):
 `output/training_annotations/mixed-ready-20261110/mixed-cpu.yaml`.
 It combines 4,195 base training samples with two new partial masks, and 400
 validation samples with two new partial masks. The extra test plan stays in test.
@@ -73,8 +73,29 @@ $env:PATH = $env:CAIROCFFI_DLL_DIRECTORIES + ';' + $env:PATH
 This checks two SVG and two raster examples in each of train/val, using strict
 SVG reads without fallback substitution. The log is saved locally as
 `output/training_annotations/mixed-ready-20261110/check-data.log`.
-It does not create a model, train weights, or evaluate test images. No performance
-claim is made for uninspected SVGs elsewhere in the base dataset.
+It does not create a model, train weights, or evaluate test images.
+
+## Full strict SVG audit and active training lists
+
+All 5,000 SVGs have now been checked at 512×512 without substitution:
+4,989 passed and 11 failed (eight marker-rendering errors, three empty wall
+masks with hidden wall geometry). Ten failures are in train and one is in test;
+all 400 validation SVGs passed. This checks loader compatibility, not annotation
+accuracy. Sources were not rewritten.
+
+Active derived lists: `output/training_annotations/cubicasa-svg-checked-20261110/`.
+They retain 4,185 base train / 400 val / 400 test entries after removing five
+training duplicates and ten training failures. Evaluation lists are byte-identical
+to their sources; `high_quality/1692` remains an explicitly recorded test rendering
+failure, which must be resolved before claiming a complete test evaluation.
+
+Active mixed config:
+`output/training_annotations/finetune-ready-20261110/finetune-cpu.yaml`.
+It selects these lists with `data.strict_svg: true` and totals 4,187 train / 402 val.
+The eight-example mixed data preflight and real starting-weight compatibility
+check passed on CPU; real-model training has not started.
+See [training preflight instructions](../docs/TRAINING_PREFLIGHT.md) for repeatable
+audit, curation and initialization commands.
 
 Expected layout after extraction:
 

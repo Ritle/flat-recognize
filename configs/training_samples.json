@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated": "2026-11-10",
-  "purpose": "Planned local raster fine-tuning samples; not consumed by the current SVG trainer.",
+  "updated": "2026-11-11",
+  "purpose": "Local raster fine-tuning registry; only reviewed, training-ready masks are consumed alongside SVG data.",
   "split_status": "reviewed_with_base_hash_screen_and_nearest_visual_review",
   "family_review": {
     "local_status": "reviewed",
@@ -172,5 +172,22 @@
       "mask_manifest": "output/training_annotations/mixed-ready-20261110/masks/masks.json",
       "annotation_review_independent": false
     }
-  ]
+  ],
+  "training_preparation": {
+    "svg_audit": "output/training_annotations/svg-full-audit-20261110/report.json",
+    "base_svg_valid": 4989,
+    "base_svg_failed": 11,
+    "substituted_samples": 0,
+    "active_base_split_dir": "output/training_annotations/cubicasa-svg-checked-20261110",
+    "base_train_count": 4185,
+    "mixed_train_count": 4187,
+    "mixed_val_count": 402,
+    "evaluation_lists_unchanged": true,
+    "known_test_renderer_failures": [
+      "high_quality/1692"
+    ],
+    "candidate_config": "output/training_annotations/finetune-ready-20261110/finetune-cpu.yaml",
+    "working_weights_unchanged": true,
+    "training_started": false
+  }
 }

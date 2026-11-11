@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from bisect import bisect_right
 import hashlib
+import json
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -13,7 +14,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 import yaml
-from torch.utils.data import ConcatDataset, DataLoader, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 
 from .data import CubiCasaDataset
 from .labels import CLASS_NAMES, IGNORE_ID, NUM_CLASSES
@@ -54,9 +55,9 @@ def resolve_device(name: str) -> torch.device:
 
 def make_run_dir(base: Path) -> Path:
     """Timestamped subdirectory under `base`, created."""
-    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     run_dir = base / stamp
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=False)
     return run_dir
 
 
@@ -65,6 +66,19 @@ def maybe_subset(ds, limit: int | None):
     if limit is None or limit >= len(ds):
         return ds
     return Subset(ds, range(limit))
+
+
+class StrictSvgDataset(Dataset):
+    """Opt-in training view that never substitutes a failed SVG sample."""
+
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        return self.dataset.load_strict(index)
 
 
 def build_datasets(cfg, limit_train=None, limit_val=None, *, limits_per_source=False):
@@ -81,8 +95,8 @@ def build_datasets(cfg, limit_train=None, limit_val=None, *, limits_per_source=F
             raise ValueError("Dataset debug limits must be positive integers")
         parts = []
         if data.get("include_cubicasa", True):
-            parts.append(CubiCasaDataset(data["data_dir"], split,
-                                        split_dir=data.get("split_dir"), **kwargs))
+            svg = CubiCasaDataset(data["data_dir"], split, split_dir=data.get("split_dir"), **kwargs)
+            parts.append(StrictSvgDataset(svg) if data.get("strict_svg", False) else svg)
         if raster_manifest:
             from .raster_data import RasterMaskDataset
             parts.append(RasterMaskDataset(raster_manifest, split,
@@ -216,6 +230,9 @@ def save_checkpoint(path: Path, *, epoch: int, model, optimizer, cfg, best_miou:
 
 
 def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
+    init_weights = getattr(args, "init_weights", None)
+    if init_weights is not None and args.resume is not None:
+        raise ValueError("--init-weights and --resume cannot be combined")
     device = resolve_device(cfg["train"]["device"])
     train_ds, val_ds = build_datasets(cfg, args.limit_train, args.limit_val)
     raster_manifest = cfg["data"].get("raster_manifest")
@@ -225,6 +242,17 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
              snapshot.read_bytes() != Path(raster_manifest).read_bytes())) or
                 (not raster_manifest and snapshot.exists())):
             raise ValueError("Raster dataset changed or lacks a snapshot; start a new run")
+
+    from .model import build_model
+    model = build_model(
+        encoder_name=cfg["model"]["encoder_name"],
+        encoder_weights=None if init_weights is not None or args.resume is not None
+        else cfg["model"]["encoder_weights"],
+    ).to(device)
+    initialization = None
+    if init_weights is not None:
+        from .checkpoint import initialize_training_weights
+        initialization = initialize_training_weights(model, init_weights)
 
     # Resume-vs-fresh-run setup. On resume we reuse the original run dir so
     # logs and metrics.csv accumulate; otherwise we make a new timestamped one.
@@ -238,6 +266,10 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
 
     log = Tee(run_dir / "train.log")
     log(f"device: {device}   run dir: {run_dir}")
+    if initialization is not None:
+        (run_dir / "initialization.json").write_text(
+            json.dumps(initialization, indent=2) + "\n", encoding="utf-8")
+        log(f"initial weights SHA-256: {initialization['sha256']}; new optimizer and epoch counter")
 
     if raster_manifest:
         snapshot = run_dir / "raster_masks.json"
@@ -255,11 +287,6 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     train_loader = DataLoader(train_ds, shuffle=True, **loader_kwargs)
     val_loader = DataLoader(val_ds, shuffle=False, **loader_kwargs)
 
-    from .model import build_model
-    model = build_model(
-        encoder_name=cfg["model"]["encoder_name"],
-        encoder_weights=cfg["model"]["encoder_weights"],
-    ).to(device)
     log(f"params: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M")
 
     loss_fn = nn.CrossEntropyLoss(ignore_index=IGNORE_ID)
@@ -358,7 +385,12 @@ def main() -> None:
                    help="validate train/val pairs without creating a model or training run")
     p.add_argument("--check-data-per-source", action="store_true",
                    help="with --check-data, cap each SVG/raster source separately so both are checked")
-    p.add_argument(
+    weights = p.add_mutually_exclusive_group()
+    weights.add_argument("--init-weights", type=Path,
+                         help="start a new experiment from .safetensors, with a fresh optimizer")
+    p.add_argument("--check-init-weights", action="store_true",
+                   help="validate --init-weights against the configured model without creating a run")
+    weights.add_argument(
         "--resume", type=Path, default=None,
         help="path to a checkpoint (last.pt / best.pt / epoch_NN.pt). "
              "Loads model+optimizer+epoch and continues into the same run dir.",
@@ -366,11 +398,20 @@ def main() -> None:
     args = p.parse_args()
     if args.check_data_per_source and not args.check_data:
         p.error("--check-data-per-source requires --check-data")
+    if args.check_init_weights and (args.init_weights is None or args.check_data):
+        p.error("--check-init-weights requires --init-weights and cannot be combined with --check-data")
+    if args.check_data and (args.init_weights is not None or args.resume is not None):
+        p.error("--check-data does not load weights; use --check-init-weights separately")
 
     with open(args.config, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     if args.check_data:
         check_data(cfg, args)
+    elif args.check_init_weights:
+        from .checkpoint import initialize_training_weights
+        from .model import build_model
+        model = build_model(encoder_name=cfg["model"]["encoder_name"], encoder_weights=None)
+        print(json.dumps(initialize_training_weights(model, args.init_weights), indent=2))
     else:
         train(cfg, args)
 
