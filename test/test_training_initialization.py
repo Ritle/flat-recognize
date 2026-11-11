@@ -68,6 +68,7 @@ class WeightInitializationTests(unittest.TestCase):
         fixture.setUp()
         self.addCleanup(fixture.doCleanups)
         cfg = fixture.cfg()
+        cfg["train"]["seed"] = 42
         cfg["model"]["encoder_weights"] = "imagenet"
         config = fixture.root / "config.yaml"
         config.write_text(yaml.safe_dump(cfg), encoding="utf-8")
@@ -83,6 +84,7 @@ class WeightInitializationTests(unittest.TestCase):
         receipt = json.loads((run / "initialization.json").read_text())
         checkpoint = torch.load(run / "last.pt", map_location="cpu", weights_only=False)
         self.assertEqual(checkpoint["epoch"], 1)
+        self.assertIn("configured seed: 42", (run / "train.log").read_text())
         self.assertEqual(receipt["sha256"], digest)
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), digest)
         self.assertFalse(torch.equal(target.weight, load_file(self.path)["weight"]))

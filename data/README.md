@@ -93,7 +93,9 @@ Active mixed config:
 `output/training_annotations/finetune-ready-20261110/finetune-cpu.yaml`.
 It selects these lists with `data.strict_svg: true` and totals 4,187 train / 402 val.
 The eight-example mixed data preflight and real starting-weight compatibility
-check passed on CPU; real-model training has not started.
+check passed on CPU. A small CPU training pilot has now completed; its candidate
+failed the new-door/window improvement checks and has not replaced serving weights.
+See [pilot results](../docs/TRAINING_PILOT.md).
 See [training preflight instructions](../docs/TRAINING_PREFLIGHT.md) for repeatable
 audit, curation and initialization commands.
 

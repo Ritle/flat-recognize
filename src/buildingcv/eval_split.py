@@ -76,7 +76,11 @@ def evaluate_checkpoint(cfg_path, ckpt_path, output, *, split="val", source="all
     model.load_state_dict(state, strict=True)
     loader = DataLoader(dataset, batch_size=cfg["optim"]["batch_size"], shuffle=False,
                         num_workers=cfg["data"]["num_workers"], pin_memory=device.type == "cuda")
-    metrics = evaluate(model, loader, nn.CrossEntropyLoss(ignore_index=IGNORE_ID), device)
+    def progress(done, total):
+        if done % 20 == 0 or done == total:
+            print(f"  {split}/{source}: batch {done}/{total}", flush=True)
+
+    metrics = evaluate(model, loader, nn.CrossEntropyLoss(ignore_index=IGNORE_ID), device, progress=progress)
     if sha256(ckpt_path) != digest:
         raise ValueError("Checkpoint changed during evaluation")
     from . import train, data, raster_data, svg_to_mask, svg_render, model as model_module

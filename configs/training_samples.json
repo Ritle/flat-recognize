@@ -188,7 +188,7 @@
     ],
     "candidate_config": "output/training_annotations/finetune-ready-20261110/finetune-cpu.yaml",
     "working_weights_unchanged": true,
-    "training_started": false,
+    "training_started": true,
     "initial_baseline": {
       "date": "2026-11-11",
       "summary": "output/training_annotations/baseline-20261111/summary.json",
@@ -197,6 +197,22 @@
       "raster_val_samples": 2,
       "raster_val_miou": 0.27069491520524025,
       "test_evaluated": false
+    },
+    "pilot": {
+      "date": "2026-11-11",
+      "status": "rejected_no_opening_improvement",
+      "config": "output/training_annotations/pilot-20261111/config.yaml",
+      "run": "output/training_annotations/pilot-20261111/runs/2026-11-11_12-40-18_878915",
+      "comparison": "output/training_annotations/pilot-20261111/comparison.json",
+      "seed": 42,
+      "epochs": 1,
+      "optimizer_steps": 17,
+      "train_samples": 34,
+      "val_samples": 402,
+      "base_val_miou": 0.9830662906169891,
+      "raster_val_miou": 0.27160800620913506,
+      "production_weights_replaced": false,
+      "test_used": false
     }
   }
 }

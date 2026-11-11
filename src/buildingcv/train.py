@@ -6,6 +6,7 @@ import argparse
 from bisect import bisect_right
 import hashlib
 import json
+import random
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -140,7 +141,7 @@ def check_data(cfg, args):
 
 
 @torch.no_grad()
-def evaluate(model, loader, loss_fn, device) -> dict[str, Any]:
+def evaluate(model, loader, loss_fn, device, *, progress=None) -> dict[str, Any]:
     """Run validation and return loss, pixel accuracy, and per-class IoU.
 
     IoU per class is computed from accumulated TP / FP / FN counts across the
@@ -158,7 +159,7 @@ def evaluate(model, loader, loss_fn, device) -> dict[str, Any]:
     fp = torch.zeros(NUM_CLASSES, dtype=torch.long, device=device)
     fn = torch.zeros(NUM_CLASSES, dtype=torch.long, device=device)
 
-    for images, masks in loader:
+    for batch_index, (images, masks) in enumerate(loader, start=1):
         images = images.to(device, non_blocking=True)
         masks = masks.to(device, non_blocking=True)
         valid = masks != IGNORE_ID
@@ -178,6 +179,8 @@ def evaluate(model, loader, loss_fn, device) -> dict[str, Any]:
             tp[c] += (pred_c & true_c).sum()
             fp[c] += (pred_c & ~true_c).sum()
             fn[c] += (~pred_c & true_c).sum()
+        if progress is not None:
+            progress(batch_index, len(loader))
 
     denom = (tp + fp + fn).clamp(min=1).float()
     iou = (tp.float() / denom).cpu().tolist()
@@ -233,6 +236,15 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
     init_weights = getattr(args, "init_weights", None)
     if init_weights is not None and args.resume is not None:
         raise ValueError("--init-weights and --resume cannot be combined")
+    seed = cfg["train"].get("seed")
+    if seed is not None:
+        if type(seed) is not int or not 0 <= seed < 2**32:
+            raise ValueError("Training seed must be an integer in [0, 2**32)")
+        if args.resume is None:
+            import numpy as np
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
     device = resolve_device(cfg["train"]["device"])
     train_ds, val_ds = build_datasets(cfg, args.limit_train, args.limit_val)
     raster_manifest = cfg["data"].get("raster_manifest")
@@ -266,6 +278,8 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
 
     log = Tee(run_dir / "train.log")
     log(f"device: {device}   run dir: {run_dir}")
+    if seed is not None:
+        log(f"configured seed: {seed}; RNG seeded for fresh runs only")
     if initialization is not None:
         (run_dir / "initialization.json").write_text(
             json.dumps(initialization, indent=2) + "\n", encoding="utf-8")
@@ -338,7 +352,11 @@ def train(cfg: dict[str, Any], args: argparse.Namespace) -> None:
 
         train_loss_avg = epoch_loss_sum / len(train_loader)
 
-        metrics = evaluate(model, val_loader, loss_fn, device)
+        def progress(done, total):
+            if done % 20 == 0 or done == total:
+                log(f"  validation batch {done}/{total}")
+
+        metrics = evaluate(model, val_loader, loss_fn, device, progress=progress)
         log(
             f"epoch {epoch} done — train loss {train_loss_avg:.4f}   "
             f"val loss {metrics['loss']:.4f}   "
