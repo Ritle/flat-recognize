@@ -13,7 +13,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from .labels import FLOOR_ID
-from .svg_render import render_input_png
+from .svg_render import SVG_INPUT_MODES, render_input_png
 from .svg_to_mask import svg_to_mask
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -53,6 +53,8 @@ class CubiCasaDataset(Dataset):
             stretches non-square plans.
         split_dir: optional directory containing derived train/val/test lists;
             images and SVG annotations still come from data_dir.
+        input_mode: structural (historical default) or full visible SVG scene.
+            Full mode never substitutes another sample after a loading failure.
 
     Each item:
         image: float32 tensor of shape (3, H, W). Channel-first, in [0, 1] or
@@ -68,8 +70,12 @@ class CubiCasaDataset(Dataset):
         normalize: bool = True,
         letterbox: bool = False,
         split_dir: str | Path | None = None,
+        input_mode: str = "structural",
     ) -> None:
         super().__init__()
+        if input_mode not in SVG_INPUT_MODES:
+            raise ValueError(f"Unknown SVG input mode: {input_mode}")
+        self.input_mode = input_mode
         self.data_dir = Path(data_dir)
         self.split = split
         self.size = size  # (H, W)
@@ -94,6 +100,8 @@ class CubiCasaDataset(Dataset):
         return self._load(idx)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.input_mode == "full":
+            return self.load_strict(idx)
         n = len(self.samples)
         for offset in range(n):
             i = (idx + offset) % n
@@ -121,7 +129,7 @@ class CubiCasaDataset(Dataset):
         else:
             inner_w, inner_h = W, H
 
-        png_bytes = render_input_png(svg_path, out_size=(inner_w, inner_h))
+        png_bytes = render_input_png(svg_path, out_size=(inner_w, inner_h), input_mode=self.input_mode)
         img = np.array(Image.open(BytesIO(png_bytes)).convert("RGB"))
         mask = svg_to_mask(svg_path, size=(inner_w, inner_h))
 

@@ -99,6 +99,26 @@ See [pilot results](../docs/TRAINING_PILOT.md).
 See [training preflight instructions](../docs/TRAINING_PREFLIGHT.md) for repeatable
 audit, curation and initialization commands.
 
+## Full visible SVG scenes
+
+`data.svg_input_mode: full` preserves visible furniture, text and dimensions;
+the historical `structural` mode remains the default. Structural masks and
+coordinates are unchanged. Full-scene loading never substitutes failed samples.
+
+All 5,000 SVGs were audited in full mode: 4,989 passed and the same 11 failed.
+Lists in `output/training_annotations/cubicasa-full-scene-checked-20261111/`
+retain 4,185 base train / 400 val / 400 test entries, byte-identical to the
+prior checked lists. Provenance now records the audited input mode.
+The mixed config is `output/training_annotations/full-scene-ready-20261111/config.yaml`.
+
+Initial weights evaluated on the complete 400-image full-scene validation split
+give mean IoU 0.916778, versus 0.983232 on structural inputs. Door IoU falls
+from 0.968442 to 0.734716. Per-class true/false positive and false negative
+pixel counts and diagnostic overlays are saved with the new baseline.
+A paired 34-image pilot is prepared with the same seed and sample IDs as the
+first pilot; training in full mode has not started and serving weights are unchanged.
+See [full-scene experiment instructions and results](../docs/FULL_SCENE_TRAINING.md).
+
 Expected layout after extraction:
 
 ```

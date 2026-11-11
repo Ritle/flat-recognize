@@ -12,16 +12,17 @@ import torch
 
 from buildingcv.data import CubiCasaDataset
 from buildingcv.labels import NUM_CLASSES
+from buildingcv.svg_render import SVG_INPUT_MODES
 
 ROOT = Path(__file__).resolve().parent.parent
 _DATASETS = {}
 
 
-def initialize_worker(dataset, size):
+def initialize_worker(dataset, size, input_mode="structural"):
     torch.set_num_threads(1)
     for split in ("train", "val", "test"):
         _DATASETS[split] = CubiCasaDataset(dataset, split, size=tuple(size),
-                                         normalize=True, letterbox=True)
+                                         normalize=True, letterbox=True, input_mode=input_mode)
 
 
 def inspect_sample(job):
@@ -55,13 +56,15 @@ def write_json(path, payload):
     temporary.replace(path)
 
 
-def audit(dataset, output, *, size=(512, 512), workers=2, cache=None):
+def audit(dataset, output, *, size=(512, 512), workers=2, cache=None, input_mode="structural"):
     from buildingcv import data, svg_render, svg_to_mask, labels
     dataset, output = Path(dataset).resolve(), Path(output)
     if output.exists():
         raise FileExistsError(output)
     if workers < 1 or len(size) != 2 or any(type(v) is not int or v <= 0 for v in size):
         raise ValueError("Positive worker count and image dimensions required")
+    if input_mode not in SVG_INPUT_MODES:
+        raise ValueError(f"Unknown SVG input mode: {input_mode}")
     # Check the native runtime once; do not turn one missing dependency into 5000 failures.
     import cairosvg
     import cairocffi
@@ -70,22 +73,26 @@ def audit(dataset, output, *, size=(512, 512), workers=2, cache=None):
         code_hash.update(Path(module.__file__).read_bytes())
     code_hash.update(Path(__file__).read_bytes())
     settings = {"dataset": str(dataset), "size": list(size), "loader_sha256": code_hash.hexdigest(),
-                "cairo": cairocffi.cairo_version_string(), "cairosvg": cairosvg.__version__}
+                "cairo": cairocffi.cairo_version_string(), "cairosvg": cairosvg.__version__,
+                "input_mode": input_mode}
     saved = json.loads(Path(cache).read_text(encoding="utf-8")) if cache and Path(cache).exists() else {}
     records = saved.get("records", {}) if saved.get("settings") == settings else {}
-    jobs, finished = [], {}
+    jobs, finished, seen = [], {}, set()
     split_hashes = {}
-    for split in ("train", "val", "test"):
+    # Audit validation first so unusable held-out samples are found early.
+    for split in ("val", "train", "test"):
         split_hashes[split] = hashlib.sha256((dataset / f"{split}.txt").read_bytes()).hexdigest()
-        ds = CubiCasaDataset(dataset, split, size=tuple(size), normalize=True, letterbox=True)
+        ds = CubiCasaDataset(dataset, split, size=tuple(size), normalize=True, letterbox=True,
+                            input_mode=input_mode)
         for index, sample in enumerate(ds.samples):
             path = (dataset / sample / "model.svg").resolve()
             if not path.is_relative_to(dataset):
                 raise ValueError("SVG path escapes dataset")
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             key = f"{split}:{sample}"
-            if key in finished or any(key == f"{j[0]}:{j[2]}" for j in jobs):
+            if key in seen:
                 raise ValueError("Duplicate SVG path in split")
+            seen.add(key)
             old = records.get(key)
             if old and old.get("svg_sha256") == digest:
                 finished[key] = old
@@ -94,7 +101,7 @@ def audit(dataset, output, *, size=(512, 512), workers=2, cache=None):
     total = len(jobs) + len(finished)
     print(f"Strict audit: {total} samples; {len(finished)} cached; {len(jobs)} to render at {size}.", flush=True)
     with ProcessPoolExecutor(max_workers=workers, initializer=initialize_worker,
-                             initargs=(str(dataset), tuple(size))) as pool:
+                             initargs=(str(dataset), tuple(size), input_mode)) as pool:
         for record in pool.map(inspect_sample, jobs, chunksize=4):
             finished[f"{record['split']}:{record['sample']}"] = record
             if record["status"] != "ok":
@@ -121,9 +128,10 @@ def main():
     parser.add_argument("--cache", type=Path)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--size", type=int, default=512)
+    parser.add_argument("--input-mode", choices=SVG_INPUT_MODES, default="structural")
     args = parser.parse_args()
     report = audit(args.dataset, args.output, size=(args.size, args.size),
-                   workers=args.workers, cache=args.cache)
+                   workers=args.workers, cache=args.cache, input_mode=args.input_mode)
     return int(bool(report["failures"]))
 
 

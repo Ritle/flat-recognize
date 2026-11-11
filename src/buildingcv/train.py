@@ -96,7 +96,8 @@ def build_datasets(cfg, limit_train=None, limit_val=None, *, limits_per_source=F
             raise ValueError("Dataset debug limits must be positive integers")
         parts = []
         if data.get("include_cubicasa", True):
-            svg = CubiCasaDataset(data["data_dir"], split, split_dir=data.get("split_dir"), **kwargs)
+            svg = CubiCasaDataset(data["data_dir"], split, split_dir=data.get("split_dir"),
+                                 input_mode=data.get("svg_input_mode", "structural"), **kwargs)
             parts.append(StrictSvgDataset(svg) if data.get("strict_svg", False) else svg)
         if raster_manifest:
             from .raster_data import RasterMaskDataset
@@ -191,6 +192,8 @@ def evaluate(model, loader, loss_fn, device, *, progress=None) -> dict[str, Any]
         "pixel_acc": total_correct / total_pixels,
         "iou": iou,
         "miou": sum(iou) / len(iou),
+        "confusion": {name: {"tp": int(tp[index]), "fp": int(fp[index]), "fn": int(fn[index])}
+                      for index, name in enumerate(CLASS_NAMES)},
     }
 
 

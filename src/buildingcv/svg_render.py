@@ -1,15 +1,8 @@
-"""Render a CubiCasa SVG to an RGB image, dropping non-structural content.
+"""Render aligned CubiCasa inputs with an explicit choice of scene content.
 
-The mask side of the dataset (svg_to_mask.py) only labels walls/doors/windows;
-everything else collapses to `floor`. But cairosvg renders *all* SVG content
-into the input image — furniture, fixtures, dimension lines, drains, text —
-so the model is shown furniture and told it's floor. That input/label
-mismatch is what's currently leaking onto wall predictions: thin black
-furniture lines look like walls.
-
-This module strips the non-structural subtrees *before* rendering, so the
-input image carries only walls + doors + windows + open floor, matching the
-mask's semantics.
+The default structural view preserves historical training behavior. The opt-in
+full view keeps furniture and annotations as potential negative examples while
+the segmentation mask still labels only architectural structure.
 """
 
 from __future__ import annotations
@@ -22,6 +15,8 @@ from pathlib import Path
 # cairosvg accepts both, but the default-namespace form is what the original
 # files use and it keeps debug-saved SVGs human-readable.
 ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+SVG_INPUT_MODES = ("structural", "full")
 
 # Class tokens (space-separated values of the SVG `class` attribute) that
 # identify subtrees the model should not see in the input image. A node is
@@ -76,18 +71,21 @@ def filtered_svg_bytes(svg_path: str | Path) -> bytes:
 _IMAGENET_MEAN_RGB = "rgb(124, 116, 104)"
 
 
-def render_input_png(svg_path: str | Path, out_size: tuple[int, int]) -> bytes:
-    """Render the structural-only SVG to PNG bytes at (W, H).
+def render_input_png(svg_path: str | Path, out_size: tuple[int, int], *,
+                     input_mode: str = "structural") -> bytes:
+    """Render a structural or full visible scene at (W, H).
 
     Output is pixel-aligned with `svg_to_mask.svg_to_mask` at the same size,
     so the (image, mask) pair stays consistent.
     """
+    if input_mode not in SVG_INPUT_MODES:
+        raise ValueError(f"Unknown SVG input mode: {input_mode}")
     # Native Cairo is needed for SVG rendering, not for raster inference.
     import cairosvg
 
     W, H = out_size
     return cairosvg.svg2png(
-        bytestring=filtered_svg_bytes(svg_path),
+        bytestring=filtered_svg_bytes(svg_path) if input_mode == "structural" else Path(svg_path).read_bytes(),
         output_width=W,
         output_height=H,
         background_color=_IMAGENET_MEAN_RGB,

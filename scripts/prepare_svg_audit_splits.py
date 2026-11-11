@@ -46,6 +46,7 @@ def prepare(report_path, source_splits, output):
     for split in ("val", "test"):
         (output / f"{split}.txt").write_bytes((source_splits / f"{split}.txt").read_bytes())
     result = {"version": 1, "audit_sha256": hashlib.sha256(report_path.read_bytes()).hexdigest(),
+              "input_mode": report["settings"].get("input_mode", "structural"),
               "source_split_sha256": source_hashes, "excluded_train_samples": invalid["train"],
               "known_test_failures_retained": invalid["test"],
               "counts": {"train": len(kept), "val": len(selected["val"]), "test": len(selected["test"])},

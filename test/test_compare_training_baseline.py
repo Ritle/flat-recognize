@@ -44,7 +44,7 @@ class CompareTrainingBaselineTests(unittest.TestCase):
         self.assertIn("new_window_iou_did_not_improve", result["failed_checks"])
 
     def test_changed_cohort_preprocessing_or_partial_evaluation_cannot_be_compared(self):
-        for change in ("cohort", "pixels", "resize", "limited", "weights"):
+        for change in ("cohort", "pixels", "resize", "svg_mode", "limited", "weights"):
             after = copy.deepcopy(self.after)
             if change == "cohort":
                 after["raster"]["sources"][0]["samples"] = ["different-mask-hash"]
@@ -54,6 +54,8 @@ class CompareTrainingBaselineTests(unittest.TestCase):
                 after["svg"]["config"]["data"]["image_size"] = [384, 384]
             elif change == "limited":
                 after["svg"]["limit_per_source"] = 2
+            elif change == "svg_mode":
+                after["svg"]["config"]["data"]["svg_input_mode"] = "full"
             else:
                 after["raster"]["checkpoint_sha256"] = "other-candidate"
             with self.subTest(change=change), self.assertRaises(ValueError):

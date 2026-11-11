@@ -213,6 +213,25 @@
       "raster_val_miou": 0.27160800620913506,
       "production_weights_replaced": false,
       "test_used": false
+    },
+    "full_scene": {
+      "date": "2026-11-11",
+      "status": "audited_baseline_measured",
+      "input_mode": "full",
+      "svg_audit": "output/training_annotations/svg-full-scene-audit-20261111/report.json",
+      "base_svg_valid": 4989,
+      "base_svg_failed": 11,
+      "new_svg_failures": 0,
+      "split_dir": "output/training_annotations/cubicasa-full-scene-checked-20261111",
+      "config": "output/training_annotations/full-scene-ready-20261111/config.yaml",
+      "baseline": "output/training_annotations/full-scene-baseline-20261111/summary.json",
+      "val_samples": 400,
+      "val_miou": 0.9167780131101608,
+      "val_door_iou": 0.7347157001495361,
+      "pilot": "output/training_annotations/pilot-full-scene-20261111",
+      "training_started": false,
+      "production_weights_replaced": false,
+      "test_evaluated": false
     }
   }
 }

@@ -38,6 +38,9 @@ def compare(baseline, candidate, rules):
         for key in ("image_size", "normalize", "letterbox"):
             if before["config"]["data"].get(key) != after["config"]["data"].get(key):
                 raise ValueError(f"Input preprocessing differs: {key}")
+        if (source == "svg" and before["config"]["data"].get("svg_input_mode", "structural") !=
+                after["config"]["data"].get("svg_input_mode", "structural")):
+            raise ValueError("SVG input mode differs")
         if before["config"]["model"]["encoder_name"] != after["config"]["model"]["encoder_name"]:
             raise ValueError("Model architecture differs")
         if before["config"]["optim"]["batch_size"] != after["config"]["optim"]["batch_size"]:

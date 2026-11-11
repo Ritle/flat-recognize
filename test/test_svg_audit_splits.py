@@ -41,6 +41,7 @@ class SvgAuditSplitTests(unittest.TestCase):
         result = prepare(self.report, self.data, out)
         self.assertEqual(result["excluded_train_samples"], ["bad"])
         self.assertEqual(result["known_test_failures_retained"], ["test"])
+        self.assertEqual(result["input_mode"], "structural")
         self.assertEqual(result["counts"], {"train": 1, "val": 1, "test": 1})
         self.assertEqual((out / "val.txt").read_bytes(), before["val"])
         self.assertEqual((out / "test.txt").read_bytes(), before["test"])

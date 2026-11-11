@@ -113,6 +113,8 @@ class PartialRasterTests(unittest.TestCase):
         self.assertEqual(result["iou"], [1, 1, 1, 1])
         self.assertEqual(result["evaluated_pixels"], 4)
         self.assertEqual(result["ignored_pixels"], 2)
+        self.assertTrue(all(row == {"tp": 1, "fp": 0, "fn": 0}
+                            for row in result["confusion"].values()))
         empty = DataLoader(TensorDataset(logits, torch.full_like(truth, IGNORE_ID)))
         with self.assertRaisesRegex(ValueError, "no reviewed pixels"):
             evaluate(torch.nn.Identity(), empty, torch.nn.CrossEntropyLoss(ignore_index=IGNORE_ID),
@@ -154,6 +156,9 @@ class PartialRasterTests(unittest.TestCase):
         self.assertEqual(results[0]["evaluated_pixels"], 5)
         self.assertEqual(results[0]["ignored_pixels"], 7)
         self.assertEqual(results[0]["pixel_acc"], results[1]["pixel_acc"])
+        self.assertEqual(results[0]["confusion"], results[1]["confusion"])
+        self.assertEqual(results[0]["confusion"]["floor"], {"tp": 1, "fp": 3, "fn": 1})
+        self.assertEqual(results[0]["confusion"]["wall"], {"tp": 0, "fp": 1, "fn": 1})
 
 
 if __name__ == "__main__":

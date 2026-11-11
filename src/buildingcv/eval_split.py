@@ -35,7 +35,8 @@ def evaluation_dataset(cfg, split, source="all", limit=None):
                   letterbox=data.get("letterbox", False))
     parts, receipts = [], []
     if source in ("all", "svg") and data.get("include_cubicasa", True):
-        svg = CubiCasaDataset(data["data_dir"], split, split_dir=data.get("split_dir"), **kwargs)
+        mode = data.get("svg_input_mode", "structural")
+        svg = CubiCasaDataset(data["data_dir"], split, split_dir=data.get("split_dir"), input_mode=mode, **kwargs)
         names = svg.samples[:limit] if limit is not None else svg.samples
         sample_hashes = [{"sample": name, "svg_sha256": sha256(svg.data_dir / name / "model.svg")}
                          for name in names]
@@ -44,6 +45,8 @@ def evaluation_dataset(cfg, split, source="all", limit=None):
         split_file = Path(data.get("split_dir") or data["data_dir"]) / f"{split}.txt"
         receipts.append({"source": "svg", "count": len(names), "samples": sample_hashes,
                          "split_sha256": sha256(split_file), "strict": True})
+        if mode != "structural":
+            receipts[-1]["input_mode"] = mode
     if source in ("all", "raster") and data.get("raster_manifest"):
         from .raster_data import RasterMaskDataset
         raster = RasterMaskDataset(data["raster_manifest"], split,
