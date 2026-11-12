@@ -1,5 +1,20 @@
 # Development Map
 
+> **Обновление 2026-11-12.** Этот файл подробно описывает базовую архитектуру и часть эволюции V2, но упрощённая схема ниже показывает V1. Актуальные стадии V2 (включая проверку кандидатов внешнего контура), статус реализации и CLI/API см. в [CURRENT_STATUS.md](CURRENT_STATUS.md), [PIPELINE_V2.md](PIPELINE_V2.md), [DEMO_API.md](DEMO_API.md). Отсутствие модуля на упрощённой схеме не означает его отсутствия в коде.
+
+### Актуальное дополнение: новые ответственности
+
+- scripts/recover_windows_topology_v2.py, filter_interior_windows_v2.py и reconcile_topology_windows_v2.py расширяют контроль окон в V2.
+- scripts/review_rooms.py, review_partitions.py, detect_exterior_enclosures_v2.py, review_exterior_enclosures.py обрабатывают ограниченный ручной review; внешние контуры только с подтверждением и проверкой результата.
+- scripts/audit_opening_bindings.py проверяет геометрические варианты привязок, не переносит неоднозначные проёмы без основания.
+- scripts/validate_recognition.py вызывается на нескольких стадиях pipeline, включая итоговый экспорт.
+- src/buildingcv/train.py, eval_split.py, configs/training_samples.json и scripts/compare_training_baseline.py формируют самостоятельный контур экспериментов с весами.
+- demo/app.py — raster API; server/main.py и viewer/ — отдельный SVG→3D путь.
+
+Ниже сохранён подробный исходный разбор границ модулей.
+
+
+
 `polygon_geometry.py` добавляет общий граф границ сложных комнат. V2 выбирает
 его автоматически; неподтверждённые границы блокируют экспорт до переноса
 проёмов. Детали: [POLYGON_GEOMETRY.md](POLYGON_GEOMETRY.md).

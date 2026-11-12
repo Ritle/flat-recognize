@@ -1,357 +1,67 @@
-# AGENTS.md
-
-## Назначение проекта
-
-`flat-recognize` — экспериментальный сервис распознавания растровых планировок квартир и преобразования результата в JSON-формат пользовательского приложения.
-
-Основная цель текущего MVP:
+# Правила разработки flat-recognize (для Codex и участников)
 
-```text
-PNG / JPG / WEBP
-        ↓
-структурное распознавание
-        ↓
-walls / rooms / doors / windows
-        ↓
-connectors / segments / areas / elements
-        ↓
-готовый project.json
-```
+Срез 12.11.2026. Перед работой прочитайте [README.md](README.md), [текущее состояние](docs/CURRENT_STATUS.md) и [карту модулей](docs/DEVELOPMENT_MAP.md). Не считать устаревшие списки задач доказательством отсутствия функции.
 
-Итоговый JSON уже успешно открывается в целевом приложении.
+## Цель и интеграционный контракт
 
-## Главные ограничения и принципы
+Вход: растровый PNG/JPG/WEBP. Выход: project.json целевого редактора с уровнями, connectors, segments, areas и elements (doorItem/windowItem). test/template.json и test/template_window.json — шаблоны совместимости. Не менять структуру полей, UUID-связей, привязки openings и материалы без отдельной задачи и тестов. В частности, materials[*].itemUuid должен совпадать с UUID созданного элемента.
 
-1. Не ломать уже работающий экспорт JSON. Формат `connectors / segments / areas / elements` — интеграционный контракт.
-2. CPU inference должен оставаться рабочим. GPU может поддерживаться дополнительно, но не становиться обязательным для MVP.
-3. Не переписывать рабочие этапы без необходимости. Сначала локализовать проблему по промежуточным JSON и overlay.
-4. Сохранять диагностические артефакты: segmentation overlay, classified openings overlay, room overlay, barrier mask, intermediate JSON.
-5. Не хранить в Git `.venv/`, `weights/`, `*.safetensors`, `output/`, `demo_jobs/`, пользовательские изображения и runtime logs.
-6. Не менять лицензионную стратегию без отдельной задачи. Сейчас существующие веса сохраняются для разработки и PoC.
-7. Не добавлять эвристику только ради одного изображения, если она ухудшает другие типы планировок.
+Сегментация и статистика по маскам — не доказательство корректного project.json. Изменения распознавания обязательно проверять сквозным экспортом, валидатором и регрессией.
 
-## Текущая архитектура
+## Что уже реализовано
 
-База — `floorplan-to-3d`:
-- ResNet34 + U-Net-style segmentation;
-- классы `floor`, `wall`, `door`, `window`;
-- CPU inference;
-- веса скачиваются отдельно и не хранятся в Git.
+- scripts/process_floorplan.py — единый CLI orchestrator; V1 по умолчанию, V2 включается --pipeline-v2.
+- scripts/predict_raster.py, classify_openings.py — модель и проверка кандидатов дверей/окон.
+- extract_rooms.py — V1; preprocess_v2.py, extract_rooms_v2.py, recover_windows_topology_v2.py, recover_openings_v2.py, filter_interior_windows_v2.py, reconcile_topology_windows_v2.py — V2 топология.
+- build_project_json.py, polygon_geometry.py, internal_wall_graph.py, add_openings.py, add_windows.py — геометрия и сериализация.
+- validate_recognition.py — обязательный gate для комнаты, геометрии, привязок, итогового проекта.
+- review_decisions.py, review_rooms.py, review_partitions.py, detect_exterior_enclosures_v2.py, review_exterior_enclosures.py — ручное подтверждение ограниченного набора спорных объектов с валидацией исходного изображения.
+- demo/app.py и demo/index.html — растровое demo; server/main.py и viewer/ — отдельный унаследованный SVG→3D сценарий.
+- src/buildingcv/ — обучение и inference; scripts/compare_training_baseline.py — протокол отбора кандидата весов.
 
-Основной код модели — `src/buildingcv/`.
+## Непереговорные ограничения
 
-## Текущий pipeline
+1. CPU обязателен для MVP. Не вводить зависимость от CUDA как условие запуска.
+2. V1 остаётся поведением по умолчанию; V2 — явный экспериментальный режим. Не менять default молча.
+3. Не обходить quality gate, не выдавать invalid за допустимый JSON и не путать quality/status с accuracy.
+4. Привязки дверей/окон должны ссылаться на реальный segment, быть геометрически допустимыми; общие вершины и границы помещений должны оставаться согласованными.
+5. Не создавать ложную архитектуру без подтверждения исходной маской/растром. При неоднозначности — вопрос пользователю или invalid, а не оптимистичный экспорт.
+6. Координаты V2 после preprocess/dual-pass должны соответствовать исходному изображению. --scale задаёт см/пиксель исходного растра; не утверждать физическую точность без калибровки.
+7. Не хранить .venv/, веса, output/, demo_jobs/, пользовательские примеры, модели, датасет и runtime-логи в Git.
+8. Не менять лицензионную стратегию и не заявлять коммерческую пригодность сторонних кодовых/датасетных/весовых артефактов без проверки прав.
+9. При изменениях модели не смешивать несвязанные переделки geometry, UI и serialization. Сначала локализовать сбой на промежуточных артефактах.
 
-### 1. `scripts/predict_raster.py`
+## Рабочий цикл
 
-Вход: PNG/JPG/WEBP.
+1. Установить тип проблемы: маска/ROI, классификация проёмов, топология помещений, геометрия, привязки, quality gate или API.
+2. Зафиксировать вход и воспроизводимую команду; проверить исходное изображение, overlay и промежуточные JSON.
+3. Добавить минимальный регрессионный тест для конкретной причины; избегать эвристики, улучшающей лишь один пример.
+4. Запустить тесты затронутого модуля и минимум clean-baseline обоих конвейеров.
+5. При изменении распознавания/геометрии прогнать весь манифест сложных случаев; не приписывать accuracy результатам без ground truth.
+6. Проверить результаты gate, экспортные поля, bindings и наличие/отсутствие ссылок для invalid в demo.
+7. Обновить [CURRENT_STATUS.md](docs/CURRENT_STATUS.md), соответствующий технический документ и roadmap, если поменялись подтверждённые возможности или приоритеты.
 
-Делает:
-- загрузку raster image;
-- aspect-preserving resize / letterbox;
-- нормализацию;
-- inference;
-- `argmax` mask;
-- polygon extraction;
-- возврат координат в исходное изображение;
-- фильтрацию opening-кандидатов;
-- диагностический overlay.
+Команды (требуют настроенной среды, весов и для регрессии локальных exmpls/):
 
-Структурный результат:
+~~~bash
+python -m unittest discover -s test -p "test_*.py"
+node --test test/demo_quality_ui.test.cjs
+python scripts/run_recognition_regression.py --case clean-baseline
+python scripts/run_recognition_regression.py --case clean-baseline --pipeline-v2
+python scripts/run_recognition_regression.py --pipeline-v2
+~~~
 
-```json
-{
-  "meta": {},
-  "walls": [],
-  "openings": []
-}
-```
+## Отбор новых весов
 
-Semantic class `door/window` от модели используется как дополнительный сигнал, а не как окончательная истина.
+- Разделять train/val/test на уровне семейств исходников, исключать дубликаты/утечки.
+- Новые растры могут иметь частичную разметку с ignored pixels (255): метрики считать только по размеченным пикселям.
+- Раздельно сравнивать structural SVG, full-scene SVG и новые растры; полнота дверей/окон важнее незначительного улучшения среднего IoU.
+- Хранить baseline, seed, manifest, хеш весов, конфигурацию и отчёты кандидата отдельно.
+- Не использовать test split для подбора; не заменять production/serving weights автоматически.
+- После допуска кандидат обязан пройти полный CPU pipeline, quality gate и контрольный эталон.
 
-### 2. `scripts/classify_openings.py`
+Первый смешанный пилот **отклонён**; full-scene pilot **подготовлен, не обучен** (срез 12.11.2026). Фактические цифры и протокол: [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md), [docs/TRAINING_PILOT.md](docs/TRAINING_PILOT.md), [docs/FULL_SCENE_TRAINING.md](docs/FULL_SCENE_TRAINING.md).
 
-Назначение:
+## Definition of Done
 
-```text
-openings → doors + windows
-```
-
-Текущий метод:
-- grayscale/Canny;
-- HoughLinesP;
-- поиск линии дверного полотна;
-- при наличии характерной геометрии → `door`;
-- иначе → `window`.
-
-На чистом regression-кейсе получено:
-
-```text
-5 doors
-6 windows
-```
-
-### 3. `scripts/extract_rooms.py`
-
-Текущий метод:
-1. barrier mask из walls;
-2. временное закрытие doors/windows;
-3. morphology для мелких разрывов;
-4. invert → free space;
-5. `connectedComponentsWithStats`;
-6. компоненты, касающиеся края изображения, считаются outside;
-7. остальные крупные компоненты считаются rooms;
-8. строятся room polygons.
-
-На чистом тесте:
-
-```text
-5 rooms
-```
-
-Известная слабость: если реальный проём остаётся незакрытым, interior free-space может соединиться с внешним фоном. Тогда текущая логика способна вернуть `rooms: 0`.
-
-### 4. `scripts/build_project_json.py`
-
-Назначение:
-
-```text
-rooms → project geometry
-```
-
-Создаёт:
-- `connectors`;
-- `adjacency`;
-- `segments`;
-- `areas`.
-
-Текущая версия лучше всего работает на ортогональных планировках.
-
-Базовые параметры:
-- wall height: 270 cm;
-- wall thickness: 20 cm;
-- scale: configurable.
-
-Полученный JSON уже успешно открывается в целевом приложении.
-
-### 5. `scripts/add_openings.py`
-
-Назначение:
-- найти ближайший segment для каждой двери;
-- вычислить position вдоль стены;
-- создать `doorItem`;
-- сформировать bindings для окон.
-
-Ключевые поля:
-- `wall.uuid`;
-- `wall.position`;
-- `size`;
-- `holeShape`;
-- `model`;
-- `scale`;
-- `materials`.
-
-Текущая поправка ширины двери:
-
-```text
-recognized_width × 1.12
-```
-
-Важный invariant:
-
-```text
-materials[*].itemUuid == door.uuid
-```
-
-При клонировании template нельзя оставлять `itemUuid` исходной шаблонной двери.
-
-### 6. `scripts/add_windows.py`
-
-Назначение:
-- использовать `window_bindings`;
-- клонировать реальный `windowItem` из template;
-- привязать окно к segment;
-- масштабировать width, holeShape, sill и model scale.
-
-### 7. `scripts/process_floorplan.py`
-
-Главный CLI orchestration layer.
-
-Целевая команда:
-
-```bash
-python scripts/process_floorplan.py path/to/floorplan.jpg
-```
-
-Pipeline:
-
-```text
-predict_raster
-    ↓
-classify_openings
-    ↓
-extract_rooms
-    ↓
-build_project_json
-    ↓
-add_openings
-    ↓
-add_windows
-    ↓
-final project.json
-```
-
-Не дублировать recognition-алгоритмы внутри `process_floorplan.py`.
-
-## Web demo
-
-### `demo/app.py`
-
-FastAPI endpoint:
-
-```http
-POST /api/recognize
-```
-
-Функции:
-- загрузка изображения;
-- запуск pipeline;
-- отдельный job;
-- статистика;
-- выдача JSON;
-- скачивание `project.json`;
-- diagnostic images.
-
-Runtime jobs:
-
-```text
-demo_jobs/<job-id>/
-```
-
-### `demo/index.html`
-
-UI:
-- drag & drop;
-- JPG/PNG/WEBP;
-- статистика rooms/walls/doors/windows;
-- overlays;
-- JSON preview;
-- download `project.json`.
-
-На текущем сервере Apache использует `8080`, поэтому dev-demo запускалась на `8081`.
-
-## Templates
-
-Используются как референс сериализации:
-
-```text
-test/template.json
-test/template_window.json
-```
-
-Не удалять их без замены на программно определённую schema/defaults.
-
-## Подтверждённый regression baseline
-
-На чистом тестовом плане:
-
-```text
-rooms:   5
-doors:   5
-windows: 6
-```
-
-Стены/комнаты/двери/окна импортированы в целевое приложение.
-
-Любое изменение распознавания не должно ломать этот кейс.
-
-## Известные проблемы
-
-### P0 — room leakage
-
-Типичная цепочка:
-
-```text
-незакрытый проём
-→ interior free space соединяется с outside
-→ component касается image border
-→ component удаляется
-→ rooms = 0
-→ build_project_json.py: No rooms in source JSON
-```
-
-Исправлять сначала room extraction/preprocessing, а не маскировать ошибку в `build_project_json.py`.
-
-### P0 — domain shift
-
-Текущая модель хуже работает на:
-- мебели;
-- размерных линиях;
-- цифрах и подписях;
-- логотипах;
-- watermark;
-- цветных/серых стенах;
-- штриховках;
-- сканах;
-- JPEG artifacts;
-- разных стилях дверей/окон;
-- больших полях вокруг плана.
-
-Не решать это исключительно удалением тонких линий OpenCV: настоящие архитектурные элементы тоже могут быть тонкими.
-
-### P1 — geometry assumptions
-
-Отдельно тестировать:
-- L-shaped rooms;
-- non-rectangular rooms;
-- диагональные стены;
-- variable wall thickness;
-- сложные junctions.
-
-### P1 — absolute scale
-
-Raster не гарантирует physical scale. Поддерживать:
-- явный `--scale`;
-- calibration по wall thickness;
-- в будущем — calibration по известной длине/размерным надписям.
-
-## Следующий приоритет
-
-```text
-1. robust preprocessing / ROI
-2. extract_rooms_v2
-3. quality gate
-4. dual-pass inference
-5. regression dataset
-6. synthetic augmentation
-7. fine-tune
-8. benchmark альтернативных моделей
-```
-
-Подробности — `docs/RECOGNITION_ROADMAP.md`.
-
-## Regression workflow для Codex
-
-Перед изменением recognition:
-1. определить failing stage;
-2. изучить intermediate JSON;
-3. изучить overlay;
-4. сделать минимальное изменение;
-5. прогнать clean regression case;
-6. прогнать несколько сложных планов;
-7. проверить итоговый JSON в приложении;
-8. только затем менять следующий слой.
-
-Не смешивать в одном изменении model inference + room extraction + target JSON schema, если это не необходимо.
-
-## Definition of Done для MVP recognition
-
-- пользователь загружает JPG/PNG/WEBP;
-- типичные поля/логотипы не ломают crop;
-- furniture/text редко превращаются в walls;
-- room extraction не падает из-за одного незакрытого doorway;
-- каждый opening привязан к существующему segment;
-- final JSON валиден;
-- final JSON открывается в целевом приложении;
-- сервис сообщает о низкой уверенности вместо молчаливой генерации явно плохого проекта;
-- CPU deployment остаётся возможным.
+Изменение не считается завершённым, пока воспроизводимые тесты не проходят, исходная совместимость не нарушена, проблемы на сложных планах не маскируются, invalid-экспорт заблокирован и документация отражает **измеренное**, а не предполагаемое улучшение.
