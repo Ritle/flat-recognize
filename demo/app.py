@@ -16,12 +16,25 @@ from PIL import Image, ImageDraw
 from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
 from scripts.review_rooms import ROOM_CHOICES, room_questions
 from scripts.review_partitions import PARTITION_CHOICES, partition_questions
+from scripts.review_exterior_enclosures import EXTERIOR_CHOICES, exterior_questions
 
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "demo"
 JOBS_DIR = ROOT / "demo_jobs"
 OUTPUT_DIR = ROOT / "output"
+
+
+def valid_review_answer(answer, pipeline_v2):
+    if not isinstance(answer, dict) or not isinstance(answer.get("fingerprint"), str):
+        return False
+    choices = {"opening_id": CHOICES, "room_id": ROOM_CHOICES}
+    if pipeline_v2:
+        choices.update(partition_id=PARTITION_CHOICES, exterior_id=EXTERIOR_CHOICES)
+    keys = [key for key in ("opening_id", "room_id", "partition_id", "exterior_id") if key in answer]
+    return (len(keys) == 1 and keys[0] in choices and type(answer[keys[0]]) is int
+            and isinstance(answer.get("choice"), str)
+            and answer.get("choice") in choices[keys[0]])
 
 PIPELINE = ROOT / "scripts" / "process_floorplan.py"
 
@@ -201,18 +214,7 @@ async def recognize(
         if (not isinstance(review_payload, dict) or review_payload.get("version") != 1
                 or review_payload.get("image_sha256") != source_hash
                 or not isinstance(answers, list) or len(answers) > MAX_ANSWERS
-                or any(not isinstance(answer, dict)
-                       or not ((isinstance(answer.get("opening_id"), int)
-                                and "room_id" not in answer and "partition_id" not in answer
-                                and answer.get("choice") in CHOICES)
-                               or (isinstance(answer.get("room_id"), int)
-                                   and "opening_id" not in answer and "partition_id" not in answer
-                                   and answer.get("choice") in ROOM_CHOICES)
-                               or (pipeline_v2 and isinstance(answer.get("partition_id"), int)
-                                   and "opening_id" not in answer and "room_id" not in answer
-                                   and answer.get("choice") in PARTITION_CHOICES))
-                       or not isinstance(answer.get("fingerprint"), str)
-                       for answer in answers)):
+                or any(not valid_review_answer(answer, pipeline_v2) for answer in answers)):
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
         applied_decisions = answers
     has_opening_answers = any("opening_id" in answer for answer in applied_decisions)
@@ -349,7 +351,7 @@ async def recognize(
     shutil.copy2(classified_path, job_dir / "classified.json")
     review_questions = (make_review_questions(classified_data, quality, source_hash)
                         + room_questions(room_data, source_hash)
-                        + (partition_questions(room_data, source_hash) if pipeline_v2 else []))[:MAX_ANSWERS]
+                        + (partition_questions(room_data, source_hash) if pipeline_v2 else []))
     binding_path = OUTPUT_DIR / f"{job_id}_opening_bindings.json"
     if binding_path.exists():
         shutil.copy2(binding_path, job_dir / "opening_bindings.json")
@@ -358,7 +360,11 @@ async def recognize(
     exterior_path = OUTPUT_DIR / f"{job_id}_exterior_enclosures.json"
     if pipeline_v2 and exterior_path.exists():
         shutil.copy2(exterior_path, job_dir / "exterior_enclosures.json")
-        exterior_candidates = json.loads(exterior_path.read_text(encoding="utf-8")).get("candidates", [])
+        exterior_report = json.loads(exterior_path.read_text(encoding="utf-8"))
+        exterior_candidates = exterior_report.get("candidates", [])
+        review_questions += exterior_questions(exterior_report, source_hash,
+            [room_data.get("meta", {}).get("width"), room_data.get("meta", {}).get("height")])
+    review_questions = review_questions[:MAX_ANSWERS]
     opening_preflight = None
     if preflight_path.exists():
         shutil.copy2(preflight_path, job_dir / "opening_preflight.json")
@@ -420,6 +426,8 @@ async def recognize(
     if pipeline_v2:
         if exterior_candidates:
             generated_images["exterior_enclosures"] = OUTPUT_DIR / f"{job_id}_exterior_enclosures_overlay.png"
+            if any(candidate.get("trial") for candidate in exterior_candidates):
+                generated_images["exterior_trial"] = OUTPUT_DIR / f"{job_id}_exterior_trial_barrier.png"
         generated_images.update({
             "preprocessing": OUTPUT_DIR / f"{job_id}_preprocess_preview.png",
             "normalized": OUTPUT_DIR / f"{job_id}_preprocessed.png",
@@ -703,6 +711,7 @@ async def job_image(
         "interior_windows",
         "wall_geometry",
         "exterior_enclosures",
+        "exterior_trial",
     }
 
     if kind not in allowed:

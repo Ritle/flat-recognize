@@ -206,6 +206,7 @@ def main():
 
     has_opening_answers = False
     has_partition_answers = False
+    has_exterior_answers = False
     if args.review_decisions:
         decisions_path = require_file(args.review_decisions, "Review decisions").resolve()
         args.review_decisions = decisions_path
@@ -215,11 +216,15 @@ def main():
                 not isinstance(answer, dict) or "opening_id" in answer for answer in answers)
             has_partition_answers = isinstance(answers, list) and any(
                 isinstance(answer, dict) and "partition_id" in answer for answer in answers)
+            has_exterior_answers = isinstance(answers, list) and any(
+                isinstance(answer, dict) and "exterior_id" in answer for answer in answers)
         except (ValueError, AttributeError):
             # The review stage will report the malformed payload precisely.
             has_opening_answers = True
     if has_partition_answers and not args.pipeline_v2:
         parser.error("Room partition review requires --pipeline-v2")
+    if has_exterior_answers and not args.pipeline_v2:
+        parser.error("Exterior contour review requires --pipeline-v2")
 
     python = sys.executable
 
@@ -326,8 +331,10 @@ def main():
     wall_geometry_overlay.unlink(missing_ok=True)
     exterior_enclosures_json = OUTPUT / f"{stem}_exterior_enclosures.json"
     exterior_enclosures_overlay = OUTPUT / f"{stem}_exterior_enclosures_overlay.png"
+    exterior_trial_barrier = OUTPUT / f"{stem}_exterior_trial_barrier.png"
     exterior_enclosures_json.unlink(missing_ok=True)
     exterior_enclosures_overlay.unlink(missing_ok=True)
+    exterior_trial_barrier.unlink(missing_ok=True)
     export_overlay = OUTPUT / f"{stem}_export_overlay.png"
 
     if args.output:
@@ -531,6 +538,12 @@ def main():
                     [python, SCRIPTS / "detect_exterior_enclosures_v2.py", image,
                      classified_json, rooms_json, "--output", exterior_enclosures_json,
                      "--overlay", exterior_enclosures_overlay], required=False)
+        if has_exterior_answers:
+            run_command("V2 - Check reviewed exterior contour",
+                        [python, SCRIPTS / "review_exterior_enclosures.py", image,
+                         classified_json, rooms_json, args.review_decisions,
+                         "--output", exterior_enclosures_json, "--overlay", exterior_enclosures_overlay,
+                         "--barrier-output", exterior_trial_barrier])
 
     validation_command = [python, SCRIPTS / "validate_recognition.py",
                           "--rooms", rooms_json, "--scale", str(args.scale),

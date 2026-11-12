@@ -148,3 +148,39 @@ SVG и количество изменившихся пикселей. Маск�
 Следующая итерация меняет только содержимое SVG-входа; кандидата нужно
 проверить на полной сцене, прежней структурной контрольной части и новых
 растрах. Рабочие веса и итоговая часть `test` остаются вне этого подбора.
+
+## Обязательный контроль структурного входа
+
+Для протокола полной сцены `compare_training_baseline.py` требует отчёт
+кандидата на структурных входах через `--clean-control`. Исходный отчёт
+загружается по ссылке `clean_control_baseline` из протокола. Отсутствие
+контроля, другой режим изображения или веса другого кандидата останавливают
+сравнение без сохранения решения. Снижение отдельных структурных классов
+не может скрыться за улучшением среднего показателя полной сцены.
+
+После оценки кандидата на полной сцене и новых растрах сохраните также
+его структурный отчёт, используя прежнюю конфигурацию структурных входов:
+
+```powershell
+& .\.venv\Scripts\python.exe -m buildingcv.eval_split `
+  --config output/training_annotations/finetune-ready-20261110/finetune-cpu.yaml `
+  --weights output/training_annotations/pilot-full-scene-20261111/runs/<timestamp>/last.pt `
+  --split val --source svg --device cpu `
+  --output output/training_annotations/pilot-full-scene-20261111/evaluation/clean/val-svg.json
+```
+
+Замените `<timestamp>` именем каталога запуска. Итоговое сравнение:
+
+```powershell
+& .\.venv\Scripts\python.exe scripts/compare_training_baseline.py `
+  --baseline output/training_annotations/full-scene-baseline-20261111 `
+  --candidate output/training_annotations/pilot-full-scene-20261111/evaluation/full `
+  --protocol output/training_annotations/pilot-full-scene-20261111/protocol.json `
+  --clean-control output/training_annotations/pilot-full-scene-20261111/evaluation/clean/val-svg.json `
+  --output output/training_annotations/pilot-full-scene-20261111/comparison.json
+```
+
+Вложенный `clean_control` сохраняет показатели и причины отказа контрольной
+проверки. Для неё действует записанный до обучения допуск среднего IoU 0,005
+и прежний допуск для каждого структурного класса. Прохождение всех проверок
+даёт только допуск к проверке полного конвейера; файл рабочих весов не заменяется.

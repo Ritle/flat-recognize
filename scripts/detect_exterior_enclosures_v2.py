@@ -172,8 +172,13 @@ def save_overlay(image_path, report, output):
     draw = ImageDraw.Draw(image)
     for candidate in report["candidates"]:
         points = [tuple(p) for p in candidate["polygon"]]
-        draw.line(points + points[:1], fill="orange", width=4)
-        draw.text(points[0], f"Exterior contour {candidate['id'] + 1}: review", fill="red")
+        ignored = candidate.get("reviewed_choice") == "ignore"
+        draw.line(points + points[:1], fill="gray" if ignored else "orange", width=4)
+        trial = candidate.get("trial") or {}
+        if trial.get("status") == "accepted":
+            ring = [tuple(p) for p in trial["new_room"]["polygon"]]
+            draw.line(ring + ring[:1], fill="cyan", width=4)
+        draw.text(points[0], f"Exterior contour {candidate['id'] + 1}", fill="red")
     image.save(output)
 
 

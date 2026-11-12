@@ -607,6 +607,7 @@ const errorBox = document.getElementById('error');
 let currentJson = null;
 let currentFile = null;
 let currentQuestions = [];
+const reviewIdKeys = {opening: 'opening_id', room: 'room_id', partition: 'partition_id', exterior: 'exterior_id'};
 let reviewSelects = [];
 
 input.addEventListener('change', () => {
@@ -803,16 +804,19 @@ function renderReviewQuestions(data) {
     reviewSelects = [];
     document.getElementById('reviewMarker').style.display = 'none';
     panel.style.display = currentQuestions.length ? 'block' : 'none';
-    const applied = new Map((data.applied_decisions || []).map(answer => [
-        `${'partition_id' in answer ? 'partition' : 'room_id' in answer ? 'room' : 'opening'}:` +
-            (answer.partition_id ?? answer.room_id ?? answer.opening_id), answer.choice]));
+    const applied = new Map((data.applied_decisions || []).map(answer => {
+        const kind = Object.keys(reviewIdKeys).find(key => reviewIdKeys[key] in answer);
+        return [`${kind}:${answer[reviewIdKeys[kind]]}`, answer.choice];
+    }));
     for (const question of currentQuestions) {
         const row = document.createElement('div');
         row.className = 'review-item';
         const locate = document.createElement('button');
         locate.type = 'button';
         locate.className = 'btn btn-secondary';
-        locate.textContent = question.kind === 'room'
+        locate.textContent = question.kind === 'exterior'
+            ? `Показать внешний контур №${question.exterior_id + 1}`
+            : question.kind === 'room'
             ? `Показать область №${question.room_id}`
             : question.kind === 'partition'
                 ? `Показать границу №${question.partition_id + 1}`
@@ -838,7 +842,10 @@ function renderReviewQuestions(data) {
             detached_interior_window: 'опора проёма — небольшие изолированные контуры внутри помещения; проверьте окно или мебель',
             parallel_window_ambiguous: 'пересекается с параллельным кандидатом без двух подтверждённых косяков',
             user_choice: 'выбор пользователя'};
-        label.textContent = question.kind === 'partition'
+        label.textContent = question.kind === 'exterior'
+            ? `Внешний контур: ${question.current === 'confirm' ? 'подтверждён' : question.current === 'ignore' ? 'отклонён' : 'требует проверки'}` +
+                ' · есть ли здесь отдельное помещение? Подтверждение запустит пробное замыкание.'
+            : question.kind === 'partition'
             ? `Возможная граница комнат: ${question.current === 'door' ? 'дверь подтверждена' : question.current === 'separate' ? 'разделить' : 'оставить проход'}` +
                 ' · торцы стен совпадают, но дверь или сплошная стена не подтверждены'
             : question.kind === 'room'
@@ -851,6 +858,11 @@ function renderReviewQuestions(data) {
         }
         if (question.kind === 'opening' && question.topology_mask_use === false) {
             label.textContent += ' · исключён из маски комнат: подтвердите, есть ли здесь проём';
+        }
+        if (question.kind === 'exterior' && question.trial) {
+            label.textContent += question.trial.status === 'accepted'
+                ? ` · Пробное замыкание: ${question.trial.rooms_before} → ${question.trial.rooms_after} помещений, существующие сохранены. Новая область пока не включена в проект.`
+                : ' · Пробное замыкание не прошло проверку; требуется уточнение контура.';
         }
         if (Array.isArray(question.paired_with) && question.paired_with.length) {
             label.textContent += ` · проверьте также проём №${question.paired_with.join(', №')}`;
@@ -868,7 +880,9 @@ function renderReviewQuestions(data) {
             }
         }
         const select = document.createElement('select');
-        const options = question.kind === 'partition'
+        const options = question.kind === 'exterior'
+            ? [['', 'Оставить без решения'], ['confirm', 'Здесь есть помещение'], ['ignore', 'Это не помещение']]
+            : question.kind === 'partition'
             ? [['', 'Оставить решение системы'],
                ...(question.choices?.includes('door') ? [['door', 'Это дверь']] : []),
                ['separate', 'Разделить комнаты'],
@@ -947,10 +961,7 @@ function highlightQuestion(question, imageUrl) {
 document.getElementById('applyReviewButton').onclick = () => {
     if (!currentFile) return;
     const answers = reviewSelects.filter(item => item.select.value).map(item => ({
-        [item.question.kind === 'room' ? 'room_id' :
-            item.question.kind === 'partition' ? 'partition_id' : 'opening_id']:
-            item.question.kind === 'room' ? item.question.room_id :
-                item.question.kind === 'partition' ? item.question.partition_id : item.question.opening_id,
+        [reviewIdKeys[item.question.kind]]: item.question[reviewIdKeys[item.question.kind]],
         fingerprint: item.question.fingerprint,
         choice: item.select.value
     }));
@@ -996,7 +1007,12 @@ function setupImages(data) {
         {
             label: 'Возможные внешние контуры',
             url: data.images.exterior_enclosures,
-            caption: 'Оранжевый — внешний контур по линиям остекления и примыканиям к стенам. Требует проверки; комнаты и стены проекта пока не изменены.'
+            caption: 'Оранжевый — внешний контур, голубой — область успешного пробного замыкания, серый — отклонённый контур. Новые области пока не включены в проект.'
+        },
+        {
+            label: 'Пробное замыкание',
+            url: data.images.exterior_trial,
+            caption: 'Отдельная проверочная маска с подтверждёнными внешними контурами. Основной проект пока не изменён.'
         },
         {
             label: 'Область плана',

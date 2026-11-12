@@ -119,6 +119,12 @@ class ReviewDecisionsTest(unittest.TestCase):
         self.assertTrue(reviewed["windows"][0]["classification"]["user_confirmed"])
         self.assertEqual(len(make_review_questions(reviewed, {}, "a" * 64)), 2)
 
+    def test_exterior_answers_do_not_become_opening_choices(self):
+        result = apply_review_decisions(self.classified, {"version": 1, "image_sha256": "a" * 64,
+            "answers": [{"exterior_id": 0, "choice": "confirm", "fingerprint": "exterior-hash"}]}, "a" * 64)
+        self.assertEqual(result["windows"], self.classified["windows"])
+        self.assertEqual(result["review_decisions"], [])
+
     def test_duplicate_window_layer_can_be_restored_or_ignored(self):
         layer = opening(3, "window", 55, True)
         layer["classification"] = {"method": "duplicate_parallel_window_layer",

@@ -183,6 +183,24 @@ async function show(status) {
     nodes.get('reviewList').children.at(-1).children[2].value = 'door';
     nodes.get('applyReviewButton').onclick();
     assert.equal(submitted.payload.answers[0].choice, 'door');
+    const exteriorQuestion = {id: 'exterior:0', kind: 'exterior', exterior_id: 0,
+        fingerprint: 'exterior-hash', image_sha256: 'image-hash', current: 'pending',
+        center: [40, 20], image_size: [100, 80]};
+    context.renderReviewQuestions({review_questions: [exteriorQuestion], applied_decisions: []});
+    const exteriorRow = nodes.get('reviewList').children.at(-1);
+    assert.match(exteriorRow.children[0].textContent, /внешний контур/);
+    assert.match(exteriorRow.children[1].textContent, /пробное замыкание/);
+    exteriorRow.children[2].value = 'confirm';
+    nodes.get('applyReviewButton').onclick();
+    assert.equal(submitted.payload.answers[0].exterior_id, 0);
+    assert.equal(submitted.payload.answers[0].choice, 'confirm');
+    assert.equal(submitted.payload.answers[0].opening_id, undefined);
+    context.renderReviewQuestions({review_questions: [{...exteriorQuestion, current: 'confirm',
+        trial: {status: 'accepted', rooms_before: 5, rooms_after: 6}}],
+        applied_decisions: [{exterior_id: 0, choice: 'confirm'}]});
+    assert.equal(nodes.get('reviewList').children.at(-1).children[2].value, 'confirm');
+    assert.match(nodes.get('reviewList').children.at(-1).children[1].textContent, /5 → 6/);
+    assert.match(nodes.get('reviewList').children.at(-1).children[1].textContent, /не включена в проект/);
     context.renderClosureCandidates({original_url: '/original', geometry_review_candidates: [
         {closure_index: 2, center: [25, 30], image_size: [100, 80],
             closure_evidence: 'door_leaf', recovery_reason: 'missing_wall_jamb',

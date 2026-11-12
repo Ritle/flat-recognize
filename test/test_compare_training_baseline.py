@@ -1,7 +1,11 @@
 import copy
+import json
+from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
-from scripts.compare_training_baseline import compare
+from scripts.compare_training_baseline import compare, compare_with_clean_control, main
 
 
 class CompareTrainingBaselineTests(unittest.TestCase):
@@ -68,6 +72,60 @@ class CompareTrainingBaselineTests(unittest.TestCase):
             rules = {**self.rules, key: value}
             with self.subTest(key=key), self.assertRaises(ValueError):
                 compare(self.before, self.after, rules)
+
+    def full_scene_reports(self):
+        before, after = copy.deepcopy(self.before), copy.deepcopy(self.after)
+        clean_before, clean_after = copy.deepcopy(before["svg"]), copy.deepcopy(after["svg"])
+        before["svg"]["config"]["data"]["svg_input_mode"] = "full"
+        after["svg"]["config"]["data"]["svg_input_mode"] = "full"
+        return before, after, clean_before, clean_after
+
+    def test_full_scene_gains_and_preserved_clean_control_allow_only_pipeline_review(self):
+        result = compare_with_clean_control(*self.full_scene_reports(), self.rules, 0.005)
+        self.assertTrue(result["eligible_for_pipeline_check"])
+        self.assertTrue(result["clean_control"]["eligible_for_pipeline_check"])
+        self.assertFalse(result["deploy"])
+
+    def test_full_scene_gain_cannot_hide_clean_opening_regression(self):
+        before, after, clean_before, clean_after = self.full_scene_reports()
+        clean_after["iou"].update(floor=1.0, window=0.96)
+        clean_after["miou"] = sum(clean_after["iou"].values()) / 4
+        result = compare_with_clean_control(before, after, clean_before, clean_after, self.rules, 0.005)
+        self.assertFalse(result["eligible_for_pipeline_check"])
+        self.assertIn("clean_control_base_window_iou_regression", result["failed_checks"])
+
+    def test_borrowed_clean_score_from_original_weights_is_rejected(self):
+        before, after, clean_before, clean_after = self.full_scene_reports()
+        clean_after["checkpoint_sha256"] = "original"
+        with self.assertRaisesRegex(ValueError, "different checkpoints"):
+            compare_with_clean_control(before, after, clean_before, clean_after, self.rules, 0.005)
+
+    def test_clean_control_cannot_be_replaced_with_full_scene_evaluation(self):
+        before, after, clean_before, clean_after = self.full_scene_reports()
+        clean_before["config"]["data"]["svg_input_mode"] = "full"
+        clean_after["config"]["data"]["svg_input_mode"] = "full"
+        with self.assertRaisesRegex(ValueError, "structural input reports"):
+            compare_with_clean_control(before, after, clean_before, clean_after, self.rules, 0.005)
+
+    def test_cli_cannot_save_full_scene_approval_without_clean_control(self):
+        before, after, _, _ = self.full_scene_reports()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name, reports in (("before", before), ("after", after)):
+                (root / name).mkdir()
+                for source, report in reports.items():
+                    (root / name / f"val-{source}.json").write_text(json.dumps(report))
+            protocol = {"initial_checkpoint_sha256": "original", "screening_rules": self.rules}
+            path, output = root / "protocol.json", root / "result.json"
+            argv = ["compare", "--baseline", str(root / "before"), "--candidate", str(root / "after"),
+                    "--protocol", str(path), "--output", str(output)]
+            for defined in (False, True):
+                if defined:
+                    protocol["clean_control_baseline"] = str(root / "recorded-baseline/summary.json")
+                path.write_text(json.dumps(protocol))
+                with self.subTest(defined=defined), patch("sys.argv", argv), self.assertRaises(ValueError):
+                    main()
+                self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

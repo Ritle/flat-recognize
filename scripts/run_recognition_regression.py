@@ -37,6 +37,7 @@ SUFFIXES = (
     "_opening_preflight.json",
     "_geometry.json", "_export_overlay.png",
     "_exterior_enclosures.json", "_exterior_enclosures_overlay.png",
+    "_exterior_trial_barrier.png",
     "_recovered_classified.json", "_rooms_recovered.json", "_opening_recovery.json",
     "_opening_recovery_overlay.png",
     "_topology_classified.json", "_topology_windows.json", "_topology_windows_overlay.png",

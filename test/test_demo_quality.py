@@ -230,6 +230,7 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
             jobs, output = Path(temp) / "jobs", Path(temp) / "output"
             output.mkdir()
             rooms, _, _ = fixture()
+            rooms["meta"] = {"width": 10, "height": 10}
             rooms["rooms"] = []
             rooms.setdefault("diagnostics", {})["interior_window_filter"] = {
                 "topology_stable": True, "ambiguous_windows": 1}
@@ -245,7 +246,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 (output / f"{stem}_interior_windows.json").write_text(
                     json.dumps({"rejected_windows": 0, "ambiguous_windows": 1}), encoding="utf-8")
                 (output / f"{stem}_exterior_enclosures.json").write_text(
-                    json.dumps({"candidates": [{"id": 0, "requires_review": True}]}), encoding="utf-8")
+                    json.dumps({"candidates": [{"id": 0, "requires_review": True,
+                        "bbox": [1, 1, 8, 8], "polygon": [[1, 1], [8, 1], [8, 8], [1, 8]],
+                        "rail_spans": [[[1, 1], [8, 1]]], "seed_ids": [1, 2]}]}), encoding="utf-8")
                 Image.new("RGB", (10, 10), "white").save(
                     output / f"{stem}_exterior_enclosures_overlay.png")
                 for suffix in ("_preprocess.json", "_inference.json"):
@@ -265,6 +268,9 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("interior_windows", response["images"])
                 self.assertIn("wall_geometry", response["images"])
                 self.assertEqual(len(response["exterior_enclosures"]), 1)
+                question = next(item for item in response["review_questions"] if item["kind"] == "exterior")
+                self.assertEqual(question["choices"], ["confirm", "ignore"])
+                self.assertEqual(question["image_size"], [10, 10])
                 self.assertIn("exterior_enclosures", response["images"])
                 image = await api.job_image(response["job_id"], "exterior_enclosures")
                 self.assertTrue(Path(image.path).exists())
@@ -272,6 +278,13 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(Path(image.path).exists())
                 image = await api.job_image(response["job_id"], "wall_geometry")
                 self.assertTrue(Path(image.path).exists())
+
+    async def test_exterior_answers_require_v2_and_one_integer_identifier(self):
+        answer = {"exterior_id": 0, "choice": "confirm", "fingerprint": "candidate-hash"}
+        self.assertTrue(api.valid_review_answer(answer, True))
+        self.assertFalse(api.valid_review_answer(answer, False))
+        for changes in ({"opening_id": 1}, {"exterior_id": False}, {"choice": []}, {"choice": "door"}):
+            self.assertFalse(api.valid_review_answer({**answer, **changes}, True))
 
     async def test_result_and_export_routes_for_each_status(self):
         for status in ("good", "review", "invalid", "no_rooms", "geometry_invalid"):
