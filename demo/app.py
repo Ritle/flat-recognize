@@ -7,16 +7,18 @@ import subprocess
 import sys
 import time
 import uuid
+from html import escape
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image, ImageDraw
 
 from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
 from scripts.review_rooms import ROOM_CHOICES, room_questions
 from scripts.review_partitions import PARTITION_CHOICES, partition_questions
 from scripts.review_exterior_enclosures import EXTERIOR_CHOICES, exterior_questions
+from demo.service_info import format_updated_at, load_service_info
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,11 +51,12 @@ ALLOWED_EXTENSIONS = {
 }
 
 MAX_FILE_SIZE = 20 * 1024 * 1024
+SERVICE_INFO = load_service_info(ROOT)
 
 
 app = FastAPI(
     title="Floorplan Recognition Demo",
-    version="0.1.0",
+    version=SERVICE_INFO["version"],
 )
 
 
@@ -155,11 +158,16 @@ async def index():
             detail="demo/index.html not found"
         )
 
-    return HTMLResponse(
-        index_path.read_text(
-            encoding="utf-8"
-        )
-    )
+    html = index_path.read_text(encoding="utf-8")
+    html = html.replace("{{SERVICE_VERSION}}", escape(SERVICE_INFO["version"]))
+    html = html.replace("{{SERVICE_UPDATED_AT}}",
+                        escape(format_updated_at(SERVICE_INFO["updated_at"])))
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/version")
+async def service_version():
+    return JSONResponse(SERVICE_INFO, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/recognize")

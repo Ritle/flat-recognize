@@ -61,6 +61,17 @@
         font-size: 16px;
     }
 
+    .service-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        margin-top: 14px;
+        color: #949bad;
+        font-size: 13px;
+        line-height: 1.5;
+        overflow-wrap: anywhere;
+    }
+
     .panel {
         background: #11141b;
         border: 1px solid #232834;
@@ -394,6 +405,10 @@
             Сервис распознает помещения, стены,
             двери и окна и сформирует готовый
             JSON проекта.
+        </div>
+        <div class="service-info" aria-label="Информация о сервисе">
+            <span>Версия сервиса: <span id="serviceVersion">{{SERVICE_VERSION}}</span></span>
+            <span>Последнее обновление: <span id="serviceUpdatedAt">{{SERVICE_UPDATED_AT}}</span></span>
         </div>
     </div>
 

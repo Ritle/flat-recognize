@@ -19,6 +19,14 @@ see [docs/TOPOLOGY_WINDOW_RECOVERY.md](docs/TOPOLOGY_WINDOW_RECOVERY.md).
 V2 extends room boundaries with internal wall centerlines and shared T/X nodes;
 see [docs/INTERNAL_WALL_GRAPH.md](docs/INTERNAL_WALL_GRAPH.md).
 
+The demo header shows the service version and last update time (Moscow).
+`GET /api/version` exposes the same build identity as JSON. By default these
+come from the service version plus the Git revision and last commit timestamp,
+resolved at server startup. Restart the demo after updating the checkout.
+For deployment without Git, set `FLAT_RECO_SERVICE_VERSION` and
+`FLAT_RECO_UPDATED_AT` (ISO 8601 with timezone, e.g. `2026-11-13T12:00:00+03:00`).
+If no update timestamp is available, the UI displays “не указана”.
+
 ![preview](docs/preview.gif)
 
 Floor-plan structure extraction. A ResNet-UNet trained on [CubiCasa5K](https://github.com/CubiCasa/CubiCasa5k) segments each pixel of an architectural drawing into wall / door / window / floor; a small browser viewer extrudes those predictions into 3D walls, doors, and windows you can orbit around.
