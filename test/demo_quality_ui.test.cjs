@@ -17,7 +17,10 @@ const context = vm.createContext({
         getElementById(id) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); },
         createElement: node, querySelectorAll: () => []
     },
-    fetch: async () => { fetches++; return {ok: true, json: async () => ({editable: true})}; },
+    fetch: async url => {
+        if (url === '/api/version') return {ok: true, json: async () => ({version: 'test', updated_at: null})};
+        fetches++; return {ok: true, json: async () => ({editable: true})};
+    },
     navigator: {clipboard: {writeText: async () => {}}},
     window: {scrollTo() {}}, setTimeout, Date, console
 });

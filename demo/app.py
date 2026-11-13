@@ -159,9 +159,10 @@ async def index():
         )
 
     html = index_path.read_text(encoding="utf-8")
-    html = html.replace("{{SERVICE_VERSION}}", escape(SERVICE_INFO["version"]))
-    html = html.replace("{{SERVICE_UPDATED_AT}}",
-                        escape(format_updated_at(SERVICE_INFO["updated_at"])))
+    html = html.replace('<span id="serviceVersion">недоступна</span>',
+                        f'<span id="serviceVersion">{escape(SERVICE_INFO["version"])}</span>')
+    html = html.replace('<span id="serviceUpdatedAt">не указана</span>',
+                        f'<span id="serviceUpdatedAt">{escape(format_updated_at(SERVICE_INFO["updated_at"]))}</span>')
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 

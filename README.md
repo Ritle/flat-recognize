@@ -26,6 +26,9 @@ resolved at server startup. Restart the demo after updating the checkout.
 For deployment without Git, set `FLAT_RECO_SERVICE_VERSION` and
 `FLAT_RECO_UPDATED_AT` (ISO 8601 with timezone, e.g. `2026-11-13T12:00:00+03:00`).
 If no update timestamp is available, the UI displays “не указана”.
+The page also refreshes this information from `/api/version` without caching.
+Opening the HTML directly never exposes template tokens; if it cannot reach
+the version endpoint, it shows an unavailable status and a restart hint.
 
 ![preview](docs/preview.gif)
 
