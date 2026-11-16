@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 
-def structural_roi(rgb):
+def structural_roi(rgb, *, separated_graphics=False):
     """Group long structural lines; use the whole image if evidence is weak."""
     height, width = rgb.shape[:2]
     ratio = min(1.0, 1024 / max(width, height))
@@ -28,10 +28,10 @@ def structural_roi(rgb):
     # Include long diagonal contours without relying on orthogonal walls alone.
     segments = cv2.HoughLinesP(ink, 1, np.pi / 180, threshold=length,
                                minLineLength=length * 2, maxLineGap=3)
-    if segments is not None:
+    if segments is not None and not separated_graphics:
         for x1, y1, x2, y2 in segments.reshape(-1, 4):
             cv2.line(lines, (int(x1), int(y1)), (int(x2), int(y2)), 255, 1)
-    radius = max(3, round(minimum * 0.025))
+    radius = max(3, round(minimum * (0.009 if separated_graphics else 0.025)))
     groups = cv2.dilate(lines, cv2.getStructuringElement(
         cv2.MORPH_ELLIPSE, (radius * 2 + 1, radius * 2 + 1)))
     count, labels, stats, _ = cv2.connectedComponentsWithStats(groups, connectivity=8)
@@ -69,13 +69,26 @@ def structural_roi(rgb):
     return roi, {**diagnostics, "fallback": None}
 
 
-def normalize_crop(rgb):
+def normalize_crop(rgb, *, light_fill_cleanup=False):
     """Preserve high-contrast neutral inputs; darken structural colors otherwise.
 
     No thin-line erasure: furniture and architectural details both remain visible.
     """
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     projected = rgb.min(axis=2)
+    maximum = rgb.max(axis=2)
+    colorful_light = (maximum > 180) & (maximum.astype(np.int16) - projected > 25)
+    # Broad light fills are floor/background, unlike narrow colored wall bands.
+    # Use the brightest channel to avoid turning yellow/blue floors into walls.
+    # Require plentiful dark ink; this branch must not erase pale scan linework.
+    fill_fraction = float(np.mean(colorful_light))
+    dark_fraction = float(np.mean(maximum < 65))
+    if light_fill_cleanup and fill_fraction > 0.12 and dark_fraction > 0.01:
+        neutral = np.clip((maximum.astype(np.float32) - 50) * (255 / 130), 0, 255).astype(np.uint8)
+        return np.repeat(neutral[:, :, None], 3, axis=2), gray, {
+            "normalization": "light_fill_neutralization",
+            "light_color_fraction": fill_fraction, "dark_ink_fraction": dark_fraction,
+        }
     dark = (projected < 200).astype(np.uint8)
     distance = cv2.distanceTransform(dark, cv2.DIST_L2, 5)
     thick = distance >= max(2.0, min(rgb.shape[:2]) * 0.003)
@@ -98,13 +111,16 @@ def normalize_crop(rgb):
     }
 
 
-def preprocess(image):
+def preprocess(image, *, light_fill_cleanup=False):
     rgb = np.asarray(image.convert("RGB"))
     height, width = rgb.shape[:2]
-    roi, diagnostics = structural_roi(rgb)
+    neutral, _, preliminary = normalize_crop(rgb, light_fill_cleanup=light_fill_cleanup)
+    separated = preliminary.get("normalization") == "light_fill_neutralization"
+    roi, diagnostics = structural_roi(neutral if separated else rgb,
+                                     separated_graphics=separated)
     x1, y1, x2, y2 = roi
     crop = rgb[y1:y2, x1:x2]
-    normalized, gray, normalization = normalize_crop(crop)
+    normalized, gray, normalization = normalize_crop(crop, light_fill_cleanup=light_fill_cleanup)
     meta = {
         "version": 2, "source_size": [width, height], "roi": roi,
         "processed_size": [x2 - x1, y2 - y1], "coordinate_space": "source_raster",
@@ -130,11 +146,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
+    parser.add_argument("--light-fill-cleanup", action="store_true", help="Experimental light floor fill cleanup")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     with Image.open(args.image) as source:
         source = source.convert("RGB")
-        normalized, gray, meta = preprocess(source)
+        normalized, gray, meta = preprocess(source, light_fill_cleanup=args.light_fill_cleanup)
         preview = source.copy()
     stem = args.image.stem
     normalized_path = args.output_dir / f"{stem}_preprocessed.png"

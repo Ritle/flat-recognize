@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "focus-plan",
+      "image": "focus_plan/645adcf0e951d050d5816292bc6c3b93.png",
+      "ground_truth": "test/ground_truth/focus-plan.json",
+      "tags": [
+        "colored",
+        "watermark",
+        "dimensions",
+        "furniture",
+        "terrace"
+      ]
+    }
+  ]
+}

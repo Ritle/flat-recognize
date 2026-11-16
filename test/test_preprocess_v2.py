@@ -10,6 +10,20 @@ from preprocess_v2 import model_point_to_source, preprocess
 
 
 class PreprocessTests(unittest.TestCase):
+    def test_light_floor_fill_does_not_become_wall(self):
+        image = Image.new("RGB", (500, 400), "white")
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((70, 60, 430, 320), fill=(245, 220, 155), outline="black", width=7)
+        draw.line((250, 60, 250, 320), fill="black", width=5)
+        draw.line((100, 100, 150, 100), fill="black", width=1)
+        draw.line((70, 365, 430, 365), fill="black", width=1)
+        normalized, _, meta = preprocess(image, light_fill_cleanup=True)
+        self.assertEqual(meta["diagnostics"]["normalization"], "light_fill_neutralization")
+        x, y, _, bottom = meta["roi"]
+        self.assertLess(bottom, 365)
+        self.assertEqual(normalized.getpixel((170-x, 150-y)), (255, 255, 255))
+        self.assertEqual(normalized.getpixel((120-x, 100-y)), (0, 0, 0))
+
     def test_letterbox_coordinates_restore_crop_offset_and_actual_size(self):
         meta = {"roi": [180, 220, 850, 850], "source_size": [1000, 1200]}
         rect = (17, 25, 511, 320)

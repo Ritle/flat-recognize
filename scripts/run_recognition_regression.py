@@ -114,7 +114,7 @@ def audit_project(path):
     return errors
 
 
-def run_case(case, run_dir, env, pipeline_v2=False):
+def run_case(case, run_dir, env, pipeline_v2=False, light_fill_cleanup=False):
     image = ROOT / case["image"]
     case_dir = run_dir / case["id"]
     case_dir.mkdir()
@@ -129,6 +129,8 @@ def run_case(case, run_dir, env, pipeline_v2=False):
                str(image), "--output", str(case_dir / "project.json")]
     if pipeline_v2:
         command.append("--pipeline-v2")
+    if light_fill_cleanup:
+        command.append("--light-fill-cleanup")
     started = time.perf_counter()
     result = subprocess.run(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, encoding="utf-8", errors="replace",
@@ -318,7 +320,10 @@ def main():
     parser.add_argument("--output", type=Path, help="New run directory; existing paths rejected")
     parser.add_argument("--threads", type=int, default=4, help="OMP/MKL CPU threads per process")
     parser.add_argument("--pipeline-v2", action="store_true")
+    parser.add_argument("--light-fill-cleanup", action="store_true")
     args = parser.parse_args()
+    if args.light_fill_cleanup and not args.pipeline_v2:
+        parser.error("--light-fill-cleanup requires --pipeline-v2")
     if args.threads < 1:
         parser.error("--threads must be positive")
     cases = load_json(args.manifest)["cases"]
@@ -344,6 +349,7 @@ def main():
     revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
                               capture_output=True, text=True, check=False).stdout.strip()
     report = {"pipeline": "v2" if args.pipeline_v2 else "v1",
+              "light_fill_cleanup": args.light_fill_cleanup,
               "started_utc": datetime.now(UTC).isoformat(), "revision": revision,
               "python": platform.python_version(), "platform": platform.platform(),
               "cpu": platform.processor(), "cpu_threads": args.threads, "packages": packages,
@@ -356,7 +362,8 @@ def main():
     }
     for case in cases:
         print(f"Running {case['id']} ...", flush=True)
-        row = run_case(case, run_dir, env, pipeline_v2=args.pipeline_v2)
+        row = run_case(case, run_dir, env, pipeline_v2=args.pipeline_v2,
+                       light_fill_cleanup=args.light_fill_cleanup)
         report["cases"].append(row)
         write_report(report, run_dir)
         print(f"  {row['status']}: rooms={row.get('rooms_found', '—')}, "

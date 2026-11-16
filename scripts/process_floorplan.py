@@ -202,7 +202,11 @@ def main():
         help="Explicit door/window/ignore choices for this exact source image"
     )
 
+    parser.add_argument("--light-fill-cleanup", action="store_true",
+                        help="Experimental cleanup of light colored floors; requires --pipeline-v2")
     args = parser.parse_args()
+    if args.light_fill_cleanup and not args.pipeline_v2:
+        parser.error("--light-fill-cleanup requires --pipeline-v2")
 
     has_opening_answers = False
     has_partition_answers = False
@@ -376,7 +380,8 @@ def main():
     if args.pipeline_v2:
         run_command(
             "V2 - Input preprocessing",
-            [python, SCRIPTS / "preprocess_v2.py", image]
+            [python, SCRIPTS / "preprocess_v2.py", image,
+             *(["--light-fill-cleanup"] if args.light_fill_cleanup else [])]
         )
         preprocessing_meta = require_file(
             OUTPUT / f"{stem}_preprocess.json", "Preprocessing transform metadata"

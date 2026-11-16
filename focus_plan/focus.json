@@ -1,0 +1,403 @@
+{
+  "levels": [
+    {
+      "levelId": "cbbcde04-e721-4d6b-82b3-064a78ed9272",
+      "height": 270,
+      "connectors": [
+        {
+          "uuid": "34c4ebd2-e59b-4159-b7c3-2164a8164c1f",
+          "x": 791,
+          "y": 229,
+          "z": 0,
+          "adjacency": [
+            "41014997-997f-480b-a4f9-60db3336ca1b",
+            "e73b9310-cefe-44a7-b2cc-3892190be861"
+          ]
+        },
+        {
+          "uuid": "41014997-997f-480b-a4f9-60db3336ca1b",
+          "x": 1418,
+          "y": 229,
+          "z": 0,
+          "adjacency": [
+            "34c4ebd2-e59b-4159-b7c3-2164a8164c1f",
+            "dd20af3d-6e7f-4f8b-ba30-f5be16df79f9"
+          ]
+        },
+        {
+          "uuid": "dd20af3d-6e7f-4f8b-ba30-f5be16df79f9",
+          "x": 1418,
+          "y": 495.1,
+          "z": 0,
+          "adjacency": [
+            "41014997-997f-480b-a4f9-60db3336ca1b",
+            "e73b9310-cefe-44a7-b2cc-3892190be861"
+          ]
+        },
+        {
+          "uuid": "e73b9310-cefe-44a7-b2cc-3892190be861",
+          "x": 791,
+          "y": 495.09999999999997,
+          "z": 0,
+          "adjacency": [
+            "dd20af3d-6e7f-4f8b-ba30-f5be16df79f9",
+            "34c4ebd2-e59b-4159-b7c3-2164a8164c1f"
+          ]
+        }
+      ],
+      "segments": [
+        {
+          "uuid": "6f078e0b-add0-416e-946a-a32ac91626a1",
+          "start": "34c4ebd2-e59b-4159-b7c3-2164a8164c1f",
+          "end": "41014997-997f-480b-a4f9-60db3336ca1b",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "{{SERVER_URL}}/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "{{SERVER_URL}}/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "{{SERVER_URL}}/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 0,
+          "right": 1,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false,
+          "data": ""
+        },
+        {
+          "uuid": "ac294bd4-7c40-4c0d-8b1a-b13dd8c6dd6c",
+          "start": "41014997-997f-480b-a4f9-60db3336ca1b",
+          "end": "dd20af3d-6e7f-4f8b-ba30-f5be16df79f9",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "{{SERVER_URL}}/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "{{SERVER_URL}}/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "{{SERVER_URL}}/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 1,
+          "right": 2,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false,
+          "data": ""
+        },
+        {
+          "uuid": "66e0ddcf-dbb8-4314-9411-10f1df772979",
+          "start": "dd20af3d-6e7f-4f8b-ba30-f5be16df79f9",
+          "end": "e73b9310-cefe-44a7-b2cc-3892190be861",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "{{SERVER_URL}}/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "{{SERVER_URL}}/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "{{SERVER_URL}}/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 2,
+          "right": 3,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false,
+          "data": ""
+        },
+        {
+          "uuid": "1737aa0d-c22c-4964-95df-96a2134c52df",
+          "start": "e73b9310-cefe-44a7-b2cc-3892190be861",
+          "end": "34c4ebd2-e59b-4159-b7c3-2164a8164c1f",
+          "thickness": 20,
+          "height": 270,
+          "alignment": 0.5,
+          "materials": {
+            "left": {
+              "url": "{{SERVER_URL}}/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            },
+            "right": {
+              "url": "{{SERVER_URL}}/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "slope": {
+              "url": "{{SERVER_URL}}/app/uploads/images/6a34742cbb6bb4dbe6a2ef8afa226462.jpg"
+            }
+          },
+          "left": 3,
+          "right": 0,
+          "half_width_left": 10,
+          "half_width_right": 10,
+          "cross_left": "sides",
+          "cross_right": "sides",
+          "align_left": "center",
+          "align_right": "center",
+          "userChangeBack": false,
+          "userChangeFront": false,
+          "data": ""
+        }
+      ],
+      "areas": [
+        {
+          "uuid": "13354d10-884b-4623-a354-25a1d4f1d838",
+          "name": "",
+          "data": "",
+          "connectors": [
+            "e73b9310-cefe-44a7-b2cc-3892190be861",
+            "34c4ebd2-e59b-4159-b7c3-2164a8164c1f",
+            "41014997-997f-480b-a4f9-60db3336ca1b",
+            "dd20af3d-6e7f-4f8b-ba30-f5be16df79f9"
+          ],
+          "materials": {
+            "flooring": {
+              "url": "{{SERVER_URL}}/app/uploads/images/46a42df9a363e79c4e909430456fbc03.jpg",
+              "_textureURL": "{{SERVER_URL}}/app/uploads/images/46a42df9a363e79c4e909430456fbc03.jpg"
+            },
+            "walls": {
+              "url": "{{SERVER_URL}}/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg",
+              "_textureURL": "{{SERVER_URL}}/app/uploads/images/b5bf07ceb03a6717c1a9e0f0e4a21b1a.jpg"
+            },
+            "ceiling": {
+              "url": "{{SERVER_URL}}/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg",
+              "_textureURL": "{{SERVER_URL}}/app/uploads/images/0bbfcd6b183e51128529f8cf6ba5c218.jpg"
+            },
+            "outsidewalls": {
+              "url": "{{SERVER_URL}}/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg",
+              "_textureURL": "{{SERVER_URL}}/app/uploads/images/deea10d13c925a25460d51e7f02a7afc.jpg"
+            }
+          },
+          "area_value": 149382.6999999999
+        }
+      ],
+      "elements": [
+        {
+          "uuid": "f66560ba-9f6c-4583-97ce-08e714112e56",
+          "type": "windowItem",
+          "name": "",
+          "size": {
+            "x": 90,
+            "y": 150,
+            "z": null
+          },
+          "wall": {
+            "uuid": "6f078e0b-add0-416e-946a-a32ac91626a1",
+            "position": 41.46730462519936,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.451,
+                "y": 1.49899
+              },
+              {
+                "x": 0.449,
+                "y": 1.501
+              },
+              {
+                "x": -0.44901,
+                "y": 1.501
+              },
+              {
+                "x": -0.45101,
+                "y": 1.49899
+              },
+              {
+                "x": -0.45101,
+                "y": 0.002
+              },
+              {
+                "x": -0.44901,
+                "y": -0.00001
+              },
+              {
+                "x": 0.449,
+                "y": -0.00001
+              },
+              {
+                "x": 0.451,
+                "y": 0.002
+              },
+              {
+                "x": 0.451,
+                "y": 1.49899
+              }
+            ]
+          },
+          "position": {
+            "z": 80
+          },
+          "flip": {
+            "x": false,
+            "z": false
+          },
+          "data": null,
+          "recess": 0,
+          "doorOpensOutwards": false,
+          "sill": {
+            "shape": [
+              {
+                "x": -0.45,
+                "y": 0
+              },
+              {
+                "x": 0.44999,
+                "y": 0
+              }
+            ]
+          },
+          "materials": [
+            {
+              "uuid": "ea3b14b7-a6b6-4ce4-9be4-d51e991af0b7",
+              "name": "Osnova",
+              "color": "#f5f5f5",
+              "fileName": null
+            },
+            {
+              "uuid": "fab3bb54-4c36-46c5-bf38-1cb17ff1c7b4",
+              "name": "Steklo",
+              "color": "#7ab8ff",
+              "fileName": null
+            }
+          ],
+          "model": {
+            "url": "{{SERVER_URL}}/app/uploads/models/d63a59eb1ea62494eb799ca6fd535713.zip",
+            "size": {
+              "x": 90,
+              "y": 150,
+              "z": null
+            }
+          },
+          "scale": {
+            "x": 1,
+            "y": 1,
+            "z": 1
+          },
+          "no_render": false
+        },
+        {
+          "uuid": "0756b93f-74f0-48fd-8afa-fcb915210209",
+          "type": "doorItem",
+          "name": "",
+          "size": {
+            "x": 86,
+            "y": 203,
+            "z": null
+          },
+          "wall": {
+            "uuid": "1737aa0d-c22c-4964-95df-96a2134c52df",
+            "position": 56.783164223975945,
+            "alignment": 0.5,
+            "offset": 0,
+            "side": "left",
+            "holeShape": [
+              {
+                "x": 0.42499,
+                "y": 2.025
+              },
+              {
+                "x": -0.42501,
+                "y": 2.025
+              },
+              {
+                "x": -0.42501,
+                "y": -0.00001
+              },
+              {
+                "x": 0.42499,
+                "y": -0.00001
+              },
+              {
+                "x": 0.42499,
+                "y": 2.025
+              }
+            ]
+          },
+          "position": {
+            "z": 0
+          },
+          "flip": {
+            "x": false,
+            "z": true
+          },
+          "data": null,
+          "recess": 0,
+          "doorOpensOutwards": true,
+          "door": {
+            "panel": true,
+            "reversed": false,
+            "angle": 15,
+            "depth": 0
+          },
+          "materials": [
+            {
+              "uuid": "00dcb7e6-220b-467e-b3b8-d69cb225c33b",
+              "name": "Osnova",
+              "color": "#ffffff",
+              "fileName": "Buk-3.jpg"
+            },
+            {
+              "uuid": "248a160c-9580-4524-872a-1c6c7334d571",
+              "name": "Ruchka",
+              "color": "#ffffff",
+              "fileName": "Bronza.jpg"
+            }
+          ],
+          "model": {
+            "url": "{{SERVER_URL}}/app/uploads/models/82360e5436debc2837f290c23d4e8da7.zip",
+            "size": {
+              "x": 85,
+              "y": 203,
+              "z": null
+            }
+          },
+          "scale": {
+            "x": 1.011764705882353,
+            "y": 1,
+            "z": 1
+          },
+          "no_render": false
+        }
+      ],
+      "tapes": []
+    }
+  ],
+  "project_version": "5.9.5.1105",
+  "editable": true,
+  "camera": {
+    "x": -131,
+    "y": 35,
+    "z": 1,
+    "w": 0
+  }
+}

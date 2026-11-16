@@ -1,0 +1,976 @@
+{
+  "version": 1,
+  "image": {
+    "file": "focus_plan/645adcf0e951d050d5816292bc6c3b93.png",
+    "width": 800,
+    "height": 551,
+    "sha256": "25ffe0b0b69cfa925c44251ae7ca8413d2f37a4dfef7e326a5ab495038dbf7b3"
+  },
+  "coverage": {
+    "rooms": "geometry",
+    "doors": "geometry",
+    "windows": "geometry",
+    "walls": "geometry"
+  },
+  "annotation_regions": {
+    "rooms": [
+      [
+        115,
+        62,
+        223,
+        155
+      ],
+      [
+        115,
+        166,
+        223,
+        258
+      ],
+      [
+        229,
+        62,
+        265,
+        123
+      ],
+      [
+        274,
+        62,
+        331,
+        148
+      ],
+      [
+        229,
+        226,
+        265,
+        258
+      ],
+      [
+        521,
+        62,
+        581,
+        157
+      ],
+      [
+        590,
+        62,
+        637,
+        157
+      ],
+      [
+        643,
+        62,
+        715,
+        155
+      ],
+      [
+        521,
+        166,
+        581,
+        228
+      ],
+      [
+        590,
+        166,
+        715,
+        258
+      ]
+    ],
+    "doors": [
+      [
+        220,
+        125,
+        230,
+        159
+      ],
+      [
+        220,
+        161,
+        230,
+        197
+      ],
+      [
+        264,
+        121,
+        274,
+        153
+      ],
+      [
+        230,
+        121,
+        262,
+        131
+      ],
+      [
+        230,
+        217,
+        262,
+        227
+      ],
+      [
+        636,
+        126,
+        646,
+        159
+      ],
+      [
+        581,
+        169,
+        591,
+        206
+      ],
+      [
+        581,
+        199,
+        591,
+        231
+      ],
+      [
+        297,
+        53,
+        332,
+        63
+      ],
+      [
+        399,
+        387,
+        452,
+        397
+      ]
+    ],
+    "windows": [
+      [
+        106,
+        89,
+        116,
+        124
+      ],
+      [
+        106,
+        197,
+        116,
+        232
+      ],
+      [
+        138,
+        258,
+        174,
+        268
+      ],
+      [
+        634,
+        258,
+        668,
+        268
+      ],
+      [
+        715,
+        89,
+        725,
+        124
+      ],
+      [
+        715,
+        197,
+        725,
+        233
+      ],
+      [
+        368,
+        53,
+        402,
+        63
+      ],
+      [
+        408,
+        53,
+        443,
+        63
+      ],
+      [
+        450,
+        53,
+        485,
+        63
+      ]
+    ],
+    "walls": [
+      [
+        108,
+        52,
+        276,
+        64
+      ],
+      [
+        104,
+        152,
+        275,
+        168
+      ],
+      [
+        330,
+        56,
+        342,
+        177
+      ],
+      [
+        341,
+        153,
+        470,
+        167
+      ],
+      [
+        511,
+        56,
+        523,
+        161
+      ],
+      [
+        604,
+        152,
+        726,
+        168
+      ],
+      [
+        511,
+        161,
+        523,
+        234
+      ],
+      [
+        514,
+        225,
+        588,
+        237
+      ],
+      [
+        330,
+        301,
+        342,
+        395
+      ],
+      [
+        511,
+        301,
+        523,
+        395
+      ],
+      [
+        125,
+        70,
+        213,
+        146
+      ],
+      [
+        125,
+        175,
+        213,
+        249
+      ],
+      [
+        358,
+        174,
+        483,
+        253
+      ],
+      [
+        353,
+        291,
+        500,
+        377
+      ],
+      [
+        646,
+        72,
+        706,
+        145
+      ]
+    ]
+  },
+  "rooms": [
+    {
+      "id": "bedroom-nw",
+      "polygon": [
+        [
+          115,
+          62
+        ],
+        [
+          223,
+          62
+        ],
+        [
+          223,
+          155
+        ],
+        [
+          115,
+          155
+        ]
+      ]
+    },
+    {
+      "id": "bedroom-sw",
+      "polygon": [
+        [
+          115,
+          166
+        ],
+        [
+          223,
+          166
+        ],
+        [
+          223,
+          258
+        ],
+        [
+          115,
+          258
+        ]
+      ]
+    },
+    {
+      "id": "wc-nw",
+      "polygon": [
+        [
+          229,
+          62
+        ],
+        [
+          265,
+          62
+        ],
+        [
+          265,
+          123
+        ],
+        [
+          229,
+          123
+        ]
+      ]
+    },
+    {
+      "id": "boiler",
+      "polygon": [
+        [
+          274,
+          62
+        ],
+        [
+          331,
+          62
+        ],
+        [
+          331,
+          148
+        ],
+        [
+          274,
+          148
+        ]
+      ]
+    },
+    {
+      "id": "wc-sw",
+      "polygon": [
+        [
+          229,
+          226
+        ],
+        [
+          265,
+          226
+        ],
+        [
+          265,
+          258
+        ],
+        [
+          229,
+          258
+        ]
+      ]
+    },
+    {
+      "id": "pantry",
+      "polygon": [
+        [
+          521,
+          62
+        ],
+        [
+          581,
+          62
+        ],
+        [
+          581,
+          157
+        ],
+        [
+          521,
+          157
+        ]
+      ]
+    },
+    {
+      "id": "wardrobe",
+      "polygon": [
+        [
+          590,
+          62
+        ],
+        [
+          637,
+          62
+        ],
+        [
+          637,
+          157
+        ],
+        [
+          590,
+          157
+        ]
+      ]
+    },
+    {
+      "id": "office",
+      "polygon": [
+        [
+          643,
+          62
+        ],
+        [
+          715,
+          62
+        ],
+        [
+          715,
+          155
+        ],
+        [
+          643,
+          155
+        ]
+      ]
+    },
+    {
+      "id": "bath",
+      "polygon": [
+        [
+          521,
+          166
+        ],
+        [
+          581,
+          166
+        ],
+        [
+          581,
+          228
+        ],
+        [
+          521,
+          228
+        ]
+      ]
+    },
+    {
+      "id": "bedroom-se",
+      "polygon": [
+        [
+          590,
+          166
+        ],
+        [
+          715,
+          166
+        ],
+        [
+          715,
+          258
+        ],
+        [
+          590,
+          258
+        ]
+      ]
+    }
+  ],
+  "doors": [
+    {
+      "id": "bedroom-nw",
+      "span": [
+        [
+          225,
+          130
+        ],
+        [
+          225,
+          154
+        ]
+      ]
+    },
+    {
+      "id": "bedroom-sw",
+      "span": [
+        [
+          225,
+          166
+        ],
+        [
+          225,
+          192
+        ]
+      ]
+    },
+    {
+      "id": "boiler",
+      "span": [
+        [
+          269,
+          126
+        ],
+        [
+          269,
+          148
+        ]
+      ]
+    },
+    {
+      "id": "wc-nw",
+      "span": [
+        [
+          235,
+          126
+        ],
+        [
+          257,
+          126
+        ]
+      ]
+    },
+    {
+      "id": "wc-sw",
+      "span": [
+        [
+          235,
+          222
+        ],
+        [
+          257,
+          222
+        ]
+      ]
+    },
+    {
+      "id": "office",
+      "span": [
+        [
+          641,
+          131
+        ],
+        [
+          641,
+          154
+        ]
+      ]
+    },
+    {
+      "id": "bedroom-se",
+      "span": [
+        [
+          586,
+          174
+        ],
+        [
+          586,
+          201
+        ]
+      ]
+    },
+    {
+      "id": "bath",
+      "span": [
+        [
+          586,
+          204
+        ],
+        [
+          586,
+          226
+        ]
+      ]
+    },
+    {
+      "id": "entry",
+      "span": [
+        [
+          302,
+          58
+        ],
+        [
+          327,
+          58
+        ]
+      ]
+    },
+    {
+      "id": "living-terrace",
+      "span": [
+        [
+          404,
+          392
+        ],
+        [
+          447,
+          392
+        ]
+      ]
+    }
+  ],
+  "windows": [
+    {
+      "id": "west-north",
+      "span": [
+        [
+          111,
+          94
+        ],
+        [
+          111,
+          119
+        ]
+      ]
+    },
+    {
+      "id": "west-middle",
+      "span": [
+        [
+          111,
+          202
+        ],
+        [
+          111,
+          227
+        ]
+      ]
+    },
+    {
+      "id": "south-west",
+      "span": [
+        [
+          143,
+          263
+        ],
+        [
+          169,
+          263
+        ]
+      ]
+    },
+    {
+      "id": "south-east",
+      "span": [
+        [
+          639,
+          263
+        ],
+        [
+          663,
+          263
+        ]
+      ]
+    },
+    {
+      "id": "east-north",
+      "span": [
+        [
+          720,
+          94
+        ],
+        [
+          720,
+          119
+        ]
+      ]
+    },
+    {
+      "id": "east-middle",
+      "span": [
+        [
+          720,
+          202
+        ],
+        [
+          720,
+          228
+        ]
+      ]
+    },
+    {
+      "id": "kitchen-1",
+      "span": [
+        [
+          373,
+          58
+        ],
+        [
+          397,
+          58
+        ]
+      ]
+    },
+    {
+      "id": "kitchen-2",
+      "span": [
+        [
+          413,
+          58
+        ],
+        [
+          438,
+          58
+        ]
+      ]
+    },
+    {
+      "id": "kitchen-3",
+      "span": [
+        [
+          455,
+          58
+        ],
+        [
+          480,
+          58
+        ]
+      ]
+    }
+  ],
+  "notes": "Partial manual annotation by Codex, not independently reviewed. Only listed regions scored. Hall, kitchen/living open zones, terrace and unlabelled vestibules excluded. Other openings remain unknown. Walls: ten structural spans plus five furniture-only negative regions. Junction reference list is partial and deliberately not scored as complete coverage.",
+  "reference_dimensions": [
+    {
+      "span": [
+        [
+          111,
+          58
+        ],
+        [
+          720,
+          58
+        ]
+      ],
+      "length_mm": 23800
+    },
+    {
+      "span": [
+        [
+          111,
+          58
+        ],
+        [
+          111,
+          263
+        ]
+      ],
+      "length_mm": 8000
+    }
+  ],
+  "excluded": {
+    "terrace": "User excludes all terraces/verandas and their railings from output",
+    "portals": "hall to living and kitchen to living",
+    "columns": [
+      [
+        400,
+        429
+      ],
+      [
+        452,
+        429
+      ]
+    ],
+    "stairs": "User excludes all exterior steps and stairs from output"
+  },
+  "walls": [
+    {
+      "id": "north-west",
+      "centerline": [
+        [
+          114,
+          58
+        ],
+        [
+          270,
+          58
+        ]
+      ],
+      "thickness_px": 6
+    },
+    {
+      "id": "left-partition",
+      "centerline": [
+        [
+          112,
+          160
+        ],
+        [
+          267,
+          160
+        ]
+      ],
+      "thickness_px": 8
+    },
+    {
+      "id": "boiler-east",
+      "centerline": [
+        [
+          336,
+          62
+        ],
+        [
+          336,
+          171
+        ]
+      ],
+      "thickness_px": 6
+    },
+    {
+      "id": "kitchen-south",
+      "centerline": [
+        [
+          348,
+          160
+        ],
+        [
+          463,
+          160
+        ]
+      ],
+      "thickness_px": 7
+    },
+    {
+      "id": "pantry-west",
+      "centerline": [
+        [
+          517,
+          62
+        ],
+        [
+          517,
+          155
+        ]
+      ],
+      "thickness_px": 6
+    },
+    {
+      "id": "right-partition",
+      "centerline": [
+        [
+          612,
+          160
+        ],
+        [
+          718,
+          160
+        ]
+      ],
+      "thickness_px": 8
+    },
+    {
+      "id": "bath-west",
+      "centerline": [
+        [
+          517,
+          167
+        ],
+        [
+          517,
+          228
+        ]
+      ],
+      "thickness_px": 6
+    },
+    {
+      "id": "bath-south",
+      "centerline": [
+        [
+          520,
+          231
+        ],
+        [
+          582,
+          231
+        ]
+      ],
+      "thickness_px": 6
+    },
+    {
+      "id": "living-west",
+      "centerline": [
+        [
+          336,
+          307
+        ],
+        [
+          336,
+          389
+        ]
+      ],
+      "thickness_px": 6
+    },
+    {
+      "id": "living-east",
+      "centerline": [
+        [
+          517,
+          307
+        ],
+        [
+          517,
+          389
+        ]
+      ],
+      "thickness_px": 6
+    }
+  ],
+  "reference_junctions": [
+    {
+      "point": [
+        225,
+        58
+      ],
+      "type": "T"
+    },
+    {
+      "point": [
+        517,
+        160
+      ],
+      "type": "X"
+    },
+    {
+      "point": [
+        586,
+        160
+      ],
+      "type": "X"
+    },
+    {
+      "point": [
+        269,
+        160
+      ],
+      "type": "T"
+    }
+  ],
+  "reference_project": {
+    "file": "focus_plan/project (4).json",
+    "role": "approximate topology and serialization reference; not metric ground truth",
+    "areas": 18,
+    "doors": 12,
+    "windows": 29,
+    "portals": 4
+  }
+}
