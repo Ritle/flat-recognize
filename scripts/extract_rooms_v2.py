@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 from classify_openings import classify_opening, opening_axis, structural_union
 from door_leaf_evidence import (diagonal_leaf_with_jambs, leaf_and_arc, leaf_candidates,
-                                shallow_leaf_hint, wall_jamb_support)
+                                perpendicular_leaf_and_arc, shallow_leaf_hint, wall_jamb_support)
 from extract_rooms import fill_polygon, polygon_to_int, simplify_contour
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
@@ -370,6 +370,40 @@ def prune_redundant_weak_closures(barrier, walls, inferred, candidates):
     return retained, rejected
 
 
+def unrelated_leaf_closures(barrier, candidates, gray, walls):
+    """Reject a supposed door leaf inside a different enclosed room across a partition."""
+    doors = [c for c in candidates if c["evidence"] == "door_leaf"]
+    if not doors:
+        return []
+    trial, _ = apply_closures(barrier, candidates)
+    _, labels = cv2.connectedComponents(cv2.bitwise_not(trial), connectivity=8)
+    exterior = set(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
+
+    def room_at(point):
+        x, y = np.rint(point).astype(int)
+        return labels[y, x] if 0 <= x < labels.shape[1] and 0 <= y < labels.shape[0] else 0
+
+    rejected = []
+    for door in doors:
+        a, b = np.array(door["start"]), np.array(door["end"])
+        dx, dy = b - a
+        normal = np.array([-dy, dx]) / np.linalg.norm(b - a)
+        width = door["width"]
+        middle = (a + b) / 2
+        adjacent = {room_at(middle + sign * normal * width * 1.2) for sign in (-1, 1)}
+        if 0 in adjacent:
+            continue
+        leaf = diagonal_leaf_with_jambs(gray, a, b, width, walls)
+        if leaf is None:
+            continue
+        hinge, tip = np.array(leaf["hinge"]), np.array(leaf["tip"])
+        rooms = {room_at(hinge + fraction * (tip - hinge)) for fraction in (.45, .65, .85)}
+        if len(rooms) == 1 and rooms.isdisjoint(adjacent | exterior | {0}):
+            if leaf_and_arc(gray, a, b, width, walls) is None and perpendicular_leaf_and_arc(gray, a, b, width) is None:
+                rejected.append(door)
+    return rejected
+
+
 def candidate_inside_existing_room(candidate, rooms):
     """Both sides of a proposed divider must lie in one accepted room."""
     start, end = np.asarray(candidate["start"], float), np.asarray(candidate["end"], float)
@@ -450,7 +484,34 @@ def possible_room_partitions(barrier, walls, inferred, rooms, diagnostics, gray,
     return proposals
 
 
-def exterior_envelope_candidate(barrier, walls):
+def blank_envelope_corner(gray, bounds, runs, thickness):
+    """Look for two missing exterior runs meeting in blank paper at the same corner."""
+    x1, y1, x2, y2 = bounds
+    radius = max(2, round(thickness))
+    for x, horizontal_sign in ((x1, 1), (x2, -1)):
+        for y, vertical_sign in ((y1, 1), (y2, -1)):
+            axes = set()
+            for run in runs:
+                if [x, y] not in (run["start"], run["end"]) or run["length_px"] < 3 * radius:
+                    continue
+                # Inspect a band on either side of the proposed axis. Trim the
+                # far end so a real wall cap at that end cannot supply the run.
+                reach = run["length_px"] - radius
+                horizontal = run["side"] in ("top", "bottom")
+                if horizontal:
+                    a, b = sorted((x, x + horizontal_sign * reach))
+                    strip = gray[max(0, y - radius):y + radius + 1, a:b + 1]
+                else:
+                    a, b = sorted((y, y + vertical_sign * reach))
+                    strip = gray[a:b + 1, max(0, x - radius):x + radius + 1].T
+                if strip.size and np.mean(strip.min(axis=0) >= 245) >= .95:
+                    axes.add(horizontal)
+            if len(axes) == 2:
+                return [x, y]
+    return None
+
+
+def exterior_envelope_candidate(barrier, walls, gray=None):
     """Close a heavily fragmented rectangular exterior only for topology."""
     ys, xs = np.where(walls > 0)
     if not len(xs):
@@ -501,6 +562,12 @@ def exterior_envelope_candidate(barrier, walls):
                       [[fixed, y1 + start], [fixed, y1 + end]])
             inferred_runs.append({"side": side, "start": points[0], "end": points[1],
                                   "length_px": end - start})
+    if gray is not None:
+        corner = blank_envelope_corner(gray, diagnostics["bbox"], inferred_runs, thickness)
+        if corner is not None:
+            diagnostics.update(reason="blank_exterior_corner", corner=corner,
+                               inferred_boundary_runs=inferred_runs)
+            return barrier, np.zeros_like(barrier), diagnostics
     diagnostics.update(accepted=True, reason="fragmented_exterior_envelope",
                        inferred_pixels=int(np.count_nonzero(additions)),
                        inferred_boundary_runs=inferred_runs)
@@ -579,25 +646,39 @@ def room_candidates(barrier, walls, inferred):
                    "interior_area_px": sum(room["area_px"] for room in rooms)}
 
 
-def extract_rooms(data, rgb):
-    h, w = rgb.shape[:2]
-    if (data.get("meta", {}).get("width"), data.get("meta", {}).get("height")) != (w, h):
-        raise ValueError("Structural coordinates must refer to the original raster dimensions")
+def wall_mask(data, h, w):
     walls = np.zeros((h, w), dtype=np.uint8)
     for polygon in data.get("walls", []):
         mask = np.zeros_like(walls)
         fill_polygon(mask, polygon)
         walls |= mask
+    return walls
+
+
+def known_opening_barrier(walls, openings_to_seal):
     openings = np.zeros_like(walls)
-    topology_only = data.get("topology_only_openings", [])
-    active_topology = [opening for opening in topology_only
-                       if opening.get("topology_mask_use") is not False]
-    for opening in data.get("doors", []) + data.get("windows", []) + active_topology:
+    for opening in openings_to_seal:
         if len(opening.get("outer", [])) >= 3:
             cv2.fillPoly(openings, [polygon_to_int(opening["outer"])], 255)
     barrier = walls | cv2.dilate(openings, np.ones((5, 5), np.uint8))
     barrier = cv2.morphologyEx(barrier, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-    barrier = cv2.dilate(barrier, np.ones((3, 3), np.uint8))
+    return cv2.dilate(barrier, np.ones((3, 3), np.uint8))
+
+
+def non_rectangular_count(rooms):
+    return sum(r["area_px"] / max(1, (r["bbox"][2] - r["bbox"][0])
+                                  * (r["bbox"][3] - r["bbox"][1])) < .9 for r in rooms)
+
+
+def extract_rooms(data, rgb):
+    h, w = rgb.shape[:2]
+    if (data.get("meta", {}).get("width"), data.get("meta", {}).get("height")) != (w, h):
+        raise ValueError("Structural coordinates must refer to the original raster dimensions")
+    walls = wall_mask(data, h, w)
+    topology_only = data.get("topology_only_openings", [])
+    active_topology = [opening for opening in topology_only
+                       if opening.get("topology_mask_use") is not False]
+    barrier = known_opening_barrier(walls, data.get("doors", []) + data.get("windows", []) + active_topology)
     inferred = np.zeros_like(walls)
     rooms, diagnostics = room_candidates(barrier, walls, inferred)
     passes = [{"name": "known_openings", "rooms": len(rooms), **diagnostics}]
@@ -609,7 +690,7 @@ def extract_rooms(data, rgb):
     envelope_applied = False
     # One enclosed room can coexist with a larger interior still leaking to outside.
     if diagnostics["outside_fraction_in_structure"] >= 0.9:
-        trial, additions, envelope = exterior_envelope_candidate(barrier, walls)
+        trial, additions, envelope = exterior_envelope_candidate(barrier, walls, gray)
         trial_inferred = inferred | additions
         trial_rooms, trial_diagnostics = room_candidates(trial, walls, trial_inferred)
         accepted = (envelope["accepted"] and bool(trial_rooms)
@@ -622,6 +703,7 @@ def extract_rooms(data, rgb):
         if accepted:
             barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
             envelope_applied = True
+    initial_barrier, initial_inferred = barrier, inferred
     for relaxed in (False, True):
         if (relaxed and rooms and diagnostics["outside_fraction_in_structure"] < 0.25
                 and not envelope_applied):
@@ -658,6 +740,18 @@ def extract_rooms(data, rgb):
         if accepted:
             barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_diagnostics
             closures.extend(candidates)
+    # Later passes may enclose the neighbouring room containing the supposed leaf.
+    unrelated = unrelated_leaf_closures(initial_barrier, closures, gray, wall_shapes)
+    if unrelated:
+        retained = [c for c in closures if c not in unrelated]
+        trial, additions = apply_closures(initial_barrier, retained)
+        trial_inferred = initial_inferred | additions
+        trial_rooms, trial_info = room_candidates(trial, walls, trial_inferred)
+        if (preserves_existing_rooms(rooms, trial_rooms) and trial_info["outside_fraction_in_structure"]
+                <= diagnostics["outside_fraction_in_structure"] + .005):
+            barrier, inferred, rooms, diagnostics = trial, trial_inferred, trial_rooms, trial_info
+            closures = retained
+            passes.append({"name": "leaves_in_other_rooms", "removed": unrelated, "rooms": len(rooms)})
     endpoints, thickness = wall_endpoints(barrier)
     transverse_candidates = endpoint_wall_arc_candidates(
         barrier, gray, endpoints, thickness, wall_shapes)
@@ -758,8 +852,7 @@ def extract_rooms(data, rgb):
                          for window in data.get("windows", []))
     if review_windows:
         warnings.append(f"Окна, восстановленные по топологии ({review_windows}), требуют проверки.")
-    non_rectangular = sum(r["area_px"] / max(1, (r["bbox"][2] - r["bbox"][0])
-                                            * (r["bbox"][3] - r["bbox"][1])) < 0.9 for r in rooms)
+    non_rectangular = non_rectangular_count(rooms)
     if non_rectangular:
         warnings.append("Есть помещения сложной формы; текущий экспорт упрощает их до прямоугольников.")
     partition_proposals = possible_room_partitions(

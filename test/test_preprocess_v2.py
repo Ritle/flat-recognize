@@ -10,6 +10,30 @@ from preprocess_v2 import model_point_to_source, preprocess
 
 
 class PreprocessTests(unittest.TestCase):
+    def test_faded_plan_keeps_thin_detail_and_source_coordinates(self):
+        source = Image.new("RGB", (500, 400), (252, 252, 252))
+        draw = ImageDraw.Draw(source)
+        draw.rectangle((60, 60, 440, 340), outline=(213, 213, 213), width=8)
+        draw.line((100, 150, 160, 150), fill=(225, 225, 225), width=1)
+        normalized, _, meta = preprocess(source, light_fill_cleanup=True)
+        x, y, _, _ = meta["roi"]
+        self.assertEqual(meta["diagnostics"]["normalization"], "faint_scan_contrast")
+        self.assertFalse(meta["diagnostics"]["light_fill_applied"])
+        self.assertLess(normalized.getpixel((62-x, 120-y))[0], 40)
+        self.assertLess(normalized.getpixel((130-x, 150-y))[0], 125)
+        self.assertGreater(normalized.getpixel((130-x, 153-y))[0], 235)
+
+    def test_faint_noise_paper_shading_and_single_rule_stay_unchanged(self):
+        gradient = np.tile(np.linspace(208, 255, 360, dtype=np.uint8), (300, 1))
+        noise = np.random.default_rng(1).integers(208, 256, (300,360), dtype=np.uint8)
+        ruled = np.full((300,360), 252, np.uint8)
+        ruled[100:107] = 212
+        for gray in (gradient, noise, ruled):
+            normalized, _, meta = preprocess(Image.fromarray(gray))
+            self.assertEqual(meta["diagnostics"]["normalization"], "original")
+            x, y, right, bottom = meta["roi"]
+            np.testing.assert_array_equal(np.asarray(normalized)[:,:,0], gray[y:bottom,x:right])
+
     def test_light_floor_fill_does_not_become_wall(self):
         image = Image.new("RGB", (500, 400), "white")
         draw = ImageDraw.Draw(image)

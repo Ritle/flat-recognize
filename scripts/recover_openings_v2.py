@@ -15,7 +15,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, wall_jamb_support
+from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, perpendicular_leaf_and_arc, wall_jamb_support
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
@@ -78,6 +78,8 @@ def recover_openings(classified, rooms, rgb, prediction=None):
             continue
         evidence = leaf_and_arc(gray, a, b, width, walls) if min(support) >= 2 else None
         method = "recovered_leaf_and_arc"
+        if evidence is None and min(support) >= 2:
+            evidence = perpendicular_leaf_and_arc(gray, a, b, width)
         if evidence is None:
             evidence = diagonal_leaf_with_jambs(gray, a, b, width, walls)
             method = ("recovered_partial_jamb_diagonal_leaf" if evidence and

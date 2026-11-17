@@ -2,6 +2,7 @@ import copy
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from validate_recognition import collinear_wall_span, validate_recognition
@@ -61,6 +62,43 @@ class QualityGateTest(unittest.TestCase):
                       [item["code"] for item in result["issues"]])
         self.assertNotIn("topology_only_openings",
                          [item["code"] for item in result["issues"]])
+
+    def test_only_verified_duplicate_pair_can_clear_mask_change_error(self):
+        rooms, project, bindings = fixture()
+        entries = [{"id": 7, "classification": {"method": "duplicate_parallel_window_layer", "paired_with": 1}},
+                   {"id": 1, "classification": {"method": "one_sided_unconfirmed_window"}}]
+        rooms["topology_only_openings"] = [dict(e, topology_mask_use=False) for e in entries]
+        change = dict(reason="duplicate_layers_at_verified_wall", status="accepted", opening_ids=[7, 1],
+                      unsupported_before=4, unsupported_after=0,
+                      raster_wall={"min_wall_radius_px": 2, "max_removed_ink_radius_px": 1})
+        report = {"removed_from_room_mask": [7, 1], "candidates": [change]}
+        rooms["diagnostics"]["topology_window_reconciliation"] = report
+        self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "review")
+        report["removed_from_room_mask"].append(9)
+        result = validate_recognition(rooms, project, bindings)
+        issue = next(i for i in result["issues"] if i["code"] == "topology_mask_change_unconfirmed")
+        self.assertEqual(issue["opening_ids"], [9])
+        self.assertFalse(result["export_allowed"])
+        change["raster_wall"]["min_wall_radius_px"] = 1
+        result = validate_recognition(rooms, project, bindings)
+        issue = next(i for i in result["issues"] if i["code"] == "topology_mask_change_unconfirmed")
+        self.assertEqual(issue["opening_ids"], [7, 1, 9])
+
+    def test_verified_single_strip_must_refer_to_a_released_window_and_an_existing_room(self):
+        rooms, project, bindings = fixture()
+        rooms["rooms"][0]["id"] = 3
+        rooms["topology_only_openings"] = [{"id": 7, "topology_mask_use": False,
+            "classification": {"method": "one_sided_unconfirmed_window"}}]
+        change = dict(reason="one_sided_strip_at_verified_wall", status="accepted", opening_id=7,
+                      room_id=3, mask_pixels_removed=30, unsupported_before=2, unsupported_after=0,
+                      raster_wall={"min_wall_radius_px": 2, "max_removed_ink_radius_px": 0})
+        rooms["diagnostics"]["topology_window_reconciliation"] = {
+            "removed_from_room_mask": [7], "candidates": [change]}
+        self.assertEqual(validate_recognition(rooms, project, bindings)["status"], "review")
+        for key, value in (("room_id", 0), ("opening_id", 2), ("mask_pixels_removed", 0),
+                           ("unsupported_after", 1)):
+            with self.subTest(key=key), patch.dict(change, {key: value}):
+                self.assertFalse(validate_recognition(rooms, project, bindings)["export_allowed"])
 
     def test_manual_opening_choice_remains_review(self):
         rooms, project, bindings = fixture()
@@ -149,6 +187,47 @@ class QualityGateTest(unittest.TestCase):
         self.assertEqual(confirmed["status"], "invalid")
         self.assertIn("thick_window_geometry_unresolved",
                       [i["code"] for i in confirmed["issues"]])
+
+    def test_exported_window_cut_must_match_raster_and_calibrated_wall(self):
+        rooms, project, bindings = fixture()
+        level = project["levels"][0]
+        rooms["doors"] = []
+        bindings["doors"] = []
+        item = level["elements"].pop()
+        level["elements"] = [item]
+        wall = item["wall"]
+        wall["holeShape"] = [dict(x=x, y=y) for x, y in
+                             ((-.2, 0), (.2, 0), (.2, 1), (-.2, 1))]
+        method = "topology_recovered_thick_window"
+        evidence = dict(method="paired_raster_rails", span=[[5, 20], [5, 40]],
+                        extent_basis="raster_clear_bay", minimum_support=1, rails_px=[3, 7],
+                        bay_evidence=dict(start=20, end=40, jamb_support=[1, 1]))
+        rooms["windows"][0].update(id=5, bbox=[0, 18, 10, 42], classification=dict(method=method),
+                                   recovery=dict(method=method, raster_axis_evidence=evidence))
+        # The left edge is downward in image coordinates and reversed in the project cycle.
+        wall["uuid"] = "s3"
+        bindings["windows"][0].update(wall_uuid="s3", element_uuid=item["uuid"],
+                                      opening_id=5, geometry_source="raster_clear_bay")
+        calibration = dict(wall_uuid="original", final_wall_uuids=["s3"],
+                           opening_ids=[5], measured_thickness_cm=20)
+        geometry = dict(adapter="polygon", calibrated_wall_thickness=[calibration],
+                        pixel_to_world=dict(scale_x=2, scale_y=2, origin_x=-10, origin_y=-10))
+        result = validate_recognition(rooms, project, bindings, geometry=geometry)
+        self.assertTrue(result["export_allowed"], result["errors"])
+        self.assertIn("recovered_window_cut_verified", [i["code"] for i in result["issues"]])
+        for target, key, replacement in (
+                (wall, "position", 65), (wall, "holeShape", []),
+                (evidence["bay_evidence"], "jamb_support", [1, .3]),
+                (geometry["pixel_to_world"], "origin_x", 10),
+                (calibration, "final_wall_uuids", ["s1"]),
+                (calibration, "measured_thickness_cm", 42)):
+            with self.subTest(key=key):
+                old = target[key]
+                target[key] = replacement
+                blocked = validate_recognition(rooms, project, bindings, geometry=geometry)
+                self.assertFalse(blocked["export_allowed"])
+                self.assertIn("thick_window_geometry_unresolved", [i["code"] for i in blocked["issues"]])
+                target[key] = old
 
     def test_invalid_source(self):
         for polygons, code in (([], "no_rooms"),

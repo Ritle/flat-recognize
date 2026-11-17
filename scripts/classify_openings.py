@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, wall_jamb_support
 from PIL import Image, ImageDraw
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 from shapely.ops import unary_union
 
 
@@ -289,6 +289,58 @@ def classify_opening_with_leaf(gray, opening, walls):
     return ("door", evidence) if evidence is not None else ("window", None)
 
 
+def narrow_irregular_window(opening, gray, walls):
+    """Refit a fragmented window mask only to a unique ruled strip between solid jambs."""
+    x0, y0, x1, y1, length, thickness, orientation = opening_geometry(opening)
+    if (opening.get("source_class") != "window" or thickness < 16 or length < 35
+            or thickness > length / 2 or thickness < length / 5
+            or Polygon(opening["outer"]).area > length * thickness * .55):
+        return
+    vertical = orientation == "vertical"
+    raster = gray.T if vertical else gray
+    lo, hi, bottom, top = (y0, y1, x0, x1) if vertical else (x0, x1, y0, y1)
+    left, right = max(0, int(lo - .22 * length)), min(raster.shape[1], math.ceil(hi + .22 * length))
+    mid = round((lo + hi) / 2)
+    runs = []
+    for pos in range(max(0, int(bottom) - 2), min(raster.shape[0], math.ceil(top) + 3)):
+        row = raster[pos]
+        before, after = np.flatnonzero(row[left:mid] < 150), np.flatnonzero(row[mid:right] < 150)
+        if not len(before) or not len(after):
+            continue
+        a, b = left + int(before[-1]) + 1, mid + int(after[0])
+        if (max(abs(a - lo), abs(b - hi)) > length * .2 or min(b, hi) - max(a, lo) < length * .8
+                or a < 3 or b + 3 > len(row) or max(row[a-3:a].max(), row[b:b+3].max()) >= 150):
+            continue
+        if (runs and pos == runs[-1][-1][0] + 1
+                and max(abs(a - runs[-1][0][1]), abs(b - runs[-1][0][2])) <= 2):
+            runs[-1].append((pos, a, b))
+        else:
+            runs.append([(pos, a, b)])
+    bays = []
+    for run in runs:
+        if not 4 <= len(run) <= thickness * .45:
+            continue
+        low, high = run[0][0], run[-1][0]
+        a, b = (int(v) for v in np.median(np.array(run)[:, 1:], axis=0))
+        strip = raster[low:high + 1, a + 2:b - 2].astype(float)
+        # A light slit bounded by continuous darker lines distinguishes frames from plain gaps.
+        slits = (strip[1:-1] > 225) & (strip[1:-1] - np.maximum(strip[:-2], strip[2:]) >= 8)
+        if not np.any(slits.mean(axis=1) >= .8):
+            continue
+        center = (low + high) / 2
+        jambs = [(center, a - 2), (center, b + 2)] if vertical else [(a - 2, center), (b + 2, center)]
+        if all(walls.covers(Point(p)) for p in jambs):
+            bays.append([low, a, high, b] if vertical else [a, low, b, high])
+    if len(bays) == 1:
+        x0, y0, x1, y1 = bays[0]
+        opening["classification"].update(method="ruled_window_between_jambs", requires_review=True,
+                                         evidence={"source_outer": opening["outer"], "frame_bbox": bays[0]})
+        span, depth = sorted((x1 - x0, y1 - y0), reverse=True)
+        opening.update(outer=[[x0, y0], [x1, y0], [x1, y1], [x0, y1]], bbox=bays[0], holes=[],
+                       center=[(x0 + x1) / 2, (y0 + y1) / 2], length=span,
+                       thickness=depth, aspect_ratio=round(span / depth, 2))
+
+
 def classify_openings(data, rgb):
     height, width = rgb.shape[:2]
     meta = data.get("meta", {})
@@ -331,6 +383,8 @@ def classify_openings(data, rgb):
                 method="rejected_detached_thin_wall_window", rejection=rejection)
             rejected.append(opening)
             continue
+        if opening_type == "window" and evidence is None:
+            narrow_irregular_window(opening, gray, walls)
         (doors if opening_type == "door" else windows).append(opening)
         accepted.append(opening)
     reclassified = set()

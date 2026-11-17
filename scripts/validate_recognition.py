@@ -7,6 +7,10 @@ from pathlib import Path
 
 from shapely.geometry import Polygon
 
+from add_openings import opening_export_geometry
+from audit_opening_bindings import calibrated_wall_trace
+from audit_project_opening_holes import audit_project_opening_holes
+
 
 def finite(value):
     try:
@@ -24,6 +28,22 @@ def original_classification_method(opening):
             return method
         classification = classification.get("previous")
     return None
+
+
+def dimension_line_errors(lines, scale):
+    """Compare the exported scale with the distances between reviewed dimension marks."""
+    errors = []
+    for line in lines:
+        span = line.get("span") if isinstance(line, dict) else None
+        if not (isinstance(span, list) and len(span) == 2
+                and all(isinstance(p, (list, tuple)) and len(p) == 2 and all(map(finite, p)) for p in span)
+                and finite(line.get("length_cm")) and line["length_cm"] > 0):
+            return None
+        distance = math.dist(*span)
+        if not distance:
+            return None
+        errors.append(abs(distance - line["length_cm"] / scale))
+    return errors
 
 
 def collinear_wall_span(segments, coords, wall_id, position, width):
@@ -77,6 +97,68 @@ def collinear_wall_span(segments, coords, wall_id, position, width):
             "wall_chain_segments": before_ids[::-1] + [wall_id] + after_ids}
 
 
+def verified_window_cuts(windows, project, bindings, geometry, segments, coords):
+    """Match the serialized hole ends to the two raster jambs on the measured facade."""
+    verified = set()
+    if not (project and bindings and geometry and geometry.get("adapter") == "polygon"
+            and len(project["levels"]) == 1):
+        return verified
+    transform = geometry.get("pixel_to_world")
+    if not isinstance(transform, dict):
+        return verified
+    sx, sy, ox, oy = (transform.get(key) for key in ("scale_x", "scale_y", "origin_x", "origin_y"))
+    if not all(map(finite, (sx, sy, ox, oy))) or min(sx, sy) <= 0:
+        return verified
+    try:
+        audit = audit_project_opening_holes(project)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        # Older or incomplete elements cannot attest to the final serialized cuts.
+        return verified
+    if audit["status"] != "pass":
+        return verified
+    cuts = {cut["element_uuid"]: cut for cut in audit["openings"] if cut["type"] == "windowItem"}
+    rows = bindings["windows"]
+    for window in windows:
+        uid = window.get("id")
+        matches = [row for row in rows if row.get("opening_id") == uid]
+        if not isinstance(uid, int) or len(matches) != 1:
+            continue
+        row = matches[0]
+        element_id = row.get("element_uuid")
+        if not isinstance(element_id, str) or sum(r.get("element_uuid") == element_id for r in rows) != 1:
+            continue
+        cut = cuts.get(element_id)
+        if not cut or row.get("geometry_source") != "raster_clear_bay" or cut["wall_uuid"] != row.get("wall_uuid"):
+            continue
+        wall_id = cut["wall_uuid"]
+        trace = calibrated_wall_trace(window, segments[wall_id], geometry, segments)
+        if not trace or trace["status"] != "matched":
+            continue
+        try:
+            measured = opening_export_geometry(window)
+            evidence = window["recovery"]["raster_axis_evidence"]
+            rails = evidence["rails_px"]
+            if (measured["source"] != "raster_clear_bay" or evidence.get("method") != "paired_raster_rails"
+                    or len(rails) != 2 or not all(map(finite, rails)) or not 0 < rails[1] - rails[0] <= 18):
+                continue
+            along = 0 if measured["orientation"] == "horizontal" else 1
+            jambs = sorted(float(point[along]) for point in evidence["span"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+        a, b = coords[wall_id]
+        endpoints = []
+        for offset in (cut["hole_start_cm"], cut["hole_end_cm"]):
+            t = offset / cut["wall_length_cm"]
+            x = (a[0] + t * (b[0] - a[0]) - ox) / sx
+            y = (a[1] + t * (b[1] - a[1]) - oy) / sy
+            endpoints.append((x, y) if along == 0 else (y, x))
+        # Allow two source pixels for rasterization and the template's rounded hole edges.
+        if all(abs(long - jamb) <= 2 and rails[0] - 2 <= normal <= rails[1] + 2
+               for (long, normal), jamb in zip(sorted(endpoints), jambs)):
+            verified.add(uid)
+    return verified
+
+
 def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry=None,
                          *, allow_empty_rooms=False):
     issues = []
@@ -94,6 +176,13 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
             issue("unsupported_geometry", "error", message)
         for message in geometry.get("warnings", []):
             issue("geometry_warning", "warning", message)
+        graph_gaps = geometry.get('topology_gaps_omitted', [])
+        if isinstance(graph_gaps, list):
+            for gap in graph_gaps:
+                if isinstance(gap, dict) and gap.get('reason') == 'interior_raster_line_without_confirmed_type':
+                    issue('graph_unresolved_internal_gap', 'warning',
+                          'Тип проёма на внутренней границе не определён; требуется проверка.',
+                          span=gap.get('span'), opening_type='unresolved')
         geometry_bindings = geometry.get('bindings', {})
         window_bindings = geometry_bindings.get('windows', []) if isinstance(geometry_bindings, dict) else []
         for binding in window_bindings if isinstance(window_bindings, list) else []:
@@ -195,10 +284,39 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     pruned = (reconciliation.get("removed_from_room_mask", [])
               if isinstance(reconciliation, dict) else [])
     if pruned:
-        issue("topology_mask_change_unconfirmed", "error",
-              "Контур сомнительного окна автоматически исключён из маски помещений; "
-              "форма комнат улучшилась, но требует подтверждения до экспорта.",
-              opening_ids=pruned)
+        inactive = {item.get("id"): item.get("classification", {}) for item in rooms.get("topology_only_openings", [])
+                    if item.get("topology_mask_use") is False}
+        verified = set()
+        for change in reconciliation.get("candidates", []):
+            if change.get("status") != "accepted":
+                continue
+            ids, wall = change.get("opening_ids", []), change.get("raster_wall", {})
+            if not (change.get("unsupported_after") == 0 and change.get("unsupported_before", 0) > 0
+                    and wall.get("min_wall_radius_px", 0) >= 2 and wall.get("max_removed_ink_radius_px", 2) <= 1.4):
+                continue
+            if (change.get("reason") == "duplicate_layers_at_verified_wall"
+                    and len(ids) == 2 and all(uid in inactive for uid in ids)
+                    and inactive[ids[0]].get("method") == "duplicate_parallel_window_layer"
+                    and inactive[ids[0]].get("paired_with") == ids[1]
+                    and inactive[ids[1]].get("method") in ("one_sided_unconfirmed_window", "no_jamb_unconfirmed_window")):
+                verified.update(ids)
+            uid = change.get("opening_id")
+            if (change.get("reason") == "one_sided_strip_at_verified_wall"
+                    and inactive.get(uid, {}).get("method") == "one_sided_unconfirmed_window"
+                    and change.get("mask_pixels_removed", 0) > 0
+                    and isinstance(change.get("room_id"), int)
+                    and any(room.get("id") == change["room_id"] for room in source_rooms)):
+                verified.add(uid)
+        if verified:
+            issue("room_boundary_verified_on_raster", "warning",
+                  "Граница помещения уточнена по непрерывной полосе стены на исходном изображении.",
+                  opening_ids=sorted(verified))
+        pending = [uid for uid in pruned if uid not in verified]
+        if pending:
+            issue("topology_mask_change_unconfirmed", "error",
+                  "Контур сомнительного окна автоматически исключён из маски помещений; "
+                  "форма комнат улучшилась, но требует подтверждения до экспорта.",
+                  opening_ids=pending)
     reviewed_partitions = diagnostics.get("reviewed_partition_closures", [])
     if reviewed_partitions:
         issue("reviewed_partition_geometry_unconfirmed", "error",
@@ -286,16 +404,17 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                       pixel_center=item.get("pixel_center"), reasons=item.get("reasons"),
                       attempted_wall_uuid=item.get("wall_uuid"),
                       distance_to_wall_cm=item.get("distance_to_wall_cm"))
-    for window in windows:
-        if original_classification_method(window) == "topology_recovered_thick_window":
-            issue("thick_window_geometry_unresolved",
-                  "error" if bindings is not None else "warning",
-                  f"Окно {window.get('id')}: толстый контур восстановлен для замыкания комнаты, "
-                  "но положение и форма окна для экспорта не подтверждены.",
-                  opening_id=window.get("id"), opening_kind="windows",
-                  thickness_px=window.get("thickness"), length_px=window.get("length"))
     if not finite(scale) or scale <= 0:
         issue("invalid_scale", "error", "Масштаб должен быть положительным конечным числом.")
+    elif isinstance((geometry or {}).get("dimension_lines"), list) and geometry["dimension_lines"]:
+        errors_px = dimension_line_errors(geometry["dimension_lines"], scale)
+        if errors_px and max(errors_px) <= 1:
+            issue("scale_checked_on_dimensions", "info",
+                  f"Масштаб {scale:g} см/пиксель проверен по размерным линиям исходного плана.",
+                  max_error_px=round(max(errors_px), 4), dimension_count=len(errors_px))
+        else:
+            issue("scale_reference_mismatch", "warning",
+                  "Проверьте масштаб проекта и координаты размерных отметок на плане.")
     else:
         issue("approximate_scale", "info", f"Масштаб {scale:g} см/пиксель задан без проверки по известной длине; физические размеры приблизительны.")
     metrics.update(rooms=len(source_rooms), detected_doors=len(doors), detected_windows=len(windows))
@@ -496,6 +615,13 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                         issue("invalid_binding", "error", "Некорректная диагностическая привязка проёма.")
                         continue
                     orientation = binding.get("orientation")
+                    if "initial_width_cm" in binding:
+                        issue("opening_fitted_to_wall", "warning",
+                              "Ширина или положение проёма уточнены по концам сегмента стены.",
+                              opening_id=binding.get("opening_id"), wall_uuid=wall_id,
+                              initial_width_cm=binding["initial_width_cm"], width_cm=binding.get("width_cm"),
+                              initial_position_percent=binding.get("initial_position_percent"),
+                              position_percent=binding.get("position_percent"))
                     endpoints = all_segment_coords.get(wall_id)
                     if orientation in ("horizontal", "vertical") and endpoints is not None:
                         (ax, ay), (bx, by) = endpoints
@@ -518,6 +644,22 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                               opening_kind=key, opening_index=opening_index, wall_uuid=wall_id,
                               opening_id=binding.get("opening_id"),
                               pixel_center=binding.get("pixel_center"))
+    recovered = [w for w in windows if original_classification_method(w) == "topology_recovered_thick_window"]
+    verified = set()
+    if recovered and not any(i["severity"] == "error" for i in issues):
+        verified = verified_window_cuts(recovered, project, bindings, geometry, all_segments, all_segment_coords)
+    for window in recovered:
+        uid = window.get("id")
+        if isinstance(uid, int) and uid in verified:
+            issue("recovered_window_cut_verified", "warning",
+                  f"Окно {uid}: вырез совпадает с рамой и обоими косяками на растре; проверьте тип окна.",
+                  opening_id=uid, opening_kind="windows")
+        else:
+            issue("thick_window_geometry_unresolved", "error" if bindings is not None else "warning",
+                  f"Окно {uid}: толстый контур восстановлен для замыкания комнаты, "
+                  "но положение и форма окна для экспорта не подтверждены.",
+                  opening_id=uid, opening_kind="windows",
+                  thickness_px=window.get("thickness"), length_px=window.get("length"))
     errors = list(dict.fromkeys(i["message"] for i in issues if i["severity"] == "error"))
     warnings = list(dict.fromkeys(i["message"] for i in issues if i["severity"] != "error"))
     warning_codes = {i["code"] for i in issues if i["severity"] == "warning"}

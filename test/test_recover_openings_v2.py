@@ -44,6 +44,20 @@ def fixture(arc=True, leaf=True, vertical=False):
 
 
 class RecoveryTest(unittest.TestCase):
+    def test_pale_quarter_swing_needs_a_leaf_and_arc_across_all_sectors(self):
+        classified, rooms, rgb = fixture(arc=False, leaf=False)
+        for complete in (False, True):
+            image = Image.fromarray(rgb)
+            draw = ImageDraw.Draw(image)
+            draw.line((100, 100, 100, 40), fill=(210,)*3)
+            for angle in range(270, 360 if complete else 305, 7):
+                draw.arc((40, 40, 160, 160), angle, angle + 5, fill=(227,)*3)
+            result, _, _ = recover_openings(classified, rooms, np.asarray(image))
+            self.assertEqual(len(result["doors"]), int(complete))
+            if complete:
+                evidence = result["doors"][0]["classification"]["evidence"]
+                self.assertEqual(evidence["method"], "quarter_swing_raster")
+
     def test_rejected_short_window_over_raster_line_gap_is_recovered_for_review(self):
         classified, rooms, rgb = fixture(arc=False, leaf=False)
         rooms["diagnostics"]["temporary_closures"][0]["evidence"] = "raster_line"

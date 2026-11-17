@@ -8,8 +8,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from extract_rooms_v2 import (axis_pairs, endpoint_wall_arc_candidates, extract_rooms,
-                              gap_candidates, prune_redundant_weak_closures)
+from extract_rooms_v2 import (axis_pairs, endpoint_wall_arc_candidates, exterior_envelope_candidate, extract_rooms,
+                              gap_candidates, prune_redundant_weak_closures, unrelated_leaf_closures)
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
@@ -32,6 +32,20 @@ def source(walls, leaf=False):
 
 
 class RoomsTests(unittest.TestCase):
+    def test_leaf_behind_partition_cannot_close_a_neighbouring_gap(self):
+        barrier = np.zeros((100, 140), np.uint8)
+        cv2.rectangle(barrier, (10, 10), (130, 90), 255, 3)
+        cv2.line(barrier, (70, 10), (70, 90), 255, 3)
+        cv2.line(barrier, (10, 50), (40, 50), 255, 3)
+        door = {"start": [40, 50], "end": [70, 50], "width": 4, "evidence": "door_leaf"}
+        gray = cv2.bitwise_not(barrier)
+        with patch("extract_rooms_v2.diagonal_leaf_with_jambs") as diagonal:
+            diagonal.return_value = {"hinge": [70, 50], "tip": [90, 30]}
+            walls = Polygon()
+            self.assertEqual(unrelated_leaf_closures(barrier, [door], gray, walls), [door])
+            diagonal.return_value["tip"] = [50, 30]
+            self.assertEqual(unrelated_leaf_closures(barrier, [door], gray, walls), [])
+
     def test_supported_window_edge_seal_recovers_leaked_room_only_in_barrier(self):
         walls = [rectangle(20, 20, 80, 40), rectangle(305, 20, 380, 40),
                  rectangle(20, 20, 30, 280), rectangle(370, 20, 380, 280),
@@ -271,6 +285,25 @@ class RoomsTests(unittest.TestCase):
                             and run["start"][0] < 200 < run["end"][0]
                             for run in envelope["inferred_boundary_runs"]))
         self.assertTrue(result["rooms"][0]["uncertain"])
+
+    def test_missing_corner_requires_raster_support_before_rectangular_repair(self):
+        wall = np.zeros((160, 200), np.uint8)
+        # L-shaped exterior with a doorway in the recessed side.
+        points = [(10, 10), (185, 10), (185, 145), (70, 145), (70, 105),
+                  (53, 105)]
+        cv2.polylines(wall, [np.array(points, np.int32)], False, 255, 5)
+        cv2.polylines(wall, [np.array([(32, 105), (10, 105), (10, 10)], np.int32)], False, 255, 5)
+        for mask in (wall, np.flip(wall, axis=0).copy(), wall.T.copy()):
+            gray = 255 - mask
+            result, additions, report = exterior_envelope_candidate(mask, mask, gray)
+            self.assertEqual(report["reason"], "blank_exterior_corner")
+            self.assertFalse(report["accepted"])
+            self.assertFalse(np.any(additions))
+            np.testing.assert_array_equal(result, mask)
+            # A line present on the raster but missed by segmentation is different.
+            x1, y1, x2, y2 = report["bbox"]
+            cv2.rectangle(gray, (x1, y1), (x2, y2), 140, 1)
+            self.assertTrue(exterior_envelope_candidate(mask, mask, gray)[2]["accepted"])
 
     def test_fragmented_envelope_repairs_leak_with_existing_small_room(self):
         walls = [rectangle(20, 20, 145, 30), rectangle(255, 20, 380, 30),

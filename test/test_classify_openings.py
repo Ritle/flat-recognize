@@ -6,11 +6,13 @@ from unittest.mock import patch
 
 import numpy as np
 from PIL import Image, ImageDraw
+from shapely.affinity import affine_transform
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from classify_openings import (aligned_window_over_weak_door_arc, classify_opening,
-                               classify_openings, duplicate_window_edge_strips)
+                               classify_openings, duplicate_window_edge_strips,
+                               narrow_irregular_window, structural_union)
 from review_decisions import make_review_questions
 
 
@@ -35,6 +37,31 @@ def fixture(arc=True, leaf=True):
 
 
 class ClassifyOpeningsTests(unittest.TestCase):
+    def test_irregular_window_requires_unique_ruled_strip_and_both_wall_ends(self):
+        raster = np.full((110, 130), 255, np.uint8)
+        raster[30:40, 10:20] = raster[30:40, 101:110] = 110
+        raster[[33, 35], 20:101] = 200
+        walls = structural_union([{"outer": [[a, 28], [b, 28], [b, 42], [a, 42]]}
+                                  for a, b in ((10, 20), (101, 110))])
+        contour = [[20, 30], [97, 30], [97, 34], [48, 35], [42, 64], [40, 36], [20, 35]]
+        for vertical in (False, True):
+            pixels = raster.T if vertical else raster
+            points = [p[::-1] for p in contour] if vertical else contour
+            support = affine_transform(walls, [0, 1, 1, 0, 0, 0]) if vertical else walls
+            window = {"source_class": "window", "outer": points, "classification": {}}
+            narrow_irregular_window(window, pixels, support)
+            self.assertEqual(window["bbox"], [30, 20, 39, 101] if vertical else [20, 30, 101, 39])
+            self.assertEqual(window["classification"]["evidence"]["source_outer"], points)
+        for remove in ("rails", "jamb"):
+            partial = raster.copy()
+            if remove == "rails":
+                partial[30:40, 20:101] = 255
+            else:
+                partial[30:40, 101:110] = 255
+            window = {"source_class": "window", "outer": contour, "classification": {}}
+            narrow_irregular_window(window, partial, walls)
+            self.assertEqual(window["outer"], contour)
+
     def test_leaf_and_arc_confirm_door_without_mutating_source(self):
         data, rgb = fixture()
         before = copy.deepcopy(data)

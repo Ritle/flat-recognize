@@ -111,22 +111,62 @@ def normalize_crop(rgb, *, light_fill_cleanup=False):
     }
 
 
+def faint_scan_view(rgb):
+    """Recover pale neutral ink only when a bright page contains structural linework."""
+    gray = rgb.min(axis=2)
+    ink, mid, paper = np.percentile(gray, [1, 60, 95])
+    if (ink < 190 or paper < 230 or paper - ink < 15 or paper - mid > .15 * (paper - ink)
+            or np.percentile(rgb.max(axis=2) - gray, 99) > 10):
+        return None
+    lut = np.clip(24 + (np.arange(256) - ink) * 226 / (paper - ink), 0, 255).astype(np.uint8)
+    enhanced = lut[gray]
+    height, width = gray.shape
+    ratio = min(1., 896 / max(height, width))
+    sample = cv2.resize(enhanced, (max(1, round(width * ratio)), max(1, round(height * ratio))),
+                        interpolation=cv2.INTER_AREA)
+    # Check actual stroke edges. A broad shadow alone can form an ink region.
+    edges = cv2.Canny(sample, 50, 150)
+    minimum = max(12, round(min(sample.shape) * .07))
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, minimum, minLineLength=minimum, maxLineGap=3)
+    if lines is None:
+        return None
+    segments = lines.reshape(-1, 4)
+    vectors = segments[:, 2:] - segments[:, :2]
+    lengths = np.linalg.norm(vectors, axis=1)
+    unit = vectors / lengths[:, None]
+    if np.all(np.abs(unit @ unit[np.argmax(lengths)]) > math.cos(math.radians(25))):
+        return None
+    enhanced_rgb = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB)
+    roi, diagnostics = structural_roi(enhanced_rgb)
+    if not diagnostics["structural_candidates"] or diagnostics["fallback"] not in (None, "already_tightly_framed"):
+        return None
+    levels = {"normalization": "faint_scan_contrast", "ink_level": float(ink), "paper_level": float(paper)}
+    return enhanced_rgb, roi, diagnostics, levels
+
+
 def preprocess(image, *, light_fill_cleanup=False):
     rgb = np.asarray(image.convert("RGB"))
     height, width = rgb.shape[:2]
     neutral, _, preliminary = normalize_crop(rgb, light_fill_cleanup=light_fill_cleanup)
     separated = preliminary.get("normalization") == "light_fill_neutralization"
-    roi, diagnostics = structural_roi(neutral if separated else rgb,
-                                     separated_graphics=separated)
-    x1, y1, x2, y2 = roi
-    crop = rgb[y1:y2, x1:x2]
-    normalized, gray, normalization = normalize_crop(crop, light_fill_cleanup=light_fill_cleanup)
+    faint = faint_scan_view(rgb) if preliminary.get("reason") == "weak_wall_color_evidence" else None
+    if faint is None:
+        roi, diagnostics = structural_roi(neutral if separated else rgb, separated_graphics=separated)
+        x1, y1, x2, y2 = roi
+        crop = rgb[y1:y2, x1:x2]
+        normalized, gray, normalization = normalize_crop(crop, light_fill_cleanup=light_fill_cleanup)
+    else:
+        enhanced, roi, diagnostics, normalization = faint
+        x1, y1, x2, y2 = roi
+        normalized = enhanced[y1:y2, x1:x2]
+        gray = cv2.cvtColor(rgb[y1:y2, x1:x2], cv2.COLOR_RGB2GRAY)
     meta = {
         "version": 2, "source_size": [width, height], "roi": roi,
         "processed_size": [x2 - x1, y2 - y1], "coordinate_space": "source_raster",
         "source_to_crop": [[1, 0, -x1], [0, 1, -y1], [0, 0, 1]],
         "crop_to_source": [[1, 0, x1], [0, 1, y1], [0, 0, 1]],
-        "diagnostics": {**diagnostics, **normalization},
+        "diagnostics": {**diagnostics, **normalization,
+                        "light_fill_applied": separated or normalization["normalization"] == "light_fill_neutralization"},
     }
     return Image.fromarray(normalized), Image.fromarray(gray), meta
 

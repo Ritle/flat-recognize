@@ -128,6 +128,56 @@ def leaf_and_arc(gray, start, end, width, walls):
     return max(evidence, key=lambda e: (e["arc_hits"], -e["hinge_distance"])) if evidence else None
 
 
+def perpendicular_leaf_and_arc(gray, start, end, width):
+    """Test an axis-aligned quarter swing, including pale dashed arcs beside a wall."""
+    start, end = np.asarray(start, float), np.asarray(end, float)
+    length = np.linalg.norm(end - start)
+    if length < max(20, width * 2) or width <= 0:
+        return None
+    axis = (end - start) / length
+    normal = np.array([-axis[1], axis[0]])
+    angles = np.radians(np.linspace(6, 84, 48))
+    leaf_samples = np.linspace(.18, .82, 25)
+    margin = max(3, min(5, width * .3))
+
+    def sample(points):
+        xy = np.rint(points).astype(int)
+        return gray[xy[..., 1], xy[..., 0]].astype(float)
+
+    best = None
+    for index, (jamb, closed) in enumerate(((start, axis), (end, -axis))):
+        for side in (normal, -normal):
+            directions = np.cos(angles)[:, None] * closed + np.sin(angles)[:, None] * side
+            for lateral in np.linspace(-.6, .6, 7) * width:
+                for shift in np.linspace(-.5, .5, 7) * width:
+                    hinge = jamb + lateral * normal + shift * closed
+                    radii = length - shift + np.linspace(-.5, .5, 9) * width
+                    points = hinge + radii[:, None, None] * directions
+                    leaf = hinge + radii[:, None, None] * leaf_samples[None, :, None] * side
+                    # Missing samples outside the sheet must never count as arc evidence.
+                    if (np.any(np.minimum(points.min(axis=(0, 1)), leaf.min(axis=(0, 1))) < margin + 1)
+                            or np.any(np.maximum(points.max(axis=(0, 1)), leaf.max(axis=(0, 1)))
+                                      >= np.array(gray.shape[::-1]) - margin - 1)):
+                        continue
+                    core = np.minimum.reduce([sample(points + d * directions) for d in (-.6, 0, .6)])
+                    background = np.minimum(sample(points - margin * directions), sample(points + margin * directions))
+                    hits = (background - core >= 9) & (core <= 245)
+                    consistent = hits.reshape(len(radii), 4, -1).mean(axis=2).min(axis=1) >= .5
+                    candidates = np.flatnonzero(consistent & (hits.mean(axis=1) >= .70))
+                    for i in candidates:
+                        stroke = np.minimum.reduce([sample(leaf[i] + d * closed) for d in (-1, 0, 1)])
+                        beside = np.maximum(sample(leaf[i] - margin * closed), sample(leaf[i] + margin * closed))
+                        support = float(np.mean(beside - stroke >= 12))
+                        if support < .8:
+                            continue
+                        score = int(hits[i].sum()), support
+                        if best is None or score > best[0]:
+                            best = (score, {"hinge": hinge.tolist(), "tip": (hinge + radii[i] * side).tolist(),
+                                            "jamb_index": index, "arc_hits": score[0], "arc_samples": len(angles),
+                                            "leaf_support": support, "method": "quarter_swing_raster"})
+    return best[1] if best else None
+
+
 def wall_jamb_support(start, end, width, walls):
     start, end = np.asarray(start, float), np.asarray(end, float)
     length = float(np.linalg.norm(end - start))

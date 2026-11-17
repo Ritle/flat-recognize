@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from add_openings import (binding_rejection_reasons, choose_segment_binding,
-                          door_width_cm, opening_export_geometry)
+                          door_width_cm, fit_opening_to_wall, opening_export_geometry)
 from test.test_validate_recognition import fixture
 from validate_recognition import validate_recognition
 
@@ -19,6 +19,14 @@ def segment(uid, ax, ay, bx, by):
 
 
 class OpeningBindingSelectionTests(unittest.TestCase):
+    def test_small_endpoint_overrun_accounts_for_actual_template_cut(self):
+        width, position = fit_opening_to_wall(101, 52, 100, 20, 30, -.51, .5)
+        self.assertAlmostEqual(position - .51 * width, 0)
+        self.assertAlmostEqual(position + .5 * width, 100)
+        self.assertIsNone(fit_opening_to_wall(80, 50, 100, 20, 40))
+        self.assertIsNone(fit_opening_to_wall(80, 50, 40, 20, 40))
+        self.assertIsNone(fit_opening_to_wall(80, 5, 100, 20, 40))
+
     def test_polygon_export_keeps_unplaced_openings_visible_and_invalid(self):
         rooms, project, _ = fixture()
         rooms["doors"] = []

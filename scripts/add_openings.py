@@ -186,7 +186,7 @@ def choose_segment_binding(segments, wx, wy, required_width, orientation):
                          or orientation == "vertical" and abs(dx) > abs(dy) * 3.7)
         candidates.append({"segment": item["segment"], "distance": distance, "t": t,
                            "qx": qx, "qy": qy, "world_x": wx, "world_y": wy,
-                           "overhang": overhang, "aligned": aligned,
+                           "overhang": overhang, "aligned": aligned, "length_cm": length,
                            "perpendicular": perpendicular})
     if not candidates:
         return None
@@ -228,6 +228,20 @@ def binding_rejection_reasons(binding, required_width):
 
 def door_width_cm(recognized_width):
     return max(40.0, float(recognized_width) * 1.12)
+
+
+def fit_opening_to_wall(width, position, length, thickness, minimum, left=-.5, right=.5):
+    """Fit a small endpoint overrun. left/right are hole limits per cm of model width."""
+    if not left < 0 < right or length <= 0:
+        return None
+    center = length * position / 100
+    if center + left * width >= 0 and center + right * width <= length:
+        return None
+    fitted = min(width, length / (right - left))
+    shift_to = min(max(center, -left * fitted), length - right * fitted)
+    if fitted < max(minimum, .75 * width) or abs(shift_to - center) > thickness / 2:
+        return None
+    return fitted, 100 * shift_to / length
 
 
 def find_door_template(template):
@@ -573,6 +587,9 @@ def main():
         best["position"] = best["t"] * 100.0
 
         best["width_cm"] = width_cm
+        best["fit_to_wall"] = (geometry_transform is not None and best["aligned"]
+                               and best["selection"] != "ambiguous"
+                               and best["distance"] <= best["segment"]["thickness"] / 2)
         best["orientation"] = orientation
         best["pixel_center"] = [px, py]
         best["geometry_source"] = export_geometry["source"]
@@ -627,6 +644,13 @@ def main():
         )
 
         width_cm = door_width_cm(binding["width_cm"])
+        adjustment = {}
+        if binding["fit_to_wall"]:
+            fitted = fit_opening_to_wall(width_cm, binding["position"], binding["length_cm"],
+                                         segment["thickness"], 40)
+            if fitted:
+                adjustment = {"initial_width_cm": width_cm, "initial_position_percent": binding["position"]}
+                width_cm, binding["position"] = fitted
 
         door = copy.deepcopy(
             door_template
@@ -732,6 +756,7 @@ def main():
         )
 
         door_bindings.append({
+            **adjustment,
             "door": index + 1,
             "opening_id": opening.get("id"),
             "element_uuid": door_uuid,
@@ -780,6 +805,8 @@ def main():
         segment = binding["segment"]
 
         window_bindings.append({
+            **({"fit_wall_length_cm": binding["length_cm"], "fit_wall_thickness_cm": segment["thickness"]}
+               if binding["fit_to_wall"] else {}),
             "window": index + 1,
             "opening_id": opening.get("id"),
 

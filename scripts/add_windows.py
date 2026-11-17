@@ -4,6 +4,7 @@ import json
 import uuid
 from pathlib import Path
 
+from add_openings import fit_opening_to_wall
 
 def find_window_template(data):
     for level in data.get("levels", []):
@@ -227,6 +228,16 @@ def main():
             30.0,
             width_cm
         )
+        if original_hole_shape and "fit_wall_length_cm" in binding:
+            limits = [float(point["x"]) * 100 / template_width for point in original_hole_shape]
+            fitted = fit_opening_to_wall(width_cm, position_percent, binding["fit_wall_length_cm"],
+                                         binding["fit_wall_thickness_cm"], 30, min(limits), max(limits))
+            if fitted:
+                if diagnostic_windows is not None:
+                    diagnostic_windows[index - 1].update(initial_width_cm=width_cm,
+                                                          initial_position_percent=position_percent,
+                                                          width_cm=fitted[0], position_percent=fitted[1])
+                width_cm, position_percent = fitted
 
         window = copy.deepcopy(
             template
