@@ -16,7 +16,44 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union, polygonize
 
 from classify_openings import opening_axis
-from window_frame_evidence import narrow_frame_rails
+from window_frame_evidence import bounded_frame_bay, narrow_frame_rails
+
+
+def trim_window_cuts(graph, source, rgb):
+    """Trim cuts inferred from whole carriers when both raster jambs are visible."""
+    result = copy.deepcopy(graph)
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    changes = []
+    for index, bridge in enumerate(result['diagnostics']['opening_bridges']):
+        if bridge['kind'] != 'windows' or 'clear_span' in bridge or bridge.get('opening_id') is None:
+            continue
+        matches = [w for w in source.get('windows', []) if w.get('id') == bridge['opening_id']]
+        if len(matches) != 1:
+            continue
+        a, b, width = opening_axis(matches[0])
+        start, end = np.asarray(bridge['span'], dtype=float)
+        length = np.linalg.norm(end - start)
+        if length < 8 or width < 3 or np.linalg.norm(b-a) < 5:
+            continue
+        direction = (end - start) / length
+        if abs((b-a) @ direction) < .98 * np.linalg.norm(b-a):
+            continue
+        bay = bounded_frame_bay(gray, a, b, width, (start-width*direction, end+width*direction))
+        if bay is None:
+            continue
+        measured = np.asarray(bay['clear_span'])
+        offsets = (measured - start) @ direction
+        projected = start + offsets[:, None] * direction
+        lo, hi = sorted(offsets)
+        if (max(np.linalg.norm(measured-projected, axis=1)) > 2 or lo < -1 or hi > length+1
+                or hi-lo < .55*length or max(lo, length-hi) < max(2.5, width*.5)):
+            continue
+        # Only trim the cut within its own carrier. Keep the wall graph intact.
+        bridge['clear_span'] = [(start+t*direction).tolist() for t in (max(0, lo), min(length, hi))]
+        bridge['aperture_measurement'] = dict(source='visible_window_jambs', **bay)
+        changes.append(dict(bridge_index=index, previous_width_px=float(length),
+                            measured_width_px=float(min(length, hi)-max(0, lo))))
+    return result, changes
 
 
 def blank_aperture(gray, opening):

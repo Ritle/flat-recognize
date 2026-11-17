@@ -73,6 +73,91 @@ class GraphExportTest(unittest.TestCase):
         self.assertEqual(len(project['levels'][0]['areas']),2)
         self.assertEqual(report['quality']['status'],'review')
 
+    def test_saved_graph_bound_door_is_not_reported_as_an_omitted_gap(self):
+        data = graph(openings=[dict(kind='recovered_door', span=[[10,0], [90,0]],
+                                    clear_span=[[15,0], [85,0]])])
+        adjacent = dict(span=[[90,0], [100,0]])
+        data['diagnostics']['topology_gaps'] = [dict(span=[[90,0], [10,0]]), adjacent]
+        project, report = self.build(data)
+        self.assertEqual(report['topology_gaps_omitted'], [adjacent])
+        self.assertEqual([element['type'] for element in project['levels'][0]['elements']], ['doorItem'])
+
+    def test_nominal_wall_joins_jamb_steps_and_rebinds_two_apertures(self):
+        data = graph(points=[(0,0),(30,0),(30,.6),(70,.6),(70,0),(100,0),(100,100),(0,100)],
+                     edges=[(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,0)],
+                     openings=[dict(kind='doors', span=[[5,0],[25,0]]),
+                               dict(kind='windows', span=[[35,.6],[65,.6]])])
+        for i, edge in enumerate(data['edges']):
+            edge['thickness_px'] = 4 + i
+        old, _ = self.build(data)
+        project, report = self.build(data, wall_thickness_cm=20)
+        level = project['levels'][0]
+        self.assertGreater(len(old['levels'][0]['connectors']), 4)
+        self.assertEqual(len(level['connectors']), 4)
+        self.assertEqual(len(level['areas']), 1)
+        self.assertEqual(report['unbound_openings'], [])
+        self.assertEqual({s['thickness'] for s in level['segments']}, {20})
+        self.assertEqual({s['half_width_left'] for s in level['segments']}, {10})
+        self.assertEqual(len({i['wall']['uuid'] for i in level['elements']}), 1)
+        self.assertEqual(sorted(round(b['width_cm']) for group in report['bindings'].values() for b in group),
+                         [40,60])
+        self.assertEqual(level['elements'][0]['size']['z'], 20)
+
+    def test_reviewed_axes_keep_host_and_correct_jamb_at_corner(self):
+        data = graph(points=[(0,1),(51,-2),(100,0),(100,100),(0,100)],
+                     edges=[(0,1),(1,2),(2,3),(3,4),(4,0)],
+                     openings=[dict(kind='doors',span=[[0,1],[22,-.3]])])
+        before = copy.deepcopy(data)
+        review = dict(image_sha256='fixture', horizontal=[[0,0,100]], vertical=[],
+                      jambs=[dict(kind='doors',near=[11,0],limits=[6,23])])
+        project, report = self.build(data, wall_axis_review=review, wall_thickness_cm=20)
+        level = project['levels'][0]
+        self.assertEqual((len(level['connectors']), len(level['areas'])), (4,1))
+        self.assertEqual(level['elements'][0]['size']['x'], 34)
+        change = report['reviewed_wall_axes']['openings'][0]
+        self.assertEqual(change['clear_span'], [[6,0],[23,0]])
+        self.assertEqual(change['corner_clearance_px'], 1)
+        self.assertEqual(data, before)
+        review['jambs'][0]['limits'] = [2,23]
+        with self.assertRaisesRegex(ValueError, 'perpendicular wall'):
+            self.build(data, wall_axis_review=review, wall_thickness_cm=20)
+
+    def test_scale_check_uses_both_reviewed_dimension_lines(self):
+        review = dict(image_sha256="fixture", horizontal=[], vertical=[], dimension_lines=[
+            dict(span=[[0, 110], [100, 110]], length_cm=200),
+            dict(span=[[110, 0], [110, 60]], length_cm=121)])
+        _, report = self.build(graph(), wall_thickness_cm=20, wall_axis_review=review)
+        issues = {i["code"]: i for i in report["quality"]["issues"]}
+        self.assertEqual(issues["scale_checked_on_dimensions"]["max_error_px"], .5)
+        self.assertNotIn("approximate_scale", issues)
+        review["dimension_lines"][1]["length_cm"] = 130
+        _, report = self.build(graph(), wall_thickness_cm=20, wall_axis_review=review)
+        codes = [i["code"] for i in report["quality"]["issues"]]
+        self.assertIn("scale_reference_mismatch", codes)
+        self.assertNotIn("scale_checked_on_dimensions", codes)
+
+    def test_offset_junction_keeps_faces_and_openings_on_their_own_runs(self):
+        for vertical in (False, True):
+            def pt(x, y):
+                return [y, x] if vertical else [x, y]
+            points = [pt(0,0), pt(50,0), pt(100,0), pt(100,100), pt(50,100), pt(0,100)]
+            data = graph(points=points, edges=[(0,1),(1,2),(2,3),(3,4),(4,5),(5,0),(1,4)],
+                         openings=[dict(kind="doors", span=[pt(10,0), pt(30,0)]),
+                                   dict(kind="doors", span=[pt(60,0), pt(80,0)])])
+            step = dict(ends=[points[0], points[2]], junction=points[1], normals=[1,-1])
+            review = dict(image_sha256="fixture", horizontal=[], vertical=[], offset_junctions=[step])
+            original = copy.deepcopy(data)
+            project, report = self.build(data, wall_axis_review=review, wall_thickness_cm=20)
+            level = project["levels"][0]
+            self.assertEqual((len(level["areas"]), len(level["segments"]), len(level["connectors"])), (2,8,7))
+            self.assertTrue(report["quality"]["export_allowed"])
+            self.assertEqual(report["reviewed_wall_axes"]["offset_junctions"], [step])
+            self.assertEqual([b["pixel_center"] for b in report["bindings"]["doors"]], [pt(20,1), pt(70,-1)])
+            self.assertEqual(data, original)
+            step["normals"] = [1,20]
+            with self.assertRaisesRegex(ValueError, "Invalid offset junction"):
+                self.build(data, wall_axis_review=review, wall_thickness_cm=20)
+
     def test_single_door_substitution_for_pair_is_explicit_and_survives_simplification(self):
         data = graph(points=[(0,0),(50,0),(100,0),(100,100),(0,100)],
                      edges=[(0,1),(1,2),(2,3),(3,4),(4,0)],

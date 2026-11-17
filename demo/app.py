@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -9,15 +10,19 @@ import time
 import uuid
 from html import escape
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image, ImageDraw
+from shapely.geometry import Polygon
 
 from scripts.review_decisions import CHOICES, MAX_ANSWERS, make_review_questions
 from scripts.review_rooms import ROOM_CHOICES, room_questions
 from scripts.review_partitions import PARTITION_CHOICES, partition_questions
 from scripts.review_exterior_enclosures import EXTERIOR_CHOICES, exterior_questions
+from scripts.graph_scope import validate_graph_scope
+from scripts.preprocess_v2 import preprocess
 from demo.service_info import format_updated_at, load_service_info
 
 
@@ -25,6 +30,15 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "demo"
 JOBS_DIR = ROOT / "demo_jobs"
 OUTPUT_DIR = ROOT / "output"
+FOCUS_REVIEW = ROOT / "focus_plan"
+
+
+def saved_focus_profile(digest):
+    path = FOCUS_REVIEW / "recognition-profile.json"
+    if not path.is_file():
+        return None
+    profile = json.loads(path.read_text(encoding="utf-8"))
+    return profile if profile["image_sha256"] == digest else None
 
 
 def valid_review_answer(answer, pipeline_v2):
@@ -39,6 +53,7 @@ def valid_review_answer(answer, pipeline_v2):
             and answer.get("choice") in choices[keys[0]])
 
 PIPELINE = ROOT / "scripts" / "process_floorplan.py"
+GRAPH_PIPELINE = ROOT / "scripts" / "graph_service.py"
 
 TEMPLATE = ROOT / "test" / "template.json"
 WINDOW_TEMPLATE = ROOT / "test" / "template_window.json"
@@ -121,6 +136,8 @@ def run_pipeline(
     project_path: Path,
     pipeline_v2: bool = False,
     review_decisions: Path | None = None,
+    light_fill_cleanup: bool = False,
+    *, graph_inputs_only: bool = False,
 ):
     command = [
         sys.executable,
@@ -136,6 +153,10 @@ def run_pipeline(
 
     if pipeline_v2:
         command.append("--pipeline-v2")
+    if light_fill_cleanup:
+        command.append("--light-fill-cleanup")
+    if graph_inputs_only:
+        command.append("--graph-inputs-only")
     if review_decisions is not None:
         command.extend(["--review-decisions", str(review_decisions)])
 
@@ -171,12 +192,54 @@ async def service_version():
     return JSONResponse(SERVICE_INFO, headers={"Cache-Control": "no-store"})
 
 
+def create_upload(data, extension):
+    job_id = str(uuid.uuid4())
+    directory = JOBS_DIR / job_id
+    directory.mkdir(parents=True)
+    image = directory / f"{job_id}{extension}"
+    image.write_bytes(data)
+    return image
+
+
+def simple_plan_candidate(image):
+    with Image.open(image) as preview:
+        preview.thumbnail((896, 896))
+        _, _, meta = preprocess(preview, light_fill_cleanup=True)
+    hints = meta["diagnostics"]
+    return (hints.get("structural_candidates") == 1 and hints.get("fallback") == "already_tightly_framed"
+            and hints.get("normalization") == "original" and "wall_level" in hints)
+
+
+def acceptable_simple_project(image, project, result, quality):
+    if (result.returncode or not quality or quality.get("status") != "good"
+            or not quality.get("export_allowed") or not project.is_file()):
+        return False
+    # V1 uses bounding boxes. Compare them to the actual room contours before
+    # accepting that representation on a previously unseen plan.
+    rooms_file = OUTPUT_DIR / f"{image.stem}_rooms.json"
+    if not rooms_file.is_file():
+        return False
+    rooms = json.loads(rooms_file.read_text(encoding="utf-8")).get("rooms", [])
+    for room in rooms:
+        ring = room.get("polygon", [])
+        if len(ring) < 3:
+            return False
+        polygon = Polygon(ring)
+        if not polygon.is_valid or polygon.area <= 0 or polygon.area < .95 * polygon.envelope.area:
+            return False
+    return bool(rooms)
+
+
 @app.post("/api/recognize")
 async def recognize(
     file: UploadFile = File(...),
-    pipeline_v2: bool = Form(False),
+    pipeline_v2: Annotated[bool | None, Form()] = None,
     decisions: str | None = Form(None),
+    light_fill_cleanup: Annotated[bool | None, Form()] = None,
+    use_saved_review: Annotated[bool, Form()] = True,
 ):
+    if light_fill_cleanup and pipeline_v2 is False:
+        raise HTTPException(status_code=400, detail="Light fill cleanup requires V2")
     if decisions is not None and not isinstance(decisions, str):
         decisions = None
     original_name = (
@@ -223,43 +286,21 @@ async def recognize(
         if (not isinstance(review_payload, dict) or review_payload.get("version") != 1
                 or review_payload.get("image_sha256") != source_hash
                 or not isinstance(answers, list) or len(answers) > MAX_ANSWERS
-                or any(not valid_review_answer(answer, pipeline_v2) for answer in answers)):
+                or any(not valid_review_answer(answer, pipeline_v2 is not False) for answer in answers)):
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
         applied_decisions = answers
+    profile = saved_focus_profile(source_hash) if not applied_decisions else None
     has_opening_answers = any("opening_id" in answer for answer in applied_decisions)
     has_partition_answers = any("partition_id" in answer for answer in applied_decisions)
 
-    job_id = str(
-        uuid.uuid4()
-    )
+    image_path = create_upload(data, extension)
+    job_id, job_dir = image_path.stem, image_path.parent
 
-    job_dir = (
-        JOBS_DIR /
-        job_id
-    )
-
-    job_dir.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    # Имя изображения специально делаем уникальным:
-    # pipeline использует stem для промежуточных файлов.
-    image_name = (
-        f"{job_id}{extension}"
-    )
-
-    image_path = (
-        job_dir /
-        image_name
-    )
-
-    image_path.write_bytes(
-        data
-    )
+    if profile and use_saved_review:
+        return await recognize_saved_plan(image_path, original_name, profile)
 
     decisions_path = None
-    if review_payload is not None:
+    if applied_decisions:
         decisions_path = job_dir / "review_decisions.json"
         decisions_path.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -270,21 +311,38 @@ async def recognize(
 
     started = time.time()
 
-    result = await asyncio.to_thread(
-        run_pipeline,
-        image_path,
-        project_path,
-        pipeline_v2,
-        decisions_path,
-    )
+    auto_simple = False
+    selection = "explicit"
+    if pipeline_v2 is None:
+        if not applied_decisions and light_fill_cleanup is None:
+            try:
+                auto_simple = await asyncio.to_thread(simple_plan_candidate, image_path)
+            except (OSError, Image.DecompressionBombError) as exc:
+                raise HTTPException(status_code=400, detail="Не удалось прочитать планировку") from exc
+        pipeline_v2 = not auto_simple
+        selection = "simple_preview" if auto_simple else "v2"
+    previous_job = None
+    while True:
+        cleanup = pipeline_v2 if light_fill_cleanup is None else light_fill_cleanup
+        pipeline_args = [image_path, project_path, pipeline_v2, decisions_path]
+        if cleanup:
+            pipeline_args.append(True)
+        result = await asyncio.to_thread(run_pipeline, *pipeline_args)
+        quality_path = project_path.with_suffix(".quality.json")
+        quality = json.loads(quality_path.read_text(encoding="utf-8")) if quality_path.exists() else None
+        if not auto_simple or acceptable_simple_project(image_path, project_path, result, quality):
+            break
+        previous_job = job_id
+        image_path = create_upload(data, extension)
+        job_id, job_dir = image_path.stem, image_path.parent
+        project_path = job_dir / "project.json"
+        auto_simple, pipeline_v2, selection = False, True, "v2_after_simple_check"
 
     elapsed = (
         time.time() -
         started
     )
 
-    quality_path = project_path.with_suffix(".quality.json")
-    quality = json.loads(quality_path.read_text(encoding="utf-8")) if quality_path.exists() else None
     rejected = quality is not None and quality.get("status") == "invalid"
     if result.returncode != 0:
         error_text = (
@@ -432,6 +490,7 @@ async def recognize(
 
     warnings = quality["warnings"]
     inference = None
+    light_fill_applied = False
     if pipeline_v2:
         if exterior_candidates:
             generated_images["exterior_enclosures"] = OUTPUT_DIR / f"{job_id}_exterior_enclosures_overlay.png"
@@ -471,6 +530,8 @@ async def recognize(
         for suffix in ("_preprocess.json", "_inference.json"):
             shutil.copy2(OUTPUT_DIR / f"{job_id}{suffix}", job_dir / suffix[1:])
         inference = json.loads((job_dir / "inference.json").read_text(encoding="utf-8"))
+        preprocessing = json.loads((job_dir / "preprocess.json").read_text(encoding="utf-8"))
+        light_fill_applied = preprocessing.get("diagnostics", {}).get("light_fill_applied", False)
         for suffix in ("_opening_recovery.json", "_recovered_classified.json", "_classified.json",
                        "_topology_windows.json", "_topology_classified.json",
                        "_interior_filtered_classified.json", "_rooms_filtered.json",
@@ -534,6 +595,10 @@ async def recognize(
         "stats": stats,
         "images": images,
         "pipeline": "v2" if pipeline_v2 else "v1",
+        "light_fill_cleanup": cleanup,
+        "light_fill_applied": light_fill_applied,
+        "pipeline_selection": selection,
+        "first_attempt_job_id": previous_job,
         "warnings": warnings,
         "quality": quality,
         "inference": inference,
@@ -545,6 +610,8 @@ async def recognize(
         "exterior_enclosures": exterior_candidates,
         "applied_decisions": applied_decisions,
         "image_sha256": source_hash,
+        "use_saved_review": use_saved_review,
+        "saved_review_available": bool(profile),
     }
 
     (
@@ -576,6 +643,162 @@ async def recognize(
             f"/api/jobs/{job_id}/json"
         ) if quality["export_allowed"] else None,
     }
+
+
+async def recognize_saved_plan(image, filename, profile):
+    started = time.monotonic()
+    parent = image.parent
+    result = await asyncio.to_thread(run_pipeline, image, parent / "project.json", True, None, True,
+                                     graph_inputs_only=True)
+    if result.returncode:
+        (parent / "error.log").write_text(result.stderr or result.stdout, encoding="utf-8")
+        raise HTTPException(status_code=500, detail="Ошибка сегментации или классификации проёмов.")
+    for suffix, name in ((".json", "prediction.json"), ("_classified.json", "classified.json")):
+        source = OUTPUT_DIR / (image.stem + suffix)
+        if not source.is_file():
+            raise HTTPException(status_code=500, detail="Отсутствуют результаты распознавания для графа.")
+        shutil.copy2(source, parent / name)
+    graph = await build_graph_job(
+        image.stem, (FOCUS_REVIEW / "opening-answers.json").read_text(encoding="utf-8"),
+        profile["scale_cm_per_px"], json.dumps(profile["scope"]), saved_review=True,
+        wall_thickness_cm=profile.get("wall_thickness_cm"))
+    graph.update(ok=graph["quality"]["export_allowed"], filename=filename,
+                 seconds=round(time.monotonic() - started, 2), saved_review=True)
+    metadata = dict(pipeline="graph-inputs", filename=filename, image_sha256=profile["image_sha256"],
+                    use_saved_review=True, graph_job_id=graph["job_id"])
+    (parent / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+    (JOBS_DIR / graph["job_id"] / "metadata.json").write_text(
+        json.dumps(graph, ensure_ascii=False, indent=2), encoding="utf-8")
+    return graph
+
+
+def run_graph_pipeline(image, source, prediction, destination, graph=None, answers=None, scale=1.0, scope=None,
+                       saved_review=False, wall_thickness_cm=None):
+    command = [sys.executable, str(GRAPH_PIPELINE), str(image), str(source), str(prediction), str(destination),
+               "--scale", str(scale)]
+    if graph is not None:
+        command.extend(["--graph", str(graph)])
+    if answers is not None:
+        command.extend(["--answers", str(answers)])
+    if scope is not None:
+        command.extend(["--scope", str(scope)])
+    if wall_thickness_cm is not None:
+        command.extend(["--wall-thickness-cm", str(wall_thickness_cm)])
+    if saved_review:
+        command.extend(["--furniture-review", str(destination / "furniture-review.json"),
+                        "--allow-single-door-for-paired-leaves"])
+        axes = destination / "wall-axis-review.json"
+        if axes.is_file():
+            command.extend(["--wall-axis-review", str(axes)])
+    return subprocess.run(command, cwd=ROOT, capture_output=True, encoding="utf-8",
+                          env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
+
+
+@app.post("/api/jobs/{job_id}/graph-review")
+async def graph_review(job_id: str, decisions: str | None = Form(None), scale: float = Form(1.0),
+                       scope: str | None = Form(None)):
+    """Build or reuse the graph, then apply any answers to its current questions."""
+    return await build_graph_job(job_id, decisions, scale, scope)
+
+
+async def build_graph_job(job_id, decisions, scale, scope, *, saved_review=False, wall_thickness_cm=None):
+    validate_job_id(job_id)
+    if not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
+        raise HTTPException(status_code=400, detail="Scale must be a positive finite number")
+    parent = JOBS_DIR / job_id
+    if not parent.is_dir():
+        raise HTTPException(status_code=404, detail="Job not found")
+    originals = [p for p in parent.iterdir() if p.stem == job_id and p.suffix.lower() in ALLOWED_EXTENSIONS]
+    source = parent / "classified.json"
+    prediction = parent / "prediction.json"
+    if not prediction.exists():
+        prediction = OUTPUT_DIR / f"{job_id}.json"
+    if len(originals) != 1 or not source.is_file() or not prediction.is_file():
+        raise HTTPException(status_code=409, detail="Recognition artifacts are unavailable for graph review")
+    parent_graph = parent / "graph.json"
+    if not isinstance(scope, str):
+        scope = None
+    scope_payload = None
+    if scope is not None:
+        if parent_graph.is_file() or len(scope) > 16384:
+            raise HTTPException(status_code=400, detail="Excluded regions require a new graph")
+        try:
+            scope_payload = json.loads(scope)
+            with Image.open(originals[0]) as raster:
+                validate_graph_scope(scope_payload, raster.size)
+        except (ValueError, TypeError, OSError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid excluded regions") from exc
+    if not isinstance(decisions, str):
+        decisions = None
+    payload = None
+    if decisions is not None:
+        if len(decisions) > 16384:
+            raise HTTPException(status_code=400, detail="Graph answers payload is too large")
+        try:
+            payload = json.loads(decisions)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Invalid graph answers JSON") from exc
+        rows = payload.get("answers") if isinstance(payload, dict) else None
+        digest = hashlib.sha256(originals[0].read_bytes()).hexdigest()
+        if (not isinstance(payload, dict) or payload.get("version") != 1
+                or payload.get("image_sha256") != digest or not isinstance(rows, list)
+                or len(rows) > MAX_ANSWERS or any(not isinstance(row, dict) for row in rows)):
+            raise HTTPException(status_code=400, detail="Graph answers do not match this image")
+    new_id = str(uuid.uuid4())
+    job = JOBS_DIR / new_id
+    job.mkdir(parents=True)
+    image = job / f"{new_id}{originals[0].suffix.lower()}"
+    shutil.copy2(originals[0], image)
+    shutil.copy2(source, job / "classified.json")
+    shutil.copy2(prediction, job / "prediction.json")
+    answers_path = None
+    if payload is not None:
+        answers_path = job / "graph_answers.json"
+        answers_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    scope_path = None
+    if scope_payload is not None:
+        scope_path = job / "graph_scope.json"
+        scope_path.write_text(json.dumps(scope_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    started = time.time()
+    options = {}
+    if wall_thickness_cm is not None:
+        options["wall_thickness_cm"] = wall_thickness_cm
+    if saved_review:
+        shutil.copy2(FOCUS_REVIEW / "furniture-review.json", job / "furniture-review.json")
+        axes = FOCUS_REVIEW / "wall-axis-review.json"
+        if axes.is_file():
+            shutil.copy2(axes, job / axes.name)
+        options["saved_review"] = True
+    result = await asyncio.to_thread(run_graph_pipeline, image, job / "classified.json",
+                                     job / "prediction.json", job,
+                                     parent_graph if parent_graph.is_file() else None, answers_path, scale, scope_path,
+                                     **options)
+    if result.returncode:
+        (job / "error.log").write_text(result.stderr or result.stdout or "Unknown error", encoding="utf-8")
+        if result.returncode == 3 and "GRAPH_REVIEW_ERROR:" in result.stdout:
+            raise HTTPException(status_code=409, detail="Graph choice is stale or unsupported")
+        if result.returncode == 4 and "GRAPH_BUILD_ERROR:" in result.stdout:
+            raise HTTPException(status_code=422, detail="Не удалось построить граф. Проверьте масштаб и исключаемые области.")
+        raise HTTPException(status_code=500, detail="Graph review processing failed")
+    quality = json.loads((job / "quality.json").read_text(encoding="utf-8"))
+    questions = json.loads((job / "graph_questions.json").read_text(encoding="utf-8"))
+    graph = json.loads((job / "graph.json").read_text(encoding="utf-8"))
+    allowed = quality.get("export_allowed") is True and quality.get("status") in ("good", "review")
+    stats = load_stats(job / "project.json") if allowed else {
+        "rooms": 0, "walls": 0, "connectors": 0, "doors": 0, "windows": 0}
+    images = {"graph_questions": f"/api/jobs/{new_id}/image/graph_questions"}
+    if allowed and (job / "graph_export.png").is_file():
+        images["graph_export"] = f"/api/jobs/{new_id}/image/graph_export"
+    return {"job_id": new_id, "parent_job_id": job_id, "pipeline": "graph-review",
+            "quality": quality, "review_questions": questions["questions"],
+            "image_sha256": questions["image_sha256"], "scale_cm_per_px": graph["scale_cm_per_px"],
+            "questions_image_url": f"/api/jobs/{new_id}/image/graph_questions",
+            "images": images,
+            "original_url": f"/api/jobs/{new_id}/image/original", "stats": stats,
+            "seconds": round(time.time() - started, 2), "warnings": quality.get("warnings", []),
+            "quality_url": f"/api/jobs/{new_id}/quality",
+            "download_url": f"/api/jobs/{new_id}/download" if allowed else None,
+            "json_url": f"/api/jobs/{new_id}/json" if allowed else None}
 
 
 def require_export_allowed(job_id: str):
@@ -721,6 +944,8 @@ async def job_image(
         "wall_geometry",
         "exterior_enclosures",
         "exterior_trial",
+        "graph_questions",
+        "graph_export",
     }
 
     if kind not in allowed:

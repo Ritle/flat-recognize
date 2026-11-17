@@ -390,6 +390,27 @@ class MaskGraphTests(unittest.TestCase):
             self.assertFalse(result['accepted'])
             self.assertEqual(result['max_gap_px'],12*factor)
 
+    def test_later_door_recovery_retires_only_the_matching_closure(self):
+        rgb = np.full((80, 200, 3), 255, np.uint8)
+        walls = []
+        for x1, x2 in [(10, 60), (90, 130), (160, 190)]:
+            cv2.rectangle(rgb, (x1, 36), (x2, 44), (0, 0, 0), -1)
+            walls.append(dict(outer=list(box(x1, 36, x2, 44).exterior.coords)))
+        source = dict(meta=dict(width=200, height=80), walls=walls)
+        def leaf_on_first_clear_span(gray, a, b, width, shapes, **kwargs):
+            if kwargs.get('inward_only') and max(a[0], b[0]) < 110:
+                return dict(jamb_support=[3, 3], tip_clearance=10)
+        with patch('mask_wall_graph.diagonal_leaf_with_jambs', return_value=None):
+            initial = build_graph(source, rgb, scale=3)['diagnostics']['topology_gaps']
+        self.assertEqual(len(initial), 2)
+        with patch('mask_wall_graph.diagonal_leaf_with_jambs', side_effect=leaf_on_first_clear_span):
+            diagnostics = build_graph(source, rgb, scale=3)['diagnostics']
+        bridge, = diagnostics['opening_bridges']
+        self.assertEqual(bridge['kind'], 'recovered_door')
+        expected = [gap for gap in initial if sorted(gap['span']) != sorted(bridge['span'])]
+        self.assertEqual(len(expected), 1)
+        self.assertEqual(diagnostics['topology_gaps'], expected)
+
     def test_transverse_tip_between_two_doors_can_support_gap(self):
         lines = [LineString([(20,50),(50,50)]),
                  LineString([(50,10),(50,20)]),

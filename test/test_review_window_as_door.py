@@ -18,6 +18,18 @@ def fixture():
 
 
 class WindowDoorReviewTest(unittest.TestCase):
+    def test_replay_preserves_matching_automatic_door_evidence(self):
+        graph, source, review = fixture()
+        bridge = graph['diagnostics']['opening_bridges'][0]
+        bridge.update(kind='doors', type_review=dict(source='raster_leaf_reclassification',
+                                                     previous_kind='windows'))
+        changed = apply_window_door_reviews(graph, source, (100,100), review, 'a'*64)
+        result = changed['diagnostics']['opening_bridges'][0]
+        self.assertEqual(result['type_review'], bridge['type_review'])
+        self.assertEqual(result['door_review']['choice'], 'door')
+        del bridge['type_review']
+        with self.assertRaises(ValueError):
+            apply_window_door_reviews(graph, source, (100,100), review, 'a'*64)
     def test_review_preserves_geometry_and_is_idempotent(self):
         graph,source,review=fixture();before=copy.deepcopy(graph)
         changed=apply_window_door_reviews(graph,source,(100,100),review,'a'*64)
@@ -40,6 +52,19 @@ class WindowDoorReviewTest(unittest.TestCase):
             else:graph['diagnostics']['opening_bridges'][0]['kind']='passages'
             with self.subTest(mode=mode),self.assertRaises(ValueError):
                 apply_window_door_reviews(graph,source,(100,100),review,'a'*64)
+
+    def test_assistant_visual_review_requires_attribution_and_basis(self):
+        graph,source,review=fixture()
+        answer=review['answers'][0]
+        answer.pop('user_statement')
+        answer.update(reviewer='assistant_visual_review',basis='Visible diagonal attached to jamb')
+        changed=apply_window_door_reviews(graph,source,(100,100),review,'a'*64)
+        provenance=changed['diagnostics']['opening_bridges'][0]['door_review']
+        self.assertEqual(provenance['reviewer'],'assistant_visual_review')
+        self.assertNotIn('user_statement',provenance)
+        self.assertEqual(provenance['basis'],'Visible diagonal attached to jamb')
+        answer.pop('basis')
+        with self.assertRaises(ValueError):apply_window_door_reviews(graph,source,(100,100),review,'a'*64)
 
 
 if __name__=='__main__':unittest.main()

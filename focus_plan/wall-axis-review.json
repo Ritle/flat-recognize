@@ -1,0 +1,68 @@
+{
+  "image_sha256": "25ffe0b0b69cfa925c44251ae7ca8413d2f37a4dfef7e326a5ab495038dbf7b3",
+  "dimension_lines": [
+    {"span":[[111.5,529.5],[719.5,529.5]],"length_cm":2380},
+    {"span":[[65,59],[65,263]],"length_cm":800}
+  ],
+  "horizontal": [
+    [58.5, 111.5, 719.5], [125.5, 224, 268.5], [149.5, 268.5, 336],
+    [161, 111.5, 224], [161, 336, 719.5], [223, 224, 336], [226, 515.5, 585],
+    [263, 111.5, 336], [263, 515.5, 719.5], [390.5, 336, 515.5]
+  ],
+  "vertical": [
+    [111.5, 58.5, 263], [224, 58.5, 263], [268.5, 58.5, 167],
+    [268.5, 222, 263], [336, 58.5, 390.5], [515.5, 58.5, 390.5],
+    [585, 58.5, 263], [639, 58.5, 161], [719.5, 58.5, 263]
+  ],
+  "offset_junctions": [
+    {"ends":[[224,223],[336,223]],"junction":[268.5,223],"normals":[222,224]}
+  ],
+  "jambs": [
+    {"kind":"passages","near":[371.5,160.5],"limits":[357.5,385.5]},
+    {"kind":"passages","near":[479.5,160.5],"limits":[465.5,493.5]},
+    {"kind":"doors","near":[224.5,145],"limits":[136.5,154.5]},
+    {"kind":"doors","near":[224.5,176],"limits":[166.5,184.5]},
+    {"kind":"doors","near":[638,145.5],"limits":[136.5,154.5]},
+    {"kind":"doors","near":[240,222],"limits":[231.5,251.5]},
+    {"kind":"doors","near":[302,223.5],"limits":[292.5,312.5]},
+    {"kind":"doors","near":[243,125],"limits":[231.5,251.5]},
+    {"kind":"doors","near":[318,58],"limits":[308.5,328.5]},
+    {"kind":"doors","near":[427,391],"limits":[406.5,444.5]},
+    {"kind":"doors","near":[546,263],"limits":[538.5,558.5]},
+    {"kind":"doors","near":[270,137],"limits":[128.5,146.5]},
+    {"kind":"doors","near":[516,143],"limits":[134.5,152.5]},
+    {"kind":"doors","near":[585,246],"limits":[235.5,255.5]},
+    {"kind":"doors","near":[585,190],"limits":[179.5,199.5]},
+    {"kind":"doors","near":[302,264.5],"limits":[292.5,312.5]},
+    {"kind":"doors","near":[335,192.5],"limits":[173.5,211.5]},
+    {"kind":"doors","near":[515.5,245.5],"limits":[235.5,255.5]},
+    {"kind":"doors","near":[600,160],"limits":[590.5,610.5]},
+    {"kind":"windows","near":[352,391],"limits":[339.5,363.5]},
+    {"kind":"windows","near":[499,391],"limits":[487.5,510.5]},
+    {"kind":"windows","near":[238,263],"limits":[233.5,243.5]},
+    {"kind":"windows","near":[294,58],"limits":[285.5,301.5]},
+    {"kind":"windows","near":[384,58],"limits":[372.5,395.5]},
+    {"kind":"windows","near":[425,58],"limits":[413.5,437.5]},
+    {"kind":"windows","near":[467,58],"limits":[454.5,478.5]},
+    {"kind":"windows","near":[571,58],"limits":[561.5,580.5]},
+    {"kind":"windows","near":[112,106],"limits":[93.5,119.5]},
+    {"kind":"windows","near":[112,135],"limits":[128.5,140.5]},
+    {"kind":"windows","near":[111,186],"limits":[180.5,192.5]},
+    {"kind":"windows","near":[111,214],"limits":[201.5,227.5]},
+    {"kind":"windows","near":[720,107],"limits":[93.5,119.5]},
+    {"kind":"windows","near":[720,135],"limits":[128.5,140.5]},
+    {"kind":"windows","near":[720,186.5],"limits":[180.5,192.5]},
+    {"kind":"windows","near":[720,215],"limits":[201.5,227.5]},
+    {"kind":"windows","near":[174,263],"limits":[168.5,178.5]},
+    {"kind":"windows","near":[206.5,264],"limits":[194.5,218.5]},
+    {"kind":"windows","near":[619,262.5],"limits":[607.5,630.5]},
+    {"kind":"windows","near":[652,263],"limits":[639.5,664.5]},
+    {"kind":"windows","near":[686,263.5],"limits":[673.5,697.5]},
+    {"kind":"windows","near":[336,284],"limits":[270.5,298.5]},
+    {"kind":"windows","near":[336,321.5],"limits":[307.5,335.5]},
+    {"kind":"windows","near":[336,357],"limits":[343.5,371.5]},
+    {"kind":"windows","near":[515.5,284],"limits":[270.5,298.5]},
+    {"kind":"windows","near":[515.5,322],"limits":[307.5,335.5]},
+    {"kind":"windows","near":[515.5,357],"limits":[343.5,371.5]}
+  ]
+}

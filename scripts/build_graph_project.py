@@ -16,7 +16,9 @@ from shapely.ops import polygonize, unary_union
 
 from add_openings import build_hole_shape, find_door_template
 from add_windows import find_window_template, scale_hole_shape, scale_sill_shape
-from graph_export_geometry import merge_straight_chains, regularize_opening_carriers
+from graph_export_geometry import carrier_geometry, merge_straight_chains, regularize_opening_carriers
+from graph_topology import unresolved_gap_items
+from review_wall_axes import apply_wall_axes
 from validate_recognition import finite, validate_recognition
 from window_exterior_context import window_exterior_context
 
@@ -124,13 +126,45 @@ def opening_binding(bridge, lines, tolerance=2):
                 distance_px=distance, center=list(clear.interpolate(.5, normalized=True).coords[0])), None
 
 
+def simplify_nominal_walls(graph, thickness_px):
+    """Join sampling kinks within half a wall while retaining each bound aperture."""
+    points = {n["id"]: n["point"] for n in graph["nodes"]}
+    lines = [LineString([points[e["start"]], points[e["end"]]]) for e in graph["edges"]]
+    openings = {}
+    for bridge in graph.get("diagnostics", {}).get("opening_bridges", []):
+        binding, _ = opening_binding(bridge, lines)
+        if binding is None:
+            # Keep the original diagnostics for an unresolved carrier.
+            return graph, []
+        openings.setdefault(binding["index"], []).append((bridge, binding["width_px"]))
+
+    def preserves_holes(chord, indices):
+        intervals = []
+        for index in indices:
+            for bridge, width in openings.get(index, []):
+                binding, _ = opening_binding(bridge, [chord])
+                if binding is None or abs(binding["width_px"] - width) > .25:
+                    return False
+                center = chord.length * binding["position"] / 100
+                radius = binding["width_px"] / 2
+                intervals.append((center - radius, center + radius))
+        intervals.sort()
+        return all(a[1] <= b[0] + 1e-4 for a, b in zip(intervals, intervals[1:]))
+
+    return merge_straight_chains(graph, max_deviation=min(2.5, thickness_px / 2),
+                                 max_angle=60, allow_chord=preserves_holes, step_tolerance=1)
+
+
 def build_graph_project(graph, template, window_template, *, scale=None, origin=(0, 0), height=270,
+                        wall_thickness_cm=None, wall_axis_review=None,
                         allow_single_door_for_paired_leaves=False, passage_template=None, _simplify=True):
     if graph.get("coordinate_space") != "source_raster":
         raise ValueError("Graph must be in source_raster coordinates")
     scale = graph.get("scale_cm_per_px") if scale is None else scale
     if not finite(scale) or scale <= 0 or not finite(height) or height <= 0:
         raise ValueError("Scale and wall height must be finite and positive")
+    if wall_thickness_cm is not None and (not finite(wall_thickness_cm) or wall_thickness_cm <= 0):
+        raise ValueError("Nominal wall thickness must be finite and positive")
     origin = point(origin)
     if len(template.get("levels", [])) != 1:
         raise ValueError("Expected a single-level serialization template")
@@ -161,7 +195,7 @@ def build_graph_project(graph, template, window_template, *, scale=None, origin=
         unique.add(pair)
         line = LineString([xy_by_id[start], xy_by_id[end]])
         segment = copy.deepcopy(base["segments"][0])
-        thickness = width * scale
+        thickness = width * scale if wall_thickness_cm is None else wall_thickness_cm
         segment.update(uuid=str(uuid.uuid4()), start=start, end=end,
                        thickness=thickness, height=height, alignment=.5,
                        left=int(start[1:]), right=int(end[1:]),
@@ -186,31 +220,50 @@ def build_graph_project(graph, template, window_template, *, scale=None, origin=
     regularized = []
     if _simplify:
         unbound = [i for i, bridge in enumerate(graph.get("diagnostics", {}).get("opening_bridges", []))
-                   if opening_binding(bridge, lines)[0] is None]
+                   if opening_binding(carrier_geometry(bridge), lines)[0] is None]
         refined, regularized = regularize_opening_carriers(graph, unbound)
         protected = {uid for r in regularized if r["accepted"] for uid in r["protected_nodes"]}
         simplified, merged = merge_straight_chains(refined, protected_nodes=protected)
     else:
         simplified, merged = graph, []
-    if merged or any(r["accepted"] for r in regularized):
+    wall_chains = []
+    if _simplify and wall_thickness_cm is not None:
+        simplified, wall_chains = simplify_nominal_walls(simplified, wall_thickness_cm / scale)
+    axis_changes = []
+    if _simplify and wall_axis_review is not None:
+        if wall_thickness_cm is None:
+            raise ValueError("Reviewed wall axes require a known wall thickness")
+        simplified, axis_changes = apply_wall_axes(simplified, wall_axis_review, opening_binding,
+                                                   wall_thickness_cm / scale)
+    if merged or wall_chains or (_simplify and wall_axis_review is not None) or any(r["accepted"] for r in regularized):
         project, report = build_graph_project(simplified, template, window_template,
-                                              scale=scale, origin=origin, height=height,
+                                              scale=scale, origin=origin, height=height, wall_thickness_cm=wall_thickness_cm,
                                               allow_single_door_for_paired_leaves=allow_single_door_for_paired_leaves,
-                                              passage_template=passage_template,
+                                              passage_template=passage_template, wall_axis_review=wall_axis_review,
                                               _simplify=False)
         report["merged_chains"] = merged
+        report["nominal_wall_chains"] = wall_chains
+        if wall_axis_review is not None:
+            report["reviewed_wall_axes"] = dict(image_sha256=wall_axis_review["image_sha256"], openings=axis_changes)
+            if wall_axis_review.get("offset_junctions"):
+                report["reviewed_wall_axes"]["offset_junctions"] = copy.deepcopy(wall_axis_review["offset_junctions"])
         report["regularized_carriers"] = regularized
         report["source_graph_counts"] = {k: len(graph.get(k, [])) for k in ("nodes", "edges", "faces")}
         return project, report
     diagnostics = graph.get("diagnostics", {})
     report = dict(adapter="physical_graph", pixel_to_world=dict(scale=scale, origin=list(origin)),
-                  topology_gaps_omitted=copy.deepcopy(diagnostics.get("topology_gaps", [])),
+                  topology_gaps_omitted=[copy.deepcopy(gap) for _, gap in unresolved_gap_items(
+                      diagnostics.get("topology_gaps", []), diagnostics.get("opening_bridges", []))],
                   unbound_openings=[], omitted_faces=[], rooms=[], bindings={"doors": [], "windows": [], "passages": []},
                   warnings=["Experimental graph export: opening types, wall branches and target-app import require review."],
                   errors=[])
     report["regularized_carriers"] = regularized
-    wall_footprint = unary_union([line.buffer(edge["thickness_px"] / 2, cap_style=2)
-                                 for line, edge in zip(lines, graph["edges"])])
+    if wall_thickness_cm is not None:
+        report["wall_thickness_cm"] = wall_thickness_cm
+    if wall_axis_review and wall_axis_review.get("dimension_lines"):
+        report["dimension_lines"] = copy.deepcopy(wall_axis_review["dimension_lines"])
+    wall_footprint = unary_union([line.buffer(segment["thickness"] / (2 * scale), cap_style=2)
+                                 for line, segment in zip(lines, segments)])
     areas = []
     for shape in polygonize(lines):
         ring = list(shape.exterior.coords[:-1])
@@ -300,6 +353,7 @@ def main():
     parser.add_argument("--passage-template", type=Path, default=Path("test/template_passage.json"),
                         help="Real application JSON containing a rectangular wallOpening")
     parser.add_argument("--scale", type=float)
+    parser.add_argument("--wall-thickness-cm", type=float, help="Use a known nominal wall thickness for export")
     parser.add_argument("--allow-single-door-for-paired-leaves", action="store_true",
                         help="Explicitly approve the standard door template for detected paired leaves")
     parser.add_argument("--output", type=Path, required=True, help="Review candidate; inspect accompanying report")
@@ -307,6 +361,7 @@ def main():
     load = lambda p: json.loads(p.read_text(encoding="utf-8"))
     project, report = build_graph_project(load(args.graph), load(args.template), load(args.window_template), scale=args.scale,
                                         passage_template=load(args.passage_template) if args.passage_template else None,
+                                        wall_thickness_cm=args.wall_thickness_cm,
                                         allow_single_door_for_paired_leaves=args.allow_single_door_for_paired_leaves)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(project, indent=2, ensure_ascii=False, allow_nan=False), encoding="utf-8")

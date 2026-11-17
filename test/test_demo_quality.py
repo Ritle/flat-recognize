@@ -23,6 +23,20 @@ from test.test_validate_recognition import fixture
 
 
 class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
+    def test_auto_basic_requires_rectangular_rooms_and_good_project(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(api, 'OUTPUT_DIR', Path(directory)):
+            root = Path(directory)
+            project = root / 'project.json'
+            project.write_text('{}')
+            image = root / 'input.png'
+            result = subprocess.CompletedProcess([], 0)
+            quality = dict(status='good', export_allowed=True)
+            for ring, accepted in [([[0,0],[20,0],[20,20],[0,20]], True),
+                                   ([[0,0],[20,0],[20,5],[5,5],[5,20],[0,20]], False)]:
+                (root/'input_rooms.json').write_text(json.dumps(dict(rooms=[dict(polygon=ring)])))
+                self.assertEqual(api.acceptable_simple_project(image, project, result, quality), accepted)
+                self.assertFalse(api.acceptable_simple_project(image, project, result, dict(quality, status='review')))
+
     async def test_v2_shows_final_partition_candidates_and_reconciled_mask(self):
         source = io.BytesIO()
         Image.new("RGB", (40, 40), "white").save(source, format="PNG")
@@ -36,7 +50,12 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
             jobs, output = Path(temp) / "jobs", Path(temp) / "output"
             output.mkdir()
 
-            def pipeline(image_path, project_path, pipeline_v2, review_decisions=None):
+            def pipeline(image_path, project_path, pipeline_v2, review_decisions=None, light_fill_cleanup=False):
+                if not pipeline_v2:
+                    self.assertFalse(light_fill_cleanup)
+                    project_path.with_suffix(".quality.json").write_text(json.dumps(quality))
+                    return subprocess.CompletedProcess([], 2)
+                self.assertTrue(light_fill_cleanup)
                 stem = image_path.stem
                 for suffix in ("_rooms.json", "_rooms_filtered.json",
                                "_rooms_topology_reconciled.json"):
@@ -69,9 +88,13 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
                 return subprocess.CompletedProcess([], 2, stdout="quality check", stderr="")
 
             with patch.object(api, "JOBS_DIR", jobs), patch.object(api, "OUTPUT_DIR", output), \
+                    patch.object(api, "simple_plan_candidate", return_value=True), \
                     patch.object(api, "run_pipeline", side_effect=pipeline):
                 response = await api.recognize(
-                    UploadFile(filename="plan.png", file=io.BytesIO(source.getvalue())), True)
+                    UploadFile(filename="plan.png", file=io.BytesIO(source.getvalue())))
+                self.assertEqual(response["pipeline_selection"], "v2_after_simple_check")
+                self.assertNotEqual(response["first_attempt_job_id"], response["job_id"])
+                self.assertIsNone(response["download_url"])
                 self.assertEqual(len(response["possible_room_partitions"]), 1)
                 question = next(item for item in response["review_questions"]
                                 if item["kind"] == "partition")
@@ -263,7 +286,8 @@ class DemoQualityTest(unittest.IsolatedAsyncioTestCase):
 
             with patch.object(api, "JOBS_DIR", jobs), patch.object(api, "OUTPUT_DIR", output), \
                     patch.object(api, "run_pipeline", side_effect=pipeline):
-                response = await api.recognize(UploadFile(filename="test.png", file=io.BytesIO(b"source")), True)
+                response = await api.recognize(UploadFile(filename="test.png", file=io.BytesIO(b"source")),
+                                               True, light_fill_cleanup=False)
                 self.assertEqual(response["quality"]["status"], "invalid")
                 self.assertIn("interior_windows", response["images"])
                 self.assertIn("wall_geometry", response["images"])

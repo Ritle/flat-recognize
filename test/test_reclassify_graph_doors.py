@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from reclassify_graph_doors import reclassify_graph_doors
+from reclassify_graph_doors import connected_leaf_ink, reclassify_graph_doors
 
 
 def fixture(double=False, mode='valid'):
@@ -40,6 +40,53 @@ def fixture(double=False, mode='valid'):
 
 
 class GraphDoorTypesTest(unittest.TestCase):
+    def test_leaf_ink_cannot_connect_via_a_neighbouring_stroke(self):
+        gray = np.full((40,50),255,np.uint8)
+        cv2.line(gray,(5,15),(35,15),0,1)
+        self.assertTrue(connected_leaf_ink(gray,(5,15),(35,15)))
+        gray[15,14:17] = 255
+        cv2.polylines(gray,[np.array([(5,15),(5,25),(35,25),(35,15)],np.int32)],False,0,1)
+        self.assertFalse(connected_leaf_ink(gray,(5,15),(35,15)))
+
+    def test_exterior_jamb_beyond_frame_rail_and_negative_controls(self):
+        for mode in ('outward', 'reverse', 'rotated', 'inward', 'attached_furniture',
+                     'detached', 'open_contour', 'confirmed_window', 'solid'):
+            graph, source, rgb = fixture()
+            bridge = graph['diagnostics']['opening_bridges'][0]
+            points = [[10,10],[200,10],[200,80],[10,80]]
+            graph.update(nodes=[dict(id=i,point=p) for i,p in enumerate(points)],
+                         edges=[dict(start=i,end=(i+1)%4) for i in range(4)], scale_cm_per_px=2)
+            rgb[:] = 255
+            source['walls'] = []
+            for x1,x2 in ((10,80),(120,200)):
+                cv2.rectangle(rgb,(x1,75),(x2,85),(0,0,0),-1)
+                source['walls'].append(dict(outer=[[x1,75],[x2,75],[x2,85],[x1,85]]))
+            source['windows'][0]['outer'] = [[80,75],[120,75],[120,85],[80,85]]
+            cv2.line(rgb,(80,80),(120,80),(0,0,0),10 if mode=='solid' else 2)
+            hinge,tip = (80,85),(112,105)
+            if mode=='inward': hinge,tip=(80,75),(112,55)
+            if mode=='detached': hinge=(88,90)
+            cv2.line(rgb,hinge,tip,(0,0,0),2)
+            if mode=='attached_furniture':cv2.line(rgb,tip,(100,125),(0,0,0),2)
+            if mode=='confirmed_window':bridge['window_review']=dict(choice='window')
+            if mode=='open_contour':graph['edges'].pop()
+            if mode=='reverse':bridge['span'].reverse()
+            if mode=='rotated':
+                rgb=np.transpose(rgb,(1,0,2)).copy()
+                source['meta']=dict(width=rgb.shape[1],height=rgb.shape[0])
+                for node in graph['nodes']:node['point'].reverse()
+                for point in bridge['span']:point.reverse()
+                for shape in source['windows']+source['walls']:
+                    for point in shape['outer']:point.reverse()
+            result,_=reclassify_graph_doors(graph,source,rgb)
+            updated=result['diagnostics']['opening_bridges'][0]
+            with self.subTest(mode=mode):
+                if mode in ('outward','reverse','rotated'):
+                    self.assertEqual(updated['type_review']['evidence']['method'],'outward_leaf_at_exterior_jamb')
+                    self.assertEqual(updated['span'],bridge['span'])
+                    self.assertEqual(updated['kind'],'doors')
+                else:self.assertEqual(result,graph)
+
     def test_single_and_paired_leaves_change_only_type_with_provenance(self):
         for double in (False,True):
             with self.subTest(double=double):

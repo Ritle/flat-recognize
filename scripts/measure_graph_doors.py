@@ -33,6 +33,11 @@ def measure_graph_doors(graph, source, rgb):
             continue
         record = dict(bridge_index=index, accepted=False)
         reports.append(record)
+        if review.get('evidence', {}).get('method') == 'outward_leaf_at_exterior_jamb':
+            # The offset scanlines locate the hinge face. They do not measure
+            # a wider clear aperture on the existing carrier's centreline.
+            record['reason'] = 'exterior_jamb_measurement_for_type_only'
+            continue
         matches = [o for o in source.get('windows', []) if o.get('id') == original.get('opening_id')]
         if len(matches) != 1 or matches[0].get('source_class') != 'door':
             record['reason'] = 'requires_unique_model_door'; continue

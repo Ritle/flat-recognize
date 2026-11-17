@@ -37,10 +37,12 @@ def apply_graph_door_decisions(graph, source, rgb, decisions, source_sha256):
         raise ValueError('Classified source dimensions do not match raster')
     if graph.get('coordinate_space') != 'source_raster' or source.get('meta', {}).get('coordinate_space', 'source_raster') != 'source_raster':
         raise ValueError('Door review requires source_raster coordinates')
-    gaps = graph.get('diagnostics', {}).get('topology_gaps', [])
-    applied = {b.get('review', {}).get('gap_fingerprint') for b in graph.get('diagnostics', {}).get('opening_bridges', [])
+    diagnostics = graph.get('diagnostics', {})
+    gaps = diagnostics.get('topology_gaps', [])
+    bridges = diagnostics.get('opening_bridges', [])
+    applied = {b.get('review', {}).get('gap_fingerprint') for b in bridges
                if b.get('source') == 'explicit_user_review' and b.get('kind') == 'doors'}
-    selected, seen = [], set()
+    selected, recognized_answers, seen = [], [], set()
     for answer in answers:
         fingerprint = answer.get('gap_fingerprint') if isinstance(answer, dict) else None
         if not fingerprint or fingerprint in seen or answer.get('choice') != 'door':
@@ -49,9 +51,31 @@ def apply_graph_door_decisions(graph, source, rgb, decisions, source_sha256):
         if fingerprint in applied:
             continue
         matches = [g for g in gaps if gap_fingerprint(g) == fingerprint]
+        if not matches:
+            recognized = [i for i,b in enumerate(bridges)
+                          if b.get('source') == 'interior_jamb_face_leaf' and b.get('kind') == 'doors'
+                          and b.get('evidence', {}).get('gap_fingerprint') == fingerprint
+                          and gap_fingerprint(dict(span=b['span'],local_width_px=b['evidence'].get('local_width_px'))) == fingerprint]
+            if len(recognized) == 1:
+                recognized_answers.append((recognized[0],answer))
+                continue
         if len(matches) != 1:
             raise ValueError('Reviewed gap is missing or its geometry has changed')
-        selected.append((answer, matches[0]))
+        selected.append((matches[0], dict(
+            opening_id=f'reviewed-door-{fingerprint}', source='explicit_user_review',
+            review=dict(gap_fingerprint=fingerprint, image_sha256=source_sha256, choice='door',
+                        user_statement=answer.get('user_statement'), hinge_and_swing='unconfirmed_template_defaults'),
+            evidence=dict(type_confirmed_by_user=True))))
+    result = insert_supported_internal_doors(graph, source, rgb, selected)
+    for index,answer in recognized_answers:
+        result['diagnostics']['opening_bridges'][index]['review'] = dict(
+            gap_fingerprint=answer['gap_fingerprint'], image_sha256=source_sha256,
+            choice='door', user_statement=answer.get('user_statement'), hinge_and_swing='unconfirmed_template_defaults')
+    return result
+
+
+def insert_supported_internal_doors(graph, source, rgb, selected):
+    """Insert candidate spans with caller-supplied provenance after checking physical geometry."""
     result = copy.deepcopy(graph)
     if not selected:
         return result
@@ -59,7 +83,7 @@ def apply_graph_door_decisions(graph, source, rgb, decisions, source_sha256):
     walls = structural_union(source.get('walls', []))
     distance = cv2.distanceTransform((rgb.max(axis=2) < 160).astype(np.uint8), cv2.DIST_L2, 5)
     excluded = unary_union([Polygon(p) for p in result['diagnostics'].get('excluded_regions', [])])
-    for answer, candidate in selected:
+    for candidate, metadata in selected:
         line = LineString(candidate['span'])
         wall_width = candidate['local_width_px']
         endpoint_ids = []
@@ -98,15 +122,15 @@ def apply_graph_door_decisions(graph, source, rgb, decisions, source_sha256):
         result['edges'].append(dict(start=endpoint_ids[0], end=endpoint_ids[1], thickness_px=wall_width))
         nodes[endpoint_ids[0]]['adjacency'].append(endpoint_ids[1])
         nodes[endpoint_ids[1]]['adjacency'].append(endpoint_ids[0])
-        fingerprint = answer['gap_fingerprint']
-        result['diagnostics']['opening_bridges'].append(dict(
-            kind='doors', opening_id=f'reviewed-door-{fingerprint}', source='explicit_user_review',
-            span=list(line.coords), clear_span=list(clear.coords), requires_review=True,
-            review=dict(gap_fingerprint=fingerprint, image_sha256=source_sha256, choice='door',
-                        user_statement=answer.get('user_statement'), hinge_and_swing='unconfirmed_template_defaults'),
-            evidence=dict(model_jamb_support=wall_jamb_support(*clear.coords, wall_width, walls),
-                          raster_jamb_min_radius_px=jamb_radii, type_confirmed_by_user=True)))
-        result['diagnostics']['topology_gaps'] = [g for g in result['diagnostics']['topology_gaps'] if gap_fingerprint(g) != fingerprint]
+        # Keep the original numeric representation used by gap_fingerprint.
+        bridge = dict(metadata, kind='doors', span=copy.deepcopy(candidate['span']),
+                      clear_span=list(clear.coords), requires_review=True)
+        bridge['evidence'] = dict(metadata.get('evidence', {}), raster_jamb_min_radius_px=jamb_radii,
+                                  model_jamb_support=wall_jamb_support(*clear.coords, wall_width, walls))
+        result['diagnostics']['opening_bridges'].append(bridge)
+        fingerprint = gap_fingerprint(candidate)
+        result['diagnostics']['topology_gaps'] = [g for g in result['diagnostics'].get('topology_gaps', [])
+                                                   if gap_fingerprint(g) != fingerprint]
     network = [LineString([nodes[e[k]]['point'] for k in ('start', 'end')]) for e in result['edges']]
     network += [LineString(g['span']) for g in result['diagnostics']['topology_gaps']]
     result['faces'] = [dict(polygon=list(p.exterior.coords)[:-1], area_px2=p.area, requires_review=True)

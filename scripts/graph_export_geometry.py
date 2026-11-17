@@ -6,6 +6,14 @@ import math
 from shapely.geometry import LineString, Point
 
 
+def carrier_geometry(bridge):
+    # A cut trimmed inside an existing window must retain the original
+    # carrier's alignment, including its junctions with neighbouring windows.
+    if bridge.get('aperture_measurement', {}).get('source') == 'visible_window_jambs':
+        return dict(bridge, clear_span=bridge['span'])
+    return bridge
+
+
 def regularize_opening_carriers(graph, bridge_indices, max_deviation=.5, *, end_margins=None):
     """Resegment a degree-two path beneath an opening, without narrowing its hole.
 
@@ -18,7 +26,7 @@ def regularize_opening_carriers(graph, bridge_indices, max_deviation=.5, *, end_
     decisions = []
     protected = set()
     for index in bridge_indices:
-        bridge = graph.get("diagnostics", {}).get("opening_bridges", [])[index]
+        bridge = carrier_geometry(graph.get("diagnostics", {}).get("opening_bridges", [])[index])
         aperture = LineString(bridge.get("clear_span", bridge["span"]))
         record = dict(bridge_index=index, accepted=False)
         decisions.append(record)
@@ -137,7 +145,8 @@ def regularize_opening_carriers(graph, bridge_indices, max_deviation=.5, *, end_
     return result, decisions
 
 
-def merge_straight_chains(graph, max_deviation=.5, max_angle=8, *, protected_nodes=()):
+def merge_straight_chains(graph, max_deviation=.5, max_angle=8, *, protected_nodes=(),
+                          allow_chord=None, step_tolerance=0):
     """Remove degree-two sampling nodes; retain junctions and real corners.
 
     All original samples, not just the latest join, must stay within the error
@@ -170,11 +179,18 @@ def merge_straight_chains(graph, max_deviation=.5, max_angle=8, *, protected_nod
                 continue
             p, q, r = positions[a], positions[uid], positions[b]
             u, v = (q[0] - p[0], q[1] - p[1]), (r[0] - q[0], r[1] - q[1])
-            if sum(x * y for x, y in zip(u, v)) < math.hypot(*u) * math.hypot(*v) * math.cos(math.radians(max_angle)):
+            lengths = math.hypot(*u), math.hypot(*v)
+            # Pixel stair-steps at a jamb can turn 90 degrees for less than
+            # one pixel along an otherwise continuous wall.
+            angle_limit = max_angle if min(lengths) > step_tolerance else max(max_angle, 100)
+            if sum(x * y for x, y in zip(u, v)) < lengths[0] * lengths[1] * math.cos(math.radians(angle_limit)):
                 continue
             line = LineString([p, r])
             samples = first["samples"] + second["samples"]
             if max(line.distance(Point(xy)) for xy in samples) > max_deviation:
+                continue
+            source_edges = first["source_edges"] + second["source_edges"]
+            if allow_chord is not None and not allow_chord(line, source_edges):
                 continue
             crossing = False
             for k, edge in enumerate(edges):
@@ -192,7 +208,7 @@ def merge_straight_chains(graph, max_deviation=.5, max_angle=8, *, protected_nod
             width_sum = first["thickness_sum"] + second["thickness_sum"]
             merged = dict(start=a, end=b, thickness_px=width_sum / length,
                           samples=samples, original_length=length, thickness_sum=width_sum,
-                          source_edges=first["source_edges"] + second["source_edges"])
+                          source_edges=source_edges)
             edges = [edge for k, edge in enumerate(edges) if k not in indices] + [merged]
             changed = True
             break

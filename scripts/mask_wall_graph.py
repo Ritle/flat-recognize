@@ -16,6 +16,7 @@ from shapely.ops import polygonize, unary_union
 
 from extract_rooms import fill_polygon
 from internal_wall_graph import skeleton_paths
+from graph_topology import unresolved_gap_items
 from polygon_geometry import parts
 from classify_openings import opening_axis, structural_union
 from door_leaf_evidence import (leaf_and_arc, diagonal_leaf_with_jambs,
@@ -1031,6 +1032,7 @@ def build_graph(source, rgb, scale=1.0, excluded_regions=(), *, prediction=None)
                 record['reason'] = ('missing_dark_inward_leaf_evidence' if method == 'continued_axis'
                                     else 'missing_inward_leaf_evidence')
         terminal_candidates.append(record)
+    topology_gaps = [gap for _, gap in unresolved_gap_items(topology_gaps, opening_bridges)]
     interior_closures, interior_candidates = interior_line_closures(
         edges,topology_gaps,terminal_candidates,widths,wall_shapes,gray,scale)
     topology_gaps.extend(interior_closures)

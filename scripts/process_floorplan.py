@@ -109,6 +109,60 @@ def count_results(final_json):
     }
 
 
+def recognize_graph_inputs(image, pipeline_v2, light_fill_cleanup):
+    python = sys.executable
+    stem = image.stem
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    prediction_json = OUTPUT / f"{stem}.json"
+    classified_json = OUTPUT / f"{stem}_classified.json"
+    prediction_command = [python, SCRIPTS / "predict_raster.py", image]
+    if pipeline_v2:
+        run_command(
+            "V2 - Input preprocessing",
+            [python, SCRIPTS / "preprocess_v2.py", image,
+             *(["--light-fill-cleanup"] if light_fill_cleanup else [])]
+        )
+        preprocessing_meta = require_file(
+            OUTPUT / f"{stem}_preprocess.json", "Preprocessing transform metadata"
+        )
+        prediction_command.extend(["--preprocess-meta", preprocessing_meta, "--dual-pass"])
+
+    # =================================================
+    # 1. Neural network inference
+    # =================================================
+
+    run_command(
+        "1/6 - Floorplan segmentation",
+        prediction_command
+    )
+
+    require_file(
+        prediction_json,
+        "Segmentation JSON"
+    )
+
+    # =================================================
+    # 2. Door / window classification
+    # =================================================
+
+    run_command(
+        "2/6 - Opening classification",
+        [
+            python,
+            SCRIPTS /
+            "classify_openings.py",
+            image,
+            prediction_json,
+        ]
+    )
+
+    require_file(
+        classified_json,
+        "Classified openings JSON"
+    )
+    return prediction_json, classified_json
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -204,7 +258,11 @@ def main():
 
     parser.add_argument("--light-fill-cleanup", action="store_true",
                         help="Experimental cleanup of light colored floors; requires --pipeline-v2")
+    parser.add_argument("--graph-inputs-only", action="store_true",
+                        help="Stop after saving the segmentation and classified inputs for graph export")
     args = parser.parse_args()
+    if args.graph_inputs_only and args.review_decisions:
+        parser.error("--review-decisions requires the full pipeline")
     if args.light_fill_cleanup and not args.pipeline_v2:
         parser.error("--light-fill-cleanup requires --pipeline-v2")
 
@@ -242,6 +300,10 @@ def main():
         "Input image"
     )
 
+    if args.graph_inputs_only:
+        recognize_graph_inputs(image, args.pipeline_v2, args.light_fill_cleanup)
+        return
+
     template = Path(args.template)
 
     if not template.is_absolute():
@@ -278,19 +340,9 @@ def main():
     # Expected intermediate filenames
     # -------------------------------------------------
 
-    prediction_json = (
-        OUTPUT /
-        f"{stem}.json"
-    )
-
     prediction_overlay = (
         OUTPUT /
         f"{stem}_overlay.png"
-    )
-
-    classified_json = (
-        OUTPUT /
-        f"{stem}_classified.json"
     )
 
     classified_overlay = (
@@ -376,51 +428,7 @@ def main():
 
     total_started = time.time()
 
-    prediction_command = [python, SCRIPTS / "predict_raster.py", image]
-    if args.pipeline_v2:
-        run_command(
-            "V2 - Input preprocessing",
-            [python, SCRIPTS / "preprocess_v2.py", image,
-             *(["--light-fill-cleanup"] if args.light_fill_cleanup else [])]
-        )
-        preprocessing_meta = require_file(
-            OUTPUT / f"{stem}_preprocess.json", "Preprocessing transform metadata"
-        )
-        prediction_command.extend(["--preprocess-meta", preprocessing_meta, "--dual-pass"])
-
-    # =================================================
-    # 1. Neural network inference
-    # =================================================
-
-    run_command(
-        "1/6 - Floorplan segmentation",
-        prediction_command
-    )
-
-    require_file(
-        prediction_json,
-        "Segmentation JSON"
-    )
-
-    # =================================================
-    # 2. Door / window classification
-    # =================================================
-
-    run_command(
-        "2/6 - Opening classification",
-        [
-            python,
-            SCRIPTS /
-            "classify_openings.py",
-            image,
-            prediction_json,
-        ]
-    )
-
-    require_file(
-        classified_json,
-        "Classified openings JSON"
-    )
+    prediction_json, classified_json = recognize_graph_inputs(image, args.pipeline_v2, args.light_fill_cleanup)
 
     if has_opening_answers and not args.pipeline_v2:
         reviewed = OUTPUT / f"{stem}_reviewed_classified.json"

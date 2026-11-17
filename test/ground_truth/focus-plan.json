@@ -962,7 +962,7 @@
   ],
   "reference_project": {
     "file": "focus_plan/project (4).json",
-    "role": "approximate topology and serialization reference; not metric ground truth",
+    "role": "Approximate topology and serialization reference. For this plan, legible names, room areas and dimensions on the source PNG take precedence over values in the reference project.",
     "areas": 18,
     "doors": 12,
     "windows": 29,

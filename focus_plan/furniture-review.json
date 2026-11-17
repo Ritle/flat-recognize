@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "image_sha256": "25ffe0b0b69cfa925c44251ae7ca8413d2f37a4dfef7e326a5ab495038dbf7b3",
+  "candidates": [
+    {
+      "terminal_point": [
+        354.0,
+        102.0
+      ],
+      "expected_path": [
+        [
+          354.0,
+          102.0
+        ],
+        [
+          353.0,
+          113.0
+        ],
+        [
+          335.0,
+          114.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Контур кухонной плиты и нижнего края столешницы."
+    },
+    {
+      "terminal_point": [
+        354.0,
+        82.0
+      ],
+      "expected_path": [
+        [
+          354.0,
+          82.0
+        ],
+        [
+          354.0,
+          85.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Короткая линия по краю кухонной мойки."
+    },
+    {
+      "terminal_point": [
+        524.0,
+        197.0
+      ],
+      "expected_path": [
+        [
+          524.0,
+          197.0
+        ],
+        [
+          515.0,
+          198.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Линия сантехнического прибора в ванной 6,4 м²."
+    },
+    {
+      "terminal_point": [
+        527.0,
+        215.0
+      ],
+      "expected_path": [
+        [
+          527.0,
+          215.0
+        ],
+        [
+          521.0,
+          211.0
+        ],
+        [
+          516.0,
+          211.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Линия сантехнического прибора у западной стены ванной 6,4 м²."
+    },
+    {
+      "terminal_point": [
+        541.0,
+        176.0
+      ],
+      "expected_path": [
+        [
+          541.0,
+          176.0
+        ],
+        [
+          542.5,
+          181.5
+        ],
+        [
+          548.0,
+          179.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Отдельный штрих на рисунке сантехники под верхней стеной ванной."
+    },
+    {
+      "terminal_point": [
+        184.0,
+        166.5
+      ],
+      "expected_path": [
+        [
+          184.0,
+          166.5
+        ],
+        [
+          183.0,
+          161.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Выступ от стены спальни совпадает с линией мебели."
+    },
+    {
+      "terminal_point": [
+        259.0,
+        94.0
+      ],
+      "expected_path": [
+        [
+          259.0,
+          94.0
+        ],
+        [
+          268.0,
+          94.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Штрих на рисунке сантехники в санузле 4,0 м²."
+    },
+    {
+      "terminal_point": [
+        354.0,
+        68.0
+      ],
+      "expected_path": [
+        [
+          354.0,
+          68.0
+        ],
+        [
+          354.0,
+          63.0
+        ],
+        [
+          354.0,
+          58.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Край кухонного оборудования у северной стены."
+    },
+    {
+      "terminal_point": [
+        578.0,
+        200.0
+      ],
+      "expected_path": [
+        [
+          578.0,
+          200.0
+        ],
+        [
+          584.0,
+          204.0
+        ]
+      ],
+      "reviewer": "assistant_visual_review",
+      "basis": "Короткий отрезок над ванной совпадает с контуром прибора."
+    },
+    {
+      "terminal_point": [453.0, 61.0],
+      "expected_path": [[453.0, 61.0], [448.0, 58.0]],
+      "reviewer": "assistant_visual_review",
+      "basis": "На северной стене кухни у левого косяка виден край простенка. Отдельной стены, отходящей в помещение, нет."
+    },
+    {
+      "terminal_point": [476.0, 59.0],
+      "expected_path": [[476.0, 59.0], [479.4196, 58.8964]],
+      "reviewer": "assistant_visual_review",
+      "coincident_window_jamb": true,
+      "basis": "У правого косяка того же окна короткий отрезок повторяет ось оконной рамы. На исходнике здесь одна стена."
+    }
+  ]
+}

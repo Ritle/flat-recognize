@@ -1,4 +1,4 @@
-"""Apply image-bound, user-confirmed door type to existing window carriers."""
+"""Apply image-bound door reviews to existing window carriers."""
 import argparse
 import copy
 import json
@@ -23,8 +23,11 @@ def apply_window_door_reviews(graph, source, image_size, review, digest):
     seen = set()
     for answer in answers:
         fingerprint = answer.get('fingerprint') if isinstance(answer, dict) else None
-        if not fingerprint or fingerprint in seen or answer.get('choice') != 'door' or not answer.get('user_statement'):
-            raise ValueError('Unique explicit user door review required')
+        user_review = bool(answer.get('user_statement')) if isinstance(answer, dict) else False
+        visual_review = (isinstance(answer, dict) and answer.get('reviewer') == 'assistant_visual_review'
+                         and bool(answer.get('basis')))
+        if not fingerprint or fingerprint in seen or answer.get('choice') != 'door' or not (user_review or visual_review):
+            raise ValueError('Unique attributed door review required')
         seen.add(fingerprint)
         matches = [b for b in result['diagnostics']['opening_bridges'] if passage_fingerprint(b) == fingerprint]
         if len(matches) != 1:
@@ -32,13 +35,18 @@ def apply_window_door_reviews(graph, source, image_size, review, digest):
         bridge = matches[0]
         if bridge.get('kind') == 'doors' and bridge.get('door_review', {}).get('image_sha256') == digest:
             continue
-        if bridge.get('kind') != 'windows':
+        auto_review = bridge.get('type_review', {})
+        already_recognized = (bridge.get('kind') == 'doors'
+                              and auto_review.get('previous_kind') == 'windows'
+                              and auto_review.get('source') == 'raster_leaf_reclassification')
+        if bridge.get('kind') != 'windows' and not already_recognized:
             raise ValueError('Expected a window candidate')
         if len([o for o in source.get('windows', []) if o.get('id') == bridge.get('opening_id')]) != 1:
             raise ValueError('Opening source is missing or ambiguous')
-        bridge.update(kind='doors', requires_review=True,
-                      door_review=dict(answer, image_sha256=digest, previous_kind='windows',
-                                       basis='user_rule_and_visual_diagonal_line'))
+        provenance = dict(answer, image_sha256=digest, previous_kind='windows')
+        if not visual_review:
+            provenance['basis'] = 'user_rule_and_visual_diagonal_line'
+        bridge.update(kind='doors', requires_review=True, door_review=provenance)
     return result
 
 

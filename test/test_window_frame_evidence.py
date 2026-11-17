@@ -7,6 +7,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent/'scripts'))
 from window_frame_evidence import narrow_frame_rails, bounded_frame_bay
+from opening_graph_cleanup import trim_window_cuts
 
 
 class WindowFrameEvidenceTests(unittest.TestCase):
@@ -41,6 +42,20 @@ class WindowFrameEvidenceTests(unittest.TestCase):
         solid[27:34,29:42] = 0
         for gray in (rails,solid):
             self.assertIsNone(bounded_frame_bay(gray,[29,30],[41,30],6,[[24,30],[46,30]]))
+
+    def test_existing_window_is_trimmed_without_moving_carrier_or_reapplying(self):
+        rgb = np.repeat(self.short_bay()[:, :, None], 3, axis=2)
+        carrier = [[25,30],[45,30]]
+        graph = dict(diagnostics=dict(opening_bridges=[dict(kind='windows', opening_id=3, span=carrier)]))
+        source = dict(windows=[dict(id=3, outer=[[29,27],[41,27],[41,33],[29,33]])])
+        trimmed, changes = trim_window_cuts(graph, source, rgb)
+        self.assertEqual(len(changes), 1)
+        window = trimmed['diagnostics']['opening_bridges'][0]
+        self.assertEqual(window['span'], carrier)
+        self.assertEqual(window['clear_span'], [[29.5,30],[40.5,30]])
+        self.assertNotIn('clear_span', graph['diagnostics']['opening_bridges'][0])
+        self.assertEqual(trim_window_cuts(trimmed, source, rgb), (trimmed, []))
+        self.assertEqual(trim_window_cuts(graph, source, np.full_like(rgb, 255)), (graph, []))
 
     def frame(self, rails=(27,33)):
         gray = np.full((80,100),255,np.uint8)

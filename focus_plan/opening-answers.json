@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "image_sha256": "25ffe0b0b69cfa925c44251ae7ca8413d2f37a4dfef7e326a5ab495038dbf7b3",
+  "answers": [
+    {
+      "id": "gap:c8956dba441d8f3f9682",
+      "choice": "door",
+      "user_statement": "нет это дверь"
+    },
+    {
+      "id": "window:34d0fd7bb292fe2e3c5e",
+      "choice": "open_passage",
+      "user_statement": "Подходит wallOpening"
+    },
+    {
+      "id": "window:f9693301b28c2d0eea82",
+      "choice": "open_passage",
+      "user_statement": "Подходит wallOpening"
+    },
+    {
+      "id": "partition:135feb8397cdc9cb3c47",
+      "choice": "solid_wall_with_door",
+      "user_statement": "Сплошная стена"
+    }
+  ]
+}

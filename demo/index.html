@@ -351,12 +351,6 @@
     .review-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .review-item select { padding: 8px; border-radius: 8px; }
 
-    .pipeline-option {
-        display: block;
-        margin-top: 16px;
-        color: #aeb6c7;
-    }
-
     .recognition-warnings {
         display: none;
         margin-bottom: 20px;
@@ -442,11 +436,6 @@
             accept=".jpg,.jpeg,.png,.webp"
         >
 
-        <label class="pipeline-option">
-            <input type="checkbox" id="pipelineV2">
-            Улучшенное распознавание (экспериментальное)
-        </label>
-
         <div
             class="processing"
             id="processing"
@@ -473,11 +462,37 @@
     <section id="results">
 
         <div class="recognition-warnings" id="recognitionWarnings" role="status"></div>
+        <button class="btn btn-secondary" id="retrySavedReview" type="button" hidden>Применить сохранённые исправления</button>
+        <details id="roomWarningDetails" hidden>
+            <summary>Проверка границ помещений</summary>
+            <pre id="roomWarningList"></pre>
+        </details>
+
+        <div class="panel" id="graphControls">
+            <h3>Экспериментальный граф планировки</h3>
+            <p>Укажите приблизительный масштаб и при необходимости выделите области, которые не нужны в проекте. Выделение может удалить стены на границе — проверяйте результат.</p>
+            <label>Масштаб, см/пиксель <input id="graphScale" type="number" min="0.01" step="any" placeholder="Например, 3.9"></label>
+            <button class="btn btn-secondary" id="graphScopeButton" type="button">Выделить исключаемые области</button>
+            <div id="graphScopePanel" hidden>
+                <p>Протяните прямоугольники по террасам или лестницам. Размеры соответствуют исходному изображению.</p>
+                <canvas id="graphScopeCanvas" style="max-width:100%;height:auto;touch-action:none;cursor:crosshair"></canvas>
+                <div><button class="btn btn-secondary" id="graphScopeClear" type="button">Очистить выделения</button>
+                <span id="graphScopeCount">Областей: 0</span></div>
+            </div>
+            <button class="btn btn-secondary" id="graphStartButton" type="button">Построить граф</button>
+        </div>
+
+        <div class="review-panel" id="graphReviewPanel">
+            <h3>Проверить спорные проёмы графа</h3>
+            <p>Номера соответствуют отметкам на изображении «Вопросы графа». Невыбранные варианты останутся без ответа.</p>
+            <div class="review-list" id="graphReviewList"></div>
+            <button class="btn btn-secondary" id="graphApplyButton" type="button">Применить выбранные ответы</button>
+        </div>
 
         <div class="result-header">
 
             <div>
-                <h2>
+                <h2 id="resultTitle">
                     Результат распознавания
                 </h2>
 
@@ -523,7 +538,7 @@
                     class="stat-value"
                     id="doorsCount"
                 >0</div>
-                <div class="stat-label">
+                <div class="stat-label" id="doorsLabel">
                     Дверей
                 </div>
             </div>
@@ -533,7 +548,7 @@
                     class="stat-value"
                     id="windowsCount"
                 >0</div>
-                <div class="stat-label">
+                <div class="stat-label" id="windowsLabel">
                     Окон
                 </div>
             </div>
@@ -650,6 +665,12 @@ const errorBox = document.getElementById('error');
 let currentJson = null;
 let currentFile = null;
 let currentQuestions = [];
+let reviewMode = null;
+let graphSourceJob = null;
+let graphCurrentJob = null;
+let graphAnswers = [];
+let graphRegions = [];
+let graphScopeImage = null;
 const reviewIdKeys = {opening: 'opening_id', room: 'room_id', partition: 'partition_id', exterior: 'exterior_id'};
 let reviewSelects = [];
 
@@ -688,8 +709,13 @@ async function upload(file, decisionsPayload = null) {
 
     const form = new FormData();
     form.append('file', file);
-    form.append('pipeline_v2', String(document.getElementById('pipelineV2').checked));
-    if (decisionsPayload) form.append('decisions', JSON.stringify(decisionsPayload));
+    if (decisionsPayload) {
+        form.append('decisions', JSON.stringify(decisionsPayload));
+        if (reviewMode) {
+            form.append('pipeline_v2', String(reviewMode.v2));
+            form.append('light_fill_cleanup', String(reviewMode.cleanup));
+        }
+    }
 
     try {
 
@@ -739,9 +765,40 @@ async function upload(file, decisionsPayload = null) {
 }
 
 async function showResult(data) {
+    reviewMode = ['v1', 'v2'].includes(data.pipeline)
+        ? {v2: data.pipeline === 'v2', cleanup: Boolean(data.light_fill_cleanup)} : null;
+
+    if (data.pipeline !== 'graph-review' || data.saved_review) {
+        graphSourceJob = data.saved_review ? data.parent_job_id : data.job_id;
+        graphCurrentJob = null;
+        graphRegions = [];
+        graphScopeImage = null;
+        document.getElementById('graphScopePanel').hidden = true;
+        document.getElementById('graphScopeCount').textContent = 'Областей: 0';
+    }
+    if (data.pipeline === 'graph-review') {
+        graphCurrentJob = data.job_id;
+        data.filename = currentFile?.name || 'План';
+    }
 
     const warnings = document.getElementById('recognitionWarnings');
     const quality = data.quality;
+    const blocked = quality?.status === 'invalid';
+    const preliminaryCounts = blocked && data.pipeline !== 'graph-review';
+    document.getElementById('resultTitle').textContent = blocked
+        ? 'Экспорт заблокирован' : 'Результат распознавания';
+    document.getElementById('doorsLabel').textContent =
+        preliminaryCounts ? 'Кандидатов в двери' : 'Дверей';
+    document.getElementById('windowsLabel').textContent =
+        preliminaryCounts ? 'Кандидатов в окна' : 'Окон';
+    document.getElementById('retrySavedReview').hidden =
+        !(currentFile && quality?.status === 'invalid' && data.saved_review_available);
+    document.getElementById('graphControls').hidden = Boolean(data.saved_review);
+    const roomNotes = new Set((quality?.issues || [])
+        .filter(issue => issue.code === 'uncertain_room').map(issue => issue.message));
+    const groupRooms = data.pipeline === 'graph-review' && roomNotes.size > 1;
+    document.getElementById('roomWarningDetails').hidden = !groupRooms;
+    document.getElementById('roomWarningList').textContent = groupRooms ? [...roomNotes].join('\n') : '';
     const titles = {
         good: 'Проверки пройдены',
         review: 'Результат требует ручной проверки',
@@ -763,7 +820,8 @@ async function showResult(data) {
         ? `Возможных внешних контуров: ${data.exterior_enclosures.length}. Они показаны оранжевым и ещё не добавлены в проект.`
         : null;
     warnings.textContent = [titles[quality?.status], ...(quality?.errors || []), bindingNote, wallNote, partitionNote, exteriorNote,
-        ...(data.warnings || [])].filter(Boolean).join('\n');
+        groupRooms ? `Границы помещений требуют сверки с планом (${roomNotes.size}).` : null,
+        ...(data.warnings || []).filter(message => !groupRooms || !roomNotes.has(message))].filter(Boolean).join('\n');
     warnings.classList.toggle('invalid', quality?.status === 'invalid');
     warnings.style.display = warnings.textContent ? 'block' : 'none';
 
@@ -792,7 +850,11 @@ async function showResult(data) {
     ).textContent =
         data.filename +
         ' · ID ' +
-        data.job_id.slice(0, 8);
+        data.job_id.slice(0, 8) + (data.saved_review ? ' · Применены сохранённые исправления'
+            : data.pipeline_selection && data.pipeline_selection !== 'explicit'
+                ? ' · Автовыбор: ' + (data.pipeline === 'v1' ? 'базовое распознавание' : 'расширенное распознавание')
+                    + (data.light_fill_applied ? ' с очисткой заливок' : '')
+                : '');
 
     const download =
         document.getElementById(
@@ -829,7 +891,8 @@ async function showResult(data) {
     }
 
     setupImages(data);
-    renderReviewQuestions(data);
+    renderReviewQuestions(data.pipeline === 'graph-review' ? {review_questions: []} : data);
+    renderGraphQuestions(data);
     renderClosureCandidates(data);
 
     results.style.display = 'block';
@@ -1013,6 +1076,144 @@ document.getElementById('applyReviewButton').onclick = () => {
     upload(currentFile, payload);
 };
 
+function renderGraphQuestions(data) {
+    const panel = document.getElementById('graphReviewPanel');
+    const list = document.getElementById('graphReviewList');
+    list.textContent = '';
+    graphAnswers = [];
+    const questions = data.pipeline === 'graph-review' ? (data.review_questions || []) : [];
+    panel.style.display = questions.length ? 'block' : 'none';
+    const labels = {door: 'Дверь', window: 'Окно', open_passage: 'Открытый проём',
+        solid_wall_with_door: 'Сплошная стена с дверью', undecided: 'Не знаю'};
+    questions.forEach((question, index) => {
+        const row = document.createElement('div');
+        row.className = 'review-item';
+        const label = document.createElement('label');
+        const description = question.kind === 'partition' ? 'по сторонам двери сплошная стена?'
+            : question.kind === 'gap' ? 'разрыв внутренней границы'
+            : question.reason === 'possible_door_leaf_near_window'
+                ? 'у окна найдена диагональная линия; проверьте, не дверь ли это'
+                : 'окно между помещениями';
+        const crossStrokes = question.leaf_context?.near_tip_cross_strokes?.length;
+        label.textContent = `№${index + 1}: ${description}` +
+            (crossStrokes ? ' · рядом есть пересекающие линии; это может быть мебель или разметка' : '');
+        const select = document.createElement('select');
+        const empty = document.createElement('option');
+        empty.value = ''; empty.textContent = 'Оставить без ответа'; select.appendChild(empty);
+        for (const choice of question.choices) {
+            const option = document.createElement('option');
+            option.value = choice; option.textContent = labels[choice] || choice; select.appendChild(option);
+        }
+        select.value = '';
+        row.appendChild(label); row.appendChild(select); list.appendChild(row);
+        graphAnswers.push({question, select});
+    });
+}
+
+function paintGraphScope() {
+    if (!graphScopeImage) return;
+    const canvas = document.getElementById('graphScopeCanvas');
+    const context = canvas.getContext('2d');
+    context.drawImage(graphScopeImage, 0, 0);
+    context.fillStyle = 'rgba(255, 80, 50, 0.3)';
+    context.strokeStyle = '#f43f25'; context.lineWidth = 3;
+    for (const ring of graphRegions) {
+        const [a,,c] = ring;
+        context.fillRect(a[0], a[1], c[0]-a[0], c[1]-a[1]);
+        context.strokeRect(a[0], a[1], c[0]-a[0], c[1]-a[1]);
+    }
+    document.getElementById('graphScopeCount').textContent = `Областей: ${graphRegions.length}`;
+}
+
+document.getElementById('graphScopeButton').onclick = () => {
+    if (!graphSourceJob) return;
+    const panel = document.getElementById('graphScopePanel');
+    panel.hidden = !panel.hidden;
+    if (panel.hidden || graphScopeImage) return;
+    const sourceJob = graphSourceJob;
+    const image = new Image();
+    image.onload = () => {
+        if (sourceJob !== graphSourceJob) return;
+        graphScopeImage = image;
+        const canvas = document.getElementById('graphScopeCanvas');
+        canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+        paintGraphScope();
+    };
+    image.onerror = () => { errorBox.textContent = 'Не удалось открыть исходное изображение'; errorBox.style.display = 'block'; };
+    image.src = `/api/jobs/${sourceJob}/image/original`;
+};
+
+const graphCanvas = document.getElementById('graphScopeCanvas');
+let graphDragStart = null;
+function graphCanvasPoint(event) {
+    const box = graphCanvas.getBoundingClientRect();
+    return [Math.max(0, Math.min(graphCanvas.width - 1, Math.round((event.clientX - box.left) * graphCanvas.width / box.width))),
+            Math.max(0, Math.min(graphCanvas.height - 1, Math.round((event.clientY - box.top) * graphCanvas.height / box.height)))];
+}
+graphCanvas.addEventListener('pointerdown', event => {
+    if (!graphScopeImage || graphRegions.length >= 32) return;
+    graphDragStart = graphCanvasPoint(event);
+    graphCanvas.setPointerCapture(event.pointerId);
+});
+graphCanvas.addEventListener('pointerup', event => {
+    if (!graphDragStart) return;
+    const end = graphCanvasPoint(event);
+    const x1 = Math.min(graphDragStart[0], end[0]), x2 = Math.max(graphDragStart[0], end[0]);
+    const y1 = Math.min(graphDragStart[1], end[1]), y2 = Math.max(graphDragStart[1], end[1]);
+    graphDragStart = null;
+    if (x2 - x1 >= 2 && y2 - y1 >= 2) graphRegions.push([[x1,y1],[x2,y1],[x2,y2],[x1,y2]]);
+    paintGraphScope();
+});
+graphCanvas.addEventListener('pointercancel', () => { graphDragStart = null; });
+document.getElementById('graphScopeClear').onclick = () => { graphRegions = []; paintGraphScope(); };
+
+async function requestGraph(jobId, decisions = null) {
+    const form = new FormData();
+    if (decisions) {
+        form.append('decisions', JSON.stringify(decisions));
+    } else {
+        const input = document.getElementById('graphScale').value;
+        const scale = Number(input);
+        if (!input || !Number.isFinite(scale) || scale <= 0) {
+            errorBox.textContent = 'Укажите положительный масштаб в см/пиксель.';
+            errorBox.style.display = 'block'; return;
+        }
+        form.append('scale', String(scale));
+        form.append('scope', JSON.stringify({exclude_polygons: graphRegions}));
+    }
+    errorBox.style.display = 'none';
+    document.getElementById('graphStartButton').disabled = true;
+    document.getElementById('graphApplyButton').disabled = true;
+    processing.style.display = 'block';
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/graph-review`, {method: 'POST', body: form});
+        const data = await response.json();
+        if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Ошибка построения графа');
+        await showResult(data);
+    } catch (error) {
+        errorBox.textContent = error.message || String(error); errorBox.style.display = 'block';
+    } finally {
+        processing.style.display = 'none';
+        document.getElementById('graphStartButton').disabled = false;
+        document.getElementById('graphApplyButton').disabled = false;
+    }
+}
+document.getElementById('graphStartButton').onclick = () => {
+    if (graphSourceJob) return requestGraph(graphSourceJob);
+};
+document.getElementById('retrySavedReview').onclick = () => {
+    if (!currentFile) return;
+    return upload(currentFile);
+};
+document.getElementById('graphApplyButton').onclick = () => {
+    const answers = graphAnswers.filter(item => item.select.value).map(item => ({
+        id: item.question.id, choice: item.select.value
+    }));
+    if (graphCurrentJob && answers.length) return requestGraph(graphCurrentJob, {
+        version: 1, image_sha256: graphAnswers[0].question.image_sha256, answers
+    });
+};
+
 function setupImages(data) {
 
     const tabs =
@@ -1021,6 +1222,16 @@ function setupImages(data) {
     tabs.innerHTML = '';
 
     const images = [
+        {
+            label: 'Вопросы графа',
+            url: data.review_questions?.length ? data.images.graph_questions : null,
+            caption: 'Фиолетовый — неопределённый разрыв, оранжевый — проём для проверки, синяя линия — возможное дверное полотно.'
+        },
+        {
+            label: 'Геометрия графа',
+            url: data.images.graph_export,
+            caption: 'Жёлтый — оси стен в JSON, зелёный — двери, голубой — окна, фиолетовый — открытые проёмы. Нумерация отдельных типов не связана с вопросами.'
+        },
         {
             label: 'Исходник',
             url: data.original_url
