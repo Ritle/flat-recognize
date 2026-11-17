@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from extract_rooms_v2 import skeletonize
 from polygon_geometry import parts, straighten_shared_door_kinks
-from shapely.geometry import GeometryCollection, LineString, Point, Polygon
+from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box
 from shapely.ops import nearest_points, polygonize, unary_union
 
 
@@ -114,11 +114,13 @@ def recovered_window_frame_branch(candidate, windows):
     return False
 
 
-def internal_lines(source, room_shapes, existing, half_wall):
+def internal_lines(source, room_shapes, existing, half_wall, column_footprints=None):
     structure = source_shapes(source)
     report = {"version": 1, "method": "segmentation_skeleton", "lines": [], "rejected": []}
     interior = unary_union(room_shapes)
     structure = structure.intersection(interior.buffer(half_wall + 3))
+    if column_footprints is not None:
+        structure = structure.difference(column_footprints)
     if structure.is_empty or existing.is_empty:
         return [], report
     x0, y0, x1, y1 = structure.bounds
@@ -199,6 +201,8 @@ def internal_lines(source, room_shapes, existing, half_wall):
                         and extension.difference(support).length < step):
                     points[index] = tuple(nearest.coords[0])
             candidate = LineString(points)
+            if column_footprints is not None and candidate.intersects(column_footprints):
+                continue
             if recovered_window_frame_branch(candidate, source.get("windows", [])):
                 report["rejected"].append({"points": [list(p) for p in candidate.coords],
                                            "length_px": round(candidate.length, 3),
@@ -284,9 +288,11 @@ def extend_project_walls(project, source, geometry, thickness=20, height=270):
     coords = {c["uuid"]: ((c["x"] - transform["origin_x"]) / sx,
                            (c["y"] - transform["origin_y"]) / sy) for c in level["connectors"]}
     originals = [(s, LineString([coords[s["start"]], coords[s["end"]]])) for s in level["segments"]]
-    existing = unary_union([line for _, line in originals])
+    columns = {entry["wall_uuid"]: box(*entry["bounds_px"]) for entry in geometry.get("interior_columns", [])}
+    existing = unary_union([line for segment, line in originals if segment["uuid"] not in columns])
     rooms = [Polygon([coords[c] for c in area["connectors"]]) for area in level["areas"]]
-    lines, report = internal_lines(source, rooms, existing, thickness / sx / 2)
+    lines, report = internal_lines(source, rooms, existing, thickness / sx / 2,
+                                   unary_union(list(columns.values())) if columns else None)
     report.update(added_segments=[], split_existing_segments=0)
     geometry["internal_wall_graph"] = report
     if any(item["reason"] == "isolated_closed_wall_loop" for item in report["rejected"]):

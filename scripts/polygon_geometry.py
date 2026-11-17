@@ -601,7 +601,33 @@ def bridge_recovered_window_bays(shapes, windows, walls, half_wall):
     return result, changes
 
 
-def partition_rooms(shapes, offset, diagnostics=None, walls=None):
+def raster_column(hole, room, walls, gray, offset):
+    """Match a buffer-created ring to one compact, solid rectangular wall island."""
+    matches = []
+    for component in parts(walls, "Polygon"):
+        if component.interiors or component.intersection(hole).area < .85 * hole.area:
+            continue
+        bounds = component.envelope
+        x0, y0, x1, y1 = bounds.bounds
+        width, depth = x1 - x0, y1 - y0
+        if (min(width, depth) < max(8, offset) or max(width, depth) > 2 * min(width, depth)
+                or component.area < .98 * bounds.area or not hole.within(bounds.buffer(1.5 * offset))
+                or not room.covers(bounds) or room.exterior.distance(bounds) < offset):
+            continue
+        left, top, right, bottom = (round(v) for v in bounds.bounds)
+        pad = max(2, round(min(width, depth) * .08))
+        if left < pad or top < pad or bottom + pad >= gray.shape[0] or right + pad >= gray.shape[1]:
+            continue
+        xs, ys = slice(left + pad, right - pad + 1), slice(top + pad, bottom - pad + 1)
+        if (np.mean(gray[ys, xs] < 150) >= .95
+                and all(np.mean(side > 175) >= .55 for side in
+                        (gray[top - pad, xs], gray[bottom + pad, xs],
+                         gray[ys, left - pad], gray[ys, right + pad]))):
+            matches.append(bounds)
+    return matches[0] if len(matches) == 1 else None
+
+
+def partition_rooms(shapes, offset, diagnostics=None, walls=None, *, raster_gray=None, columns=None):
     """Expand to wall axes, partition contested strips, retain original interiors.
 
     Local bisectors split overlapping expansion regions. Polygonizing the complete
@@ -667,14 +693,20 @@ def partition_rooms(shapes, offset, diagnostics=None, walls=None):
                             and hole.area <= min(source.area * .05, offset ** 2 * 10))
                 if not claimed and (small or unbacked):
                     filled.append((hole.area, wall_fraction))
+                elif not claimed and raster_gray is not None and columns is not None and walls is not None:
+                    block = raster_column(hole, Polygon(merged.exterior), walls, raster_gray, offset)
+                    if (block is not None and not any(block.intersects(previous) for _, previous in columns)
+                            and all(j == index or block.disjoint(other) for j, other in enumerate(result))):
+                        columns.append((index, block))
+                    else:
+                        remaining.append(ring)
                 else:
                     remaining.append(ring)
-            if filled:
-                # Keep wall-backed cores blocked. Small buffer artifacts and
-                # bounded voids without wall support may be safely filled.
+            if len(remaining) < len(merged.interiors):
+                # A verified solid column is serialized independently of this room cycle.
                 merged = Polygon(merged.exterior, remaining)
                 result[index] = merged
-                if diagnostics is not None:
+                if filled and diagnostics is not None:
                     diagnostics.append("Малые пустоты, возникшие при смещении границ, устранены; проверьте форму комнат.")
         if merged.geom_type != "Polygon" or not merged.is_valid or merged.interiors:
             components = parts(merged, "Polygon")
@@ -945,8 +977,9 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
             # Older room artifacts only recorded the accepted envelope box.
             inferred_envelope = box(*envelope_bbox).boundary
     adjustments = []
-    shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments,
-                                                            walls=walls)]
+    columns = []
+    shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments, walls=walls,
+                                                            raster_gray=raster_gray, columns=columns)]
     level_template = template["levels"][0]
     old = level_template.get("connectors", [])
     cx = (min(c["x"] for c in old) + max(c["x"] for c in old)) / 2 if old else 0
@@ -1006,6 +1039,19 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
     matched_closure_edges = 0
     offset_sliver_edges = 0
     unique = set()
+
+    def add_segment(start, end, width):
+        segment = copy.deepcopy(segment_template)
+        segment.update(uuid=str(uuid.uuid4()), start=start, end=end, thickness=width, height=height,
+                       alignment=0.5, left=int(start[1:]), right=int(end[1:]),
+                       half_width_left=width / 2, half_width_right=width / 2,
+                       cross_left="sides", cross_right="sides", align_left="center", align_right="center",
+                       userChangeBack=False, userChangeFront=False)
+        segments.append(segment)
+        nodes[int(start[1:])]["adjacency"].append(end)
+        nodes[int(end[1:])]["adjacency"].append(start)
+        return segment["uuid"]
+
     for a, b, edge in raw_edges:
         start, end = connector(a), connector(b)
         pair = frozenset((start, end))
@@ -1039,15 +1085,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
             continue
         if edge.intersection(narrow_unknown).length > 1e-4:
             matched_closure_edges += 1
-        segment = copy.deepcopy(segment_template)
-        segment.update(uuid=str(uuid.uuid4()), start=start, end=end, thickness=thickness, height=height,
-                       alignment=0.5, left=int(start[1:]), right=int(end[1:]),
-                       half_width_left=thickness / 2, half_width_right=thickness / 2,
-                       cross_left="sides", cross_right="sides", align_left="center", align_right="center",
-                       userChangeBack=False, userChangeFront=False)
-        segments.append(segment)
-        nodes[int(start[1:])]["adjacency"].append(end)
-        nodes[int(end[1:])]["adjacency"].append(start)
+        add_segment(start, end, thickness)
 
     areas = []
     for index, shape in enumerate(shapes):
@@ -1076,6 +1114,18 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
         shapes = [Polygon([positions[uid] for uid in area["connectors"]]) for area in areas]
     calibrated_walls = calibrate_recovered_facade_thickness(
         nodes, segments, areas, source.get("windows", []), walls, scale, ox, oy, thickness)
+    column_report = []
+    for index, block in columns:
+        if not known.is_empty and block.distance(known) < half_wall:
+            raise ValueError("Recognized opening conflicts with a possible interior column")
+        x0, y0, x1, y1 = block.bounds
+        cx, cy = block.centroid.coords[0]
+        if x1 - x0 >= y1 - y0:
+            a, b, width = (x0, cy), (x1, cy), y1 - y0
+        else:
+            a, b, width = (cx, y0), (cx, y1), x1 - x0
+        uid = add_segment(connector(a), connector(b), width * scale)
+        column_report.append({"room_index": index, "wall_uuid": uid, "bounds_px": list(block.bounds)})
     project = copy.deepcopy(template)
     project["editable"] = True
     project["levels"][0].update(height=height, connectors=nodes, segments=segments, areas=areas, elements=[], tapes=[])
@@ -1098,6 +1148,11 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
               "matched_closure_edges": matched_closure_edges,
               "offset_sliver_edges": offset_sliver_edges,
               "warnings": list(dict.fromkeys(adjustments)), "errors": []}
+    if column_report:
+        report["interior_columns"] = column_report
+        report["warnings"].append(
+            f"Внутренние прямоугольные опоры перенесены как отдельные сегменты ({len(column_report)}); "
+            "проверьте их размеры по плану.")
     if aligned_windows:
         report["warnings"].append(
             f"Границы комнат у распознанных окон выпрямлены ({len(aligned_windows)}); "

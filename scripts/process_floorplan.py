@@ -13,7 +13,7 @@ SCRIPTS = ROOT / "scripts"
 OUTPUT = ROOT / "output"
 
 
-def run_command(title, command, required=True):
+def run_command(title, command, required=True, *, allowed_exit_codes=()):
     print()
     print("=" * 70)
     print(title)
@@ -36,7 +36,7 @@ def run_command(title, command, required=True):
         print(
             f"Exit code: {result.returncode}"
         )
-        if required:
+        if required and result.returncode not in allowed_exit_codes:
             sys.exit(result.returncode)
         return False
 
@@ -60,6 +60,17 @@ def require_file(path, description):
         sys.exit(1)
 
     return path
+
+
+def check_room_geometry(command, quality_path):
+    if run_command("Quality gate - Room geometry", command, allowed_exit_codes=(2,)):
+        return
+    checks = json.loads(quality_path.read_text(encoding="utf-8"))
+    errors = {issue["code"] for issue in checks.get("issues", []) if issue["severity"] == "error"}
+    # Only the diagnostic overlay can proceed with an unconfirmed room mask.
+    # The export gate checks the same rooms again before adding elements.
+    if errors != {"topology_mask_change_unconfirmed"}:
+        sys.exit(2)
 
 
 def count_results(final_json):
@@ -561,7 +572,7 @@ def main():
     validation_command = [python, SCRIPTS / "validate_recognition.py",
                           "--rooms", rooms_json, "--scale", str(args.scale),
                           "--output", quality_json]
-    run_command("Quality gate - Room geometry", validation_command)
+    check_room_geometry(validation_command, quality_json)
 
     # =================================================
     # 4. Project geometry

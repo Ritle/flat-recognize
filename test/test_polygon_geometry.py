@@ -541,6 +541,37 @@ class PolygonGeometryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             partition_rooms([shape], 10)
 
+    def test_offset_ring_preserves_verified_column_as_a_separate_solid_wall(self):
+        from internal_wall_graph import extend_project_walls
+        outer = box(20, 20, 200, 200)
+        recess = box(68, 65, 124, 125).union(box(120, 89, 205, 100))
+        shape = outer.difference(recess)
+        block = box(70, 67, 122, 123)
+        data = source([outer])
+        data["rooms"][0].update(polygon=list(shape.exterior.coords[:-1]))
+        data["walls"].append({"outer": list(block.exterior.coords[:-1])})
+        gray = np.full((230, 230), 255, np.uint8)
+        gray[67:124, 70:123] = 70
+        project, report = build_polygon_project(data, template(), scale=2, thickness=40, raster_gray=gray)
+        project, report = extend_project_walls(project, data, report, thickness=40)
+        level = project["levels"][0]
+        column, = report["interior_columns"]
+        segment = next(s for s in level["segments"] if s["uuid"] == column["wall_uuid"])
+        connectors = {n["uuid"]: n for n in level["connectors"]}
+        a, b = (connectors[segment[key]] for key in ("start", "end"))
+        self.assertEqual((a["adjacency"], b["adjacency"]), ([b["uuid"]], [a["uuid"]]))
+        self.assertEqual(a["x"], b["x"])
+        self.assertEqual(abs(a["y"] - b["y"]), 112)
+        self.assertEqual(segment["thickness"], 104)
+        self.assertEqual(column["bounds_px"], list(block.bounds))
+        self.assertFalse({a["uuid"], b["uuid"]}.intersection(level["areas"][0]["connectors"]))
+        for missing_evidence in (None, np.full_like(gray, 255), np.zeros_like(gray)):
+            with self.assertRaises(UnsupportedRoomGeometry):
+                build_polygon_project(data, template(), scale=2, thickness=40, raster_gray=missing_evidence)
+        data["windows"] = [{"outer": list(block.exterior.coords[:-1])}]
+        with self.assertRaisesRegex(ValueError, "opening conflicts"):
+            build_polygon_project(data, template(), scale=2, thickness=40, raster_gray=gray)
+
     def test_large_hole_created_by_offset_is_not_filled(self):
         shape = Polygon([(0, 0), (100, 0), (100, 45), (80, 45), (80, 20), (20, 20),
                          (20, 80), (80, 80), (80, 55), (100, 55), (100, 100), (0, 100)])
