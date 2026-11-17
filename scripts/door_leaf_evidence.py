@@ -168,8 +168,46 @@ def shallow_leaf_hint(gray, start, end, width, walls):
     return max(evidence, key=lambda item: item["tip_clearance"]) if evidence else None
 
 
-def diagonal_leaf_with_jambs(gray, start, end, width, walls):
-    """Accept an arc-less leaf with two jambs, or a strong hinge and partial far jamb."""
+def dark_stroke_support(gray, hinge, tip):
+    """Fraction of an interior stroke backed by original dark pixels (1 px tolerance)."""
+    hinge,tip = np.asarray(hinge),np.asarray(tip)
+    count = max(6, math.ceil(np.linalg.norm(tip-hinge)*.7))
+    points = hinge + np.linspace(.15,.85,count)[:,None]*(tip-hinge)
+    xy = np.rint(points).astype(int)
+    if (xy[:,0].min() < 0 or xy[:,0].max() >= gray.shape[1]
+            or xy[:,1].min() < 0 or xy[:,1].max() >= gray.shape[0]):
+        return 0.0
+    dark = cv2.dilate((gray < 140).astype(np.uint8), np.ones((3,3),np.uint8))
+    return float(dark[xy[:,1],xy[:,0]].mean())
+
+
+def dark_leaf_with_jambs(gray, start, end, width, walls, *, clear_span=None):
+    """Stronger evidence for doors proposed from a continued wall axis.
+
+    Pale watermark edges cannot define the Hough leaf. Verify the returned
+    stroke against the original dark raster as well, since Hough can bridge
+    gaps or extrapolate into unrelated furniture.
+    """
+    ink_gray = np.where(gray < 140, gray, 255).astype(np.uint8)
+    evidence = diagonal_leaf_with_jambs(ink_gray, start, end, width, walls,
+                                       clear_span=clear_span, inward_only=True)
+    if evidence is None:
+        return None
+    support = dark_stroke_support(gray,evidence['hinge'],evidence['tip'])
+    if support < .8:
+        return None
+    return {**evidence, 'dark_raster_support': round(support,3)}
+
+
+def diagonal_leaf_with_jambs(gray, start, end, width, walls, *,
+                             clear_span=None, inward_only=False):
+    """Accept an arc-less leaf with two jambs, or a strong hinge and partial far jamb.
+
+    Graph callers may supply a verified clear_span between jamb faces for the
+    occupancy check, while retaining the axis endpoints for leaf search. The
+    optional inward_only mode excludes a neighboring door's backwards leaf.
+    Existing callers retain their original occupancy and swing-angle behavior.
+    """
     start, end = np.asarray(start, float), np.asarray(end, float)
     length = float(np.linalg.norm(end - start))
     if length < max(15, width * 1.5):
@@ -180,7 +218,8 @@ def diagonal_leaf_with_jambs(gray, start, end, width, walls):
     support = wall_jamb_support(start, end, width, walls)
     if min(support) < 1 or (min(support) < 2 and max(support) < 3):
         return None
-    opening = LineString([start, end]).buffer(width / 2, cap_style=2)
+    opening = LineString(clear_span if clear_span is not None else [start, end]).buffer(
+        width / 2, cap_style=2)
     if walls.intersection(opening).area > opening.area * .25:
         return None
     evidence = []
@@ -189,6 +228,8 @@ def diagonal_leaf_with_jambs(gray, start, end, width, walls):
             continue
         angle = abs(candidate["swing_angle_degrees"])
         if not (25 <= angle <= 75 or 105 <= angle <= 145):
+            continue
+        if inward_only and angle > 75:
             continue
         clearance = float(walls.distance(Point(candidate["tip"])))
         if clearance < max(3, width * .35):

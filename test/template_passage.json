@@ -1,0 +1,24 @@
+{
+  "levels": [{
+    "elements": [{
+      "uuid": "template-passage",
+      "type": "wallOpening",
+      "name": "Passage serialization template",
+      "size": {"x": 120, "y": 180},
+      "wall": {
+        "uuid": "template-wall",
+        "position": 50,
+        "alignment": 0.5,
+        "offset": 0,
+        "side": "left",
+        "holeShape": [{"x": 0.6, "y": 1.8}, {"x": -0.6, "y": 1.8}, {"x": -0.6, "y": 0}, {"x": 0.6, "y": 0}]
+      },
+      "position": {"z": 0},
+      "flip": {"x": false, "z": false},
+      "recess": 0,
+      "doorOpensOutwards": false,
+      "arch": {"type": "none", "rise": 50},
+      "no_render": false
+    }]
+  }]
+}

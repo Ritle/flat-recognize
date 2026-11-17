@@ -1,5 +1,13 @@
 {
   "version": 1,
+  "annotation_corrections": [
+    {
+      "date": "2026-11-17",
+      "removed_door_id": "bath",
+      "previous_span": [[586, 204], [586, 226]],
+      "reason": "Direct inspection of original raster: this span covers the solid east wall of the bathroom below its doorway. The actual bathroom-to-bedroom opening at y=174..201 is already annotated as bedroom-se. Removed the erroneous second doorway; its scoring region remains a negative region. Evaluate old and new exports with this same corrected GT. This annotation is not used by recognition."
+    }
+  ],
   "image": {
     "file": "focus_plan/645adcf0e951d050d5816292bc6c3b93.png",
     "width": 800,
@@ -151,9 +159,9 @@
         232
       ],
       [
-        138,
+        164,
         258,
-        174,
+        183,
         268
       ],
       [
@@ -591,19 +599,6 @@
       ]
     },
     {
-      "id": "bath",
-      "span": [
-        [
-          586,
-          204
-        ],
-        [
-          586,
-          226
-        ]
-      ]
-    },
-    {
       "id": "entry",
       "span": [
         [
@@ -661,11 +656,11 @@
       "id": "south-west",
       "span": [
         [
-          143,
+          168,
           263
         ],
         [
-          169,
+          179,
           263
         ]
       ]
@@ -749,7 +744,7 @@
       ]
     }
   ],
-  "notes": "Partial manual annotation by Codex, not independently reviewed. Only listed regions scored. Hall, kitchen/living open zones, terrace and unlabelled vestibules excluded. Other openings remain unknown. Walls: ten structural spans plus five furniture-only negative regions. Junction reference list is partial and deliberately not scored as complete coverage.",
+  "notes": "Partial manual annotation by Codex, not independently reviewed. Only listed regions scored. Hall, kitchen/living open zones, terrace and unlabelled vestibules excluded. Other openings remain unknown. Walls: ten structural spans plus five furniture-only negative regions. Junction reference list is partial and deliberately not scored as complete coverage. Annotation correction 2026-11-17: south-west window is x=168..179 at y=263, checked directly on original raster (clear inner pixels x=169..178, dark jambs x=167/180). Previous x=143..169 span covered solid wall. Before/after metrics must use the same corrected annotation.",
   "reference_dimensions": [
     {
       "span": [

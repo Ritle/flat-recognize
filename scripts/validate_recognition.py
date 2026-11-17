@@ -77,7 +77,8 @@ def collinear_wall_span(segments, coords, wall_id, position, width):
             "wall_chain_segments": before_ids[::-1] + [wall_id] + after_ids}
 
 
-def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry=None):
+def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry=None,
+                         *, allow_empty_rooms=False):
     issues = []
     metrics = {}
 
@@ -93,6 +94,20 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
             issue("unsupported_geometry", "error", message)
         for message in geometry.get("warnings", []):
             issue("geometry_warning", "warning", message)
+        geometry_bindings = geometry.get('bindings', {})
+        window_bindings = geometry_bindings.get('windows', []) if isinstance(geometry_bindings, dict) else []
+        for binding in window_bindings if isinstance(window_bindings, list) else []:
+            context = binding.get('exterior_context', {}) if isinstance(binding, dict) else {}
+            if not isinstance(context, dict):
+                continue
+            status = context.get('status')
+            if status in ('interior', 'unknown'):
+                issue('interior_window_candidate' if status == 'interior' else 'window_exterior_unverified',
+                      'warning',
+                      'Кандидат окна расположен внутри здания; тип проёма требует проверки.' if status == 'interior'
+                      else 'Не подтверждён выход окна наружу: внешний контур неполон или неоднозначен.',
+                      element_uuid=binding.get('element_uuid'), bridge_index=binding.get('bridge_index'),
+                      exterior_context=context)
         for change in geometry.get("extended_window_endcaps", []):
             issue("window_endcap_corner_adjusted", "warning",
                   "Граница комнаты у окна продлена по линиям исходного изображения; "
@@ -154,7 +169,16 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
         rooms = {}
     source_rooms = objects(rooms, "rooms", "recognition")
     if not source_rooms:
-        issue("no_rooms", "error", "Замкнутые помещения не найдены; экспорт заблокирован.")
+        # Only the explicit graph adapter may export walls without room cycles.
+        # All project/reference/size checks below still apply to this graph.
+        levels = project.get("levels") if isinstance(project, dict) else None
+        has_walls = (isinstance(levels, list)
+                     and any(isinstance(level, dict) and level.get("segments")
+                             for level in levels))
+        if allow_empty_rooms and has_walls:
+            issue("no_rooms", "warning", "Замкнутые помещения не найдены; проверьте граф стен.")
+        else:
+            issue("no_rooms", "error", "Замкнутые помещения не найдены; экспорт заблокирован.")
     source_polygons = []
     for index, room in enumerate(source_rooms):
         name = f"исходная комната {index + 1}"
@@ -245,6 +269,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
             issue("possible_leak", "warning", "Внешний фон занимает значительную часть области плана; возможна потеря комнат.")
     doors = objects(rooms, "doors", "recognition")
     windows = objects(rooms, "windows", "recognition")
+    passages = objects(rooms, "passages", "recognition") if 'passages' in rooms else []
     if not windows:
         issue("no_windows", "warning", "Окна не распознаны; проверьте проёмы на исходном изображении.")
     if isinstance(bindings, dict):
@@ -296,10 +321,10 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
               f"Пользователь уточнил небольшие области ({len(reviewed_rooms)}), "
               f"исключено из проекта: {ignored_count}; проверьте контуры соседних помещений.")
 
-    exported = {"doorItem": 0, "windowItem": 0}
+    exported = {"doorItem": 0, "windowItem": 0, "wallOpening": 0}
     bindings_by_element = {}
     if isinstance(bindings, dict):
-        for opening_kind, index_key in (("doors", "door"), ("windows", "window")):
+        for opening_kind, index_key in (("doors", "door"), ("windows", "window"), ("passages", "passage")):
             rows = bindings.get(opening_kind)
             if isinstance(rows, list):
                 for row in rows:
@@ -431,12 +456,24 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
                     issue("material_reference", "error", f"Материалы проёма {uid} ссылаются на другой объект.")
                 if kind == "doorItem" and not element.get("model"):
                     issue("no_door_leaf", "error", f"У двери {uid} отсутствует модель дверного полотна.")
+                if kind == 'wallOpening':
+                    hole = wall.get('holeShape')
+                    points = [[p.get('x'), p.get('y')] for p in hole if isinstance(p, dict)] if isinstance(hole, list) else []
+                    shape = polygon(points, f'открытый проём {uid}')
+                    if shape is not None and isinstance(size, dict) and all(finite(size.get(k)) for k in ('x', 'y')):
+                        x0,y0,x1,y1 = shape.bounds
+                        if max(abs((x1-x0)*100-size['x']), abs(y1*100-size['y']), abs(y0*100), abs((x0+x1)*100)) > .02:
+                            issue('invalid_passage_hole', 'error', 'Вырез открытого проёма не соответствует его размерам.')
+                    position3d = element.get('position', {})
+                    if not isinstance(position3d, dict) or position3d.get('z') != 0:
+                        issue('invalid_passage_floor', 'error', 'Открытый проход должен начинаться от пола.')
         if area_count != len(source_rooms):
             issue("room_count_mismatch", "error", "Число помещений в проекте отличается от результата распознавания.")
-        for kind, detected in (("doorItem", doors), ("windowItem", windows)):
+        for kind, detected in (("doorItem", doors), ("windowItem", windows), ("wallOpening", passages)):
             if exported[kind] != len(detected):
                 issue("unbound_openings", "warning", f"Не все проёмы перенесены в проект ({kind}: {exported[kind]} из {len(detected)}).")
         metrics.update(exported_rooms=area_count, exported_doors=exported["doorItem"], exported_windows=exported["windowItem"],
+                       exported_passages=exported['wallOpening'],
                        exported_segments=segment_count, exported_connectors=connector_count)
         if bindings is None:
             issue("missing_binding_diagnostics", "warning", "Нет диагностики расстояния проёмов до стен.")
@@ -444,14 +481,16 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
             if not isinstance(bindings, dict):
                 issue("invalid_binding", "error", "Диагностика привязок должна быть JSON-объектом.")
                 bindings = {}
-            for key in ("doors", "windows"):
+            for key, item_kind, index_key in (('doors','doorItem','door'), ('windows','windowItem','window'), ('passages','wallOpening','passage')):
+                if key == 'passages' and key not in bindings and not exported[item_kind]:
+                    continue
                 rows = objects(bindings, key, "bindings")
-                if len(rows) != exported["doorItem" if key == "doors" else "windowItem"]:
+                if len(rows) != exported[item_kind]:
                     issue("binding_count_mismatch", "error", "Число диагностических привязок отличается от числа проёмов проекта.")
                 for binding in rows:
                     distance = binding.get("distance_to_wall_cm")
                     wall_id = binding.get("wall_uuid")
-                    opening_index = binding.get("door" if key == "doors" else "window")
+                    opening_index = binding.get(index_key)
                     segment = all_segments.get(wall_id) if isinstance(wall_id, str) else None
                     if segment is None or not finite(distance) or distance < 0:
                         issue("invalid_binding", "error", "Некорректная диагностическая привязка проёма.")
