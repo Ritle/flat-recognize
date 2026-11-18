@@ -32,6 +32,31 @@ def source(walls, leaf=False):
 
 
 class RoomsTests(unittest.TestCase):
+    def test_single_exterior_leak_requires_a_type_before_export(self):
+        from recover_openings_v2 import recover_openings
+        from review_decisions import apply_review_decisions, make_review_questions
+        from validate_recognition import validate_recognition
+
+        walls = [rectangle(40, 40, 280, 47), rectangle(40, 47, 47, 170),
+                 rectangle(273, 47, 280, 170), rectangle(40, 165, 130, 172),
+                 rectangle(157, 165, 280, 172)]
+        data, rgb = source(walls)
+        rooms, _, _ = extract_rooms(data, rgb)
+        quality = validate_recognition(rooms)
+        self.assertEqual(len(rooms["rooms"]), 1)
+        self.assertIn("unconfirmed_exterior_gap", [i["code"] for i in quality["issues"]])
+        self.assertFalse(quality["export_allowed"])
+        classified, _, _ = recover_openings(data, rooms, rgb)
+        question, = make_review_questions(classified, quality, "source")
+        self.assertEqual(question["choices"], ["door", "open_passage", "ignore"])
+        for choice, expected in (("door", (1, 1, 0)), ("open_passage", (1, 0, 1)),
+                                 ("ignore", (0, 0, 0))):
+            answer = dict(opening_id=question["opening_id"], fingerprint=question["fingerprint"], choice=choice)
+            reviewed = apply_review_decisions(classified, dict(version=1, image_sha256="source", answers=[answer]), "source")
+            result, _, _ = extract_rooms(reviewed, rgb)
+            self.assertEqual(tuple(len(result[key]) for key in ("rooms", "doors", "passages")), expected)
+            self.assertIsNone(result["diagnostics"]["unconfirmed_exterior_gap"])
+
     def test_leaf_behind_partition_cannot_close_a_neighbouring_gap(self):
         barrier = np.zeros((100, 140), np.uint8)
         cv2.rectangle(barrier, (10, 10), (130, 90), 255, 3)

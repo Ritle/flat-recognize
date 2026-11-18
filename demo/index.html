@@ -541,6 +541,7 @@
                 <div class="stat-label" id="doorsLabel">
                     Дверей
                 </div>
+                <div class="stat-label" id="passagesLabel" hidden></div>
             </div>
 
             <div class="stat">
@@ -840,6 +841,9 @@ async function showResult(data) {
     document.getElementById(
         'windowsCount'
     ).textContent = data.stats.windows;
+    const passagesLabel = document.getElementById('passagesLabel');
+    passagesLabel.hidden = !data.stats.passages;
+    passagesLabel.textContent = data.stats.passages ? `Открытых проёмов: ${data.stats.passages}` : '';
 
     document.getElementById(
         'timeCount'
@@ -930,8 +934,9 @@ function renderReviewQuestions(data) {
         locate.onclick = () => highlightQuestion(question, data.original_url);
         const label = document.createElement('span');
         const names = {door: 'дверь', window: 'окно', ignore: 'не проём',
-            topology_only: 'только граница комнаты'};
+            topology_only: 'только граница комнаты', undecided: 'тип не определён', open_passage: 'открытый проём'};
         const reasons = {classification_uncertain: 'неуверенная классификация',
+            unmarked_exterior_gap: 'через этот разрыв помещение соединяется с внешним фоном',
             door_arc_missing_jamb: 'похоже на дверь, но контур стены неполный',
             opening_far_from_wall: 'далеко от стены',
             opening_exceeds_segment: 'проём выходит за конец стены',
@@ -997,7 +1002,8 @@ function renderReviewQuestions(data) {
             ? [['', 'Оставить решение системы'], ['room', 'Помещение'],
                ['ignore', 'Мебель / не помещение']]
             : [['', 'Оставить решение системы'], ['door', 'Дверь'],
-               ['window', 'Окно'], ['ignore', 'Не проём']];
+               ...(question.choices?.includes('open_passage') ? [['open_passage', 'Открытый проём без двери']] : [['window', 'Окно']]),
+               ['ignore', 'Не проём']];
         for (const [value, title] of options) {
             const option = document.createElement('option');
             option.value = value;

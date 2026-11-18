@@ -244,7 +244,7 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
                 wall_shapes.append(shape)
         walls = unary_union(wall_shapes) if wall_shapes else None
         opening_shapes = []
-        for item in classified.get("doors", []) + classified.get("windows", []):
+        for item in classified.get("doors", []) + classified.get("windows", []) + classified.get("passages", []):
             if len(item.get("outer", [])) < 3:
                 continue
             shape = Polygon(item["outer"])
@@ -287,7 +287,7 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
                 "count": len(nearby),
                 "nearest_distance_px": round(nearby[0][0], 2),
                 "nearest_reason": nearby[0][1]}
-    for kind in ("doors", "windows"):
+    for kind in ("doors", "windows", "passages"):
         for opening in classified.get(kind, []):
             row = {"opening_id": opening.get("id"), "kind": kind,
                    "pixel_center": None,

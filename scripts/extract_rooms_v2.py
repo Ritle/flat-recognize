@@ -655,6 +655,51 @@ def wall_mask(data, h, w):
     return walls
 
 
+def exterior_gap_trial(barrier, walls, gray, rejected, thickness, wall_thickness):
+    """Locate a single blank gap whose closure recovers a substantial interior."""
+    if not np.any(walls):
+        return None
+    _, _, width, height = cv2.boundingRect(walls)
+    pairs = axis_pairs(barrier, thickness, sampling_thickness=wall_thickness)
+    ignored = structural_union([o for o in rejected if o.get("classification", {}).get("method") == "user_ignored"])
+    candidates = []
+    for a, b in sorted(pairs, key=lambda pair: -min(p["width"] for p in pair)):
+        start, end, axis = a["point"], b["point"], a["direction"]
+        wall_width = min(a["width"], b["width"])
+        length = float(np.linalg.norm(end - start))
+        if not wall_width * 1.5 < length <= min(wall_width * 6, min(barrier.shape) * .1):
+            continue
+        # Check the actual drawing for dark jambs and a clear gap between them.
+        offsets = np.linspace(.5, 1.5, 5)[:, None] * wall_width * axis
+        flanks = np.vstack([start - offsets, end + offsets])
+        middle = start + np.linspace(.2, .8, 9)[:, None] * (end - start)
+        x, y = np.rint(np.vstack([flanks, middle])).astype(int).T
+        if min(x) < 0 or min(y) < 0 or max(x) >= gray.shape[1] or max(y) >= gray.shape[0]:
+            continue
+        ink = gray[y, x] < 140
+        if min(ink[:5].mean(), ink[5:10].mean()) < .8 or ink[10:].any():
+            continue
+        if ignored.intersects(LineString([start, end])):
+            continue
+        if any(np.linalg.norm(start - c["start"]) < wall_width and
+               np.linalg.norm(end - c["end"]) < wall_width for c in candidates):
+            continue
+        candidates.append(dict(start=start.tolist(), end=end.tolist(), width=wall_width, length=length,
+                               evidence="unmarked_exterior_gap"))
+        if len(candidates) > 24:
+            return None
+    best = None
+    for candidate in candidates:
+        trial, additions = apply_closures(barrier, [candidate])
+        rooms, info = room_candidates(trial, walls, additions)
+        if len(rooms) != 1 or info["interior_area_px"] < width * height * .35:
+            continue
+        if best is not None:
+            return None  # Competing locations could each explain the leak.
+        best = candidate, trial, additions, rooms, info
+    return best
+
+
 def known_opening_barrier(walls, openings_to_seal):
     openings = np.zeros_like(walls)
     for opening in openings_to_seal:
@@ -678,7 +723,8 @@ def extract_rooms(data, rgb):
     topology_only = data.get("topology_only_openings", [])
     active_topology = [opening for opening in topology_only
                        if opening.get("topology_mask_use") is not False]
-    barrier = known_opening_barrier(walls, data.get("doors", []) + data.get("windows", []) + active_topology)
+    barrier = known_opening_barrier(walls, data.get("doors", []) + data.get("windows", [])
+                                    + data.get("passages", []) + active_topology)
     inferred = np.zeros_like(walls)
     rooms, diagnostics = room_candidates(barrier, walls, inferred)
     passes = [{"name": "known_openings", "rooms": len(rooms), **diagnostics}]
@@ -797,6 +843,15 @@ def extract_rooms(data, rgb):
                    "accepted_windows": sealed_windows,
                    "accepted": bool(sealed_windows), **diagnostics})
     warnings = []
+    exterior_gap = None
+    if not rooms:
+        trial = exterior_gap_trial(barrier, walls, gray, data.get("rejected_openings", []),
+                                   thickness, wall_only_thickness)
+        if trial is not None:
+            exterior_gap, barrier, additions, rooms, diagnostics = trial
+            inferred |= additions
+            closures.append(exterior_gap)
+            passes.append({"name": "unmarked_exterior_gap", "rooms": len(rooms), **diagnostics})
     if envelope_applied:
         warnings.append("Наружный контур восстановлен предположительно только для topology; проверьте границы.")
     if closures:
@@ -824,6 +879,9 @@ def extract_rooms(data, rgb):
         warnings.append("Возможны незамкнутые границы и потерянные помещения.")
     if not rooms:
         warnings.append("Замкнутые помещения не найдены.")
+    if len(rooms) == 1 and any(o.get("source_class") == "unmarked_exterior_gap"
+                               for o in data.get("doors", []) + data.get("passages", [])):
+        warnings.append("После замыкания наружного проёма выделен один общий контур. Проверьте разделение внутренних помещений.")
     isolated_enclosures = sum(item["reason"] == "isolated_wall_enclosure"
                               for item in diagnostics["rejected_components"])
     if isolated_enclosures:
@@ -860,10 +918,11 @@ def extract_rooms(data, rgb):
     result = {"meta": data.get("meta", {}),
               "review_decisions": data.get("review_decisions", []),
               "walls": data.get("walls", []),
-              "doors": data.get("doors", []), "windows": data.get("windows", []),
+              "doors": data.get("doors", []), "windows": data.get("windows", []), "passages": data.get("passages", []),
               "topology_only_openings": topology_only, "rooms": rooms,
               "diagnostics": {"version": 2, "passes": passes, "temporary_closures": closures,
                               "exterior_envelope": envelope,
+                              "unconfirmed_exterior_gap": exterior_gap,
                               "window_edge_seals": sealed_windows,
                               "rooms_found": len(rooms), "uncertain_rooms": sum(r["uncertain"] for r in rooms),
                               "isolated_wall_enclosures": isolated_enclosures,

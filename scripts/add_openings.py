@@ -541,7 +541,7 @@ def main():
 
     unplaced = []
 
-    def bind_opening(opening, door=False):
+    def bind_opening(opening, door=False, kind="windows"):
         export_geometry = opening_export_geometry(opening, door=door)
         px, py = export_geometry["center"]
 
@@ -574,7 +574,7 @@ def main():
             reasons = binding_rejection_reasons(best, required_width)
             if reasons:
                 unplaced.append({"opening_id": opening.get("id"),
-                    "opening_kind": "doors" if door else "windows",
+                    "opening_kind": "doors" if door else kind,
                     "pixel_center": [px, py], "bbox": opening.get("bbox"),
                     "reasons": reasons,
                     "wall_uuid": best["segment"]["uuid"] if best else None,
@@ -789,6 +789,30 @@ def main():
 
     window_bindings = []
 
+    passage_bindings = []
+    if classified.get("passages"):
+        from build_graph_project import opening_element
+        template_path = Path(__file__).resolve().parents[1] / "test/template_passage.json"
+        passage_project = json.loads(template_path.read_text(encoding="utf-8"))
+        passage_template = next(e for level in passage_project["levels"] for e in level["elements"]
+                                if e["type"] == "wallOpening")
+        for index, opening in enumerate(classified["passages"], 1):
+            binding = bind_opening(opening, kind="passages")
+            if binding is None:
+                continue
+            segment = binding["segment"]
+            width, position = binding["width_cm"], binding["position"]
+            if binding["fit_to_wall"]:
+                fitted = fit_opening_to_wall(width, position, binding["length_cm"], segment["thickness"], 0)
+                if fitted:
+                    width, position = fitted
+            item = opening_element(passage_template, "wallOpening", segment, position, width)
+            output_elements.append(item)
+            passage_bindings.append(dict(passage=index, opening_id=opening["id"], element_uuid=item["uuid"],
+                                         wall_uuid=segment["uuid"], width_cm=width, position_percent=position,
+                                         distance_to_wall_cm=binding["distance"], orientation=binding["orientation"],
+                                         pixel_center=binding["pixel_center"]))
+
     windows = classified.get(
         "windows",
         []
@@ -906,7 +930,7 @@ def main():
     if args.bindings_output:
         bindings_path = Path(args.bindings_output)
         bindings_path.parent.mkdir(parents=True, exist_ok=True)
-        bindings_path.write_text(json.dumps({"doors": door_bindings, "windows": window_bindings,
+        bindings_path.write_text(json.dumps({"doors": door_bindings, "windows": window_bindings, "passages": passage_bindings,
                                             "unplaced": unplaced},
                                             indent=2, ensure_ascii=False), encoding="utf-8")
 

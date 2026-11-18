@@ -170,6 +170,16 @@ def recover_openings(classified, rooms, rgb, prediction=None):
                         closure_index=closure_index, opening_id=opening["id"], outer=opening["outer"],
                         overlap=overlap, jamb_support=jamb_support)
     window_count = sum(d["status"] == "recovered" for d in window_decisions)
+    gap = rooms.get("diagnostics", {}).get("unconfirmed_exterior_gap")
+    if gap:
+        reserved = [o["id"] for key in ("rejected_openings", "topology_only_openings")
+                    for o in classified.get(key, []) if isinstance(o.get("id"), int)]
+        shape = gap_polygon(gap["start"], gap["end"], gap["width"])
+        candidate = dict(id=max([next_id - 1, *reserved]) + 1, type="undecided", outer=list(shape.exterior.coords)[:-1],
+                         holes=[], length=gap["length"], thickness=gap["width"],
+                         source_class="unmarked_exterior_gap",
+                         classification=dict(method="unmarked_exterior_gap", requires_review=True))
+        recovered_classified["unconfirmed_openings"] = [candidate]
     report = {"version": 2, "method": "jamb_leaf_arc_or_reviewed_diagonal",
               "window_method": "rejected_polygon_raster_line_jambs", "recovered_doors": count,
               "candidates": decisions, "recovered_windows": window_count,

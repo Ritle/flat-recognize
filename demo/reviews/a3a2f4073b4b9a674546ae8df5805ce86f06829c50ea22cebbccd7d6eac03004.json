@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "image_sha256": "a3a2f4073b4b9a674546ae8df5805ce86f06829c50ea22cebbccd7d6eac03004",
+  "dimension": {"span_px": [[156,43],[420,43]], "length_cm": 1120},
+  "answers": [
+    {"opening_id": 5, "fingerprint": "9810ab6a1b66ecefcfca", "choice": "door"},
+    {"opening_id": 0, "fingerprint": "b4873e0ef7479ad88649", "choice": "ignore"}
+  ]
+}

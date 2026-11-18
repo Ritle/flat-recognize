@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-CHOICES = {"door", "window", "ignore"}
+CHOICES = {"door", "window", "ignore", "open_passage"}
 MAX_ANSWERS = 50
 
 
@@ -72,7 +72,7 @@ def make_review_questions(classified, quality, source_sha256):
         if issue["code"] == "parallel_window_ambiguous":
             paired_with[uid] = [partner for partner in issue.get("paired_with", [])
                                 if isinstance(partner, int) and partner in opening_ids]
-    candidates = doors + windows + topology_only + [opening for opening in classified.get("rejected_openings", [])
+    candidates = doors + windows + classified.get("passages", []) + classified.get("unconfirmed_openings", []) + topology_only + [opening for opening in classified.get("rejected_openings", [])
                                      if (opening.get("classification") or {}).get("method") == "user_ignored"]
     topology_ids = {opening.get("id") for opening in topology_only}
     questions = []
@@ -85,7 +85,7 @@ def make_review_questions(classified, quality, source_sha256):
         classification = opening.get("classification") or {}
         if classification.get("requires_review"):
             method = classification.get("method")
-            reason = (method if method in ("door_arc_missing_jamb",
+            reason = (method if method in ("door_arc_missing_jamb", "unmarked_exterior_gap",
                                           "duplicate_parallel_window_layer",
                                           "one_sided_window_endcap",
                                           "one_sided_unconfirmed_window",
@@ -116,7 +116,8 @@ def make_review_questions(classified, quality, source_sha256):
             "reasons": sorted(reasons[uid]),
             "geometry": geometry.get(uid),
             "paired_with": paired_with.get(uid, []),
-            "choices": ["door", "window", "ignore"],
+            "choices": (["door", "open_passage", "ignore"] if opening.get("source_class") == "unmarked_exterior_gap"
+                        else ["door", "window", "ignore"]),
             "severity": "error" if severity.get(uid) == 2 else "review",
         })
     questions.sort(key=lambda item: (item["severity"] != "error", item["opening_id"]))
@@ -133,7 +134,8 @@ def apply_review_decisions(classified, decisions, source_sha256):
         raise ValueError("Invalid number of review answers")
     data = copy.deepcopy(classified)
     topology_only = data.get("topology_only_openings", [])
-    openings = data.get("doors", []) + data.get("windows", []) + topology_only
+    unconfirmed = data.get("unconfirmed_openings", [])
+    openings = data.get("doors", []) + data.get("windows", []) + data.get("passages", []) + topology_only + unconfirmed
     by_id = {opening.get("id"): opening for opening in openings}
     if len(by_id) != len(openings):
         raise ValueError("Opening IDs must be unique")
@@ -149,6 +151,9 @@ def apply_review_decisions(classified, decisions, source_sha256):
         opening = by_id.get(uid)
         if opening is None or opening_fingerprint(opening) != answer.get("fingerprint"):
             raise ValueError("Review answer refers to a changed or missing opening")
+        unmarked = opening.get("source_class") == "unmarked_exterior_gap"
+        if (choice == "open_passage" and not unmarked) or (unmarked and choice == "window"):
+            raise ValueError("Unsupported choice for this opening")
         selected[uid] = choice
     rejected = data.setdefault("rejected_openings", [])
     rejected[:] = [opening for opening in rejected if opening.get("id") not in selected]
@@ -164,12 +169,14 @@ def apply_review_decisions(classified, decisions, source_sha256):
         }
         if choice == "ignore":
             rejected.append(opening)
-    topology_ids = {opening.get("id") for opening in topology_only}
+    topology_ids = {opening.get("id") for opening in topology_only + unconfirmed}
     accepted = [opening for opening in openings
                 if opening["type"] != "ignore"
                 and (opening.get("id") not in topology_ids or opening.get("id") in selected)]
     data["doors"] = [opening for opening in accepted if opening["type"] == "door"]
     data["windows"] = [opening for opening in accepted if opening["type"] == "window"]
+    data["passages"] = [opening for opening in accepted if opening["type"] == "open_passage"]
+    data["unconfirmed_openings"] = [o for o in unconfirmed if o.get("id") not in selected]
     data["topology_only_openings"] = [opening for opening in topology_only
                                       if opening.get("id") not in selected]
     data["openings"] = accepted

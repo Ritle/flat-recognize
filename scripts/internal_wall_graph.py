@@ -81,7 +81,7 @@ def skeleton_paths(mask):
 def source_shapes(source):
     polygons = [Polygon(item["outer"], item.get("holes", []))
                 for item in (source.get("walls", []) + source.get("reclassified_wall_support", [])
-                             + source.get("doors", []) + source.get("windows", []))
+                             + source.get("doors", []) + source.get("windows", []) + source.get("passages", []))
                 if len(item.get("outer", [])) >= 3]
     return unary_union([p if p.is_valid else p.buffer(0) for p in polygons])
 

@@ -941,7 +941,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
     half_wall = thickness / scale / 2
     wall_shapes = [Polygon(p["outer"], p.get("holes", [])) for p in
                    source.get("walls", []) + source.get("reclassified_wall_support", [])]
-    openings = [Polygon(p["outer"]) for p in source.get("doors", []) + source.get("windows", [])
+    openings = [Polygon(p["outer"]) for p in source.get("doors", []) + source.get("windows", []) + source.get("passages", [])
                 if len(p.get("outer", [])) >= 3]
     repaired = sum(not p.is_valid for p in wall_shapes + openings)
     walls = unary_union([p if p.is_valid else p.buffer(0) for p in wall_shapes]) if wall_shapes else GeometryCollection()

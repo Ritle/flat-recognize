@@ -281,6 +281,9 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     if not isinstance(diagnostics, dict):
         diagnostics = {}
     reconciliation = diagnostics.get("topology_window_reconciliation", {})
+    if diagnostics.get("unconfirmed_exterior_gap"):
+        issue("unconfirmed_exterior_gap", "error",
+              "В наружной стене есть разрыв без обозначения. Уточните, дверь это или открытый проём.")
     pruned = (reconciliation.get("removed_from_room_mask", [])
               if isinstance(reconciliation, dict) else [])
     if pruned:
@@ -388,6 +391,8 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     doors = objects(rooms, "doors", "recognition")
     windows = objects(rooms, "windows", "recognition")
     passages = objects(rooms, "passages", "recognition") if 'passages' in rooms else []
+    if any(p.get("source_class") == "unmarked_exterior_gap" for p in passages):
+        issue("passage_template_height", "warning", "Высота открытого проёма взята из шаблона (180 см).")
     if not windows:
         issue("no_windows", "warning", "Окна не распознаны; проверьте проёмы на исходном изображении.")
     if isinstance(bindings, dict):

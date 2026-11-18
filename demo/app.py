@@ -149,6 +149,7 @@ def load_stats(project_path: Path):
             element.get("type") == "doorItem"
             for element in elements
         ),
+        "passages": sum(element.get("type") == "wallOpening" for element in elements),
         "windows": sum(
             element.get("type") == "windowItem"
             for element in elements
@@ -162,7 +163,7 @@ def run_pipeline(
     pipeline_v2: bool = False,
     review_decisions: Path | None = None,
     light_fill_cleanup: bool = False,
-    *, graph_inputs_only: bool = False,
+    *, graph_inputs_only: bool = False, scale_cm_per_px: float | None = None,
 ):
     command = [
         sys.executable,
@@ -182,6 +183,8 @@ def run_pipeline(
         command.append("--light-fill-cleanup")
     if graph_inputs_only:
         command.append("--graph-inputs-only")
+    if scale_cm_per_px is not None:
+        command.extend(["--scale", str(scale_cm_per_px)])
     if review_decisions is not None:
         command.extend(["--review-decisions", str(review_decisions)])
 
@@ -300,6 +303,18 @@ async def recognize(
     source_hash = hashlib.sha256(data).hexdigest()
     review_payload = None
     applied_decisions = []
+    saved_answers = DEMO_DIR / "reviews" / f"{source_hash}.json"
+    has_saved_answers = pipeline_v2 is not False and saved_answers.is_file()
+    pipeline_options = {}
+    if use_saved_review and has_saved_answers:
+        saved_payload = json.loads(saved_answers.read_text(encoding="utf-8"))
+        if saved_payload["image_sha256"] != source_hash:
+            raise HTTPException(status_code=409, detail="Saved review belongs to another image")
+        if decisions is None:
+            decisions = json.dumps(saved_payload)
+        if dimension := saved_payload.get("dimension"):
+            scale = dimension["length_cm"] / math.dist(*dimension["span_px"])
+            pipeline_options["scale_cm_per_px"] = scale
     if decisions is not None:
         if len(decisions) > 16_384:
             raise HTTPException(status_code=400, detail="Too many review decisions")
@@ -352,7 +367,7 @@ async def recognize(
         pipeline_args = [image_path, project_path, pipeline_v2, decisions_path]
         if cleanup:
             pipeline_args.append(True)
-        result = await asyncio.to_thread(run_pipeline, *pipeline_args)
+        result = await asyncio.to_thread(run_pipeline, *pipeline_args, **pipeline_options)
         quality_path = project_path.with_suffix(".quality.json")
         quality = json.loads(quality_path.read_text(encoding="utf-8")) if quality_path.exists() else None
         if not auto_simple or acceptable_simple_project(image_path, project_path, result, quality):
@@ -563,7 +578,8 @@ async def recognize(
                        "_topology_reconciled_classified.json", "_rooms_topology_reconciled.json"):
             source = OUTPUT_DIR / f"{job_id}{suffix}"
             if source.exists():
-                shutil.copy2(source, job_dir / suffix[1:])
+                name = "initial_classified.json" if suffix == "_classified.json" else suffix[1:]
+                shutil.copy2(source, job_dir / name)
 
     partition_candidates = room_data.get("diagnostics", {}).get("possible_room_partitions", [])
     reviewed_partitions = {item["partition_id"]: item["choice"]
@@ -636,7 +652,7 @@ async def recognize(
         "applied_decisions": applied_decisions,
         "image_sha256": source_hash,
         "use_saved_review": use_saved_review,
-        "saved_review_available": bool(profile),
+        "saved_review_available": bool(profile) or has_saved_answers,
     }
 
     (
