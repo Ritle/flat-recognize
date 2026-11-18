@@ -272,6 +272,8 @@ def classify_opening(gray, opening):
 
 def classify_opening_with_leaf(gray, opening, walls):
     """Require a jamb-anchored leaf and matching swing arc for a door."""
+    if opening.get("source_class") == "surveyed_door":
+        return "door", {"method": "reviewed_raster_symbol"}
     start, end, width = opening_axis(opening)
     if opening.get("source_class") == "measured_swing" and opening.get("raster_swing"):
         return "door", opening["raster_swing"]
@@ -283,6 +285,11 @@ def classify_opening_with_leaf(gray, opening, walls):
             return "door", swing
     evidence = leaf_and_arc(gray, start, end, width, walls)
     if evidence is not None:
+        if opening.get("source_class") in ("door", "window"):
+            from reviewed_ink_layout import measured_frame_at
+            glazing = measured_frame_at(gray, opening["outer"])
+            if glazing is not None:
+                return "window", glazing
         support = wall_jamb_support(start, end, width, walls)
         if min(support) >= 2:
             return "door", evidence | {"jamb_support": support}
@@ -389,8 +396,12 @@ def classify_openings(data, rgb):
         if opening.get("source_class") == "measured_glazing":
             opening["classification"].update(method="parallel_glazing_rails",
                                              evidence={"glazing_rail": True})
+        elif evidence and evidence.get("method") == "four_glazing_rails":
+            opening["classification"]["method"] = "parallel_glazing_rails"
         elif opening.get("source_class") == "measured_swing" and evidence:
             opening["classification"]["method"] = "colored_leaf_and_arc"
+        elif opening.get("source_class") == "surveyed_door":
+            opening["classification"]["method"] = "reviewed_raster_symbol"
         rejection = (weak_window_on_detached_linework(opening, walls, wall_labels, detached)
                      if opening_type == "window" else None)
         if rejection:

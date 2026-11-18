@@ -59,6 +59,10 @@ def reviewed_room_axes(source, shapes, gray, half_wall):
     if any(not p.is_valid or p.area <= 0 or p.interiors for p in shapes):
         return None
     walls = wall_mask(source, *gray.shape)
+    if outlined and outlined.get("reviewed_ink"):
+        from reviewed_ink_layout import surveyed_room_faces
+        return surveyed_room_faces(walls, source.get("doors", []) + source.get("windows", [])
+                                   + source.get("passages", []), shapes)
     ink = (gray < 140) & (cv2.dilate(walls, np.ones((3, 3), np.uint8)) > 0)
     # In gaps the symbol or review supplies the wall axis directly. Keep
     # those votes independent of the line thickness drawn for a symbol.

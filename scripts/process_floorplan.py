@@ -120,7 +120,7 @@ def count_results(final_json):
     }
 
 
-def recognize_graph_inputs(image, pipeline_v2, light_fill_cleanup):
+def recognize_graph_inputs(image, pipeline_v2, light_fill_cleanup, ink_review=None):
     python = sys.executable
     stem = image.stem
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -137,6 +137,8 @@ def recognize_graph_inputs(image, pipeline_v2, light_fill_cleanup):
             OUTPUT / f"{stem}_preprocess.json", "Preprocessing transform metadata"
         )
         prediction_command.extend(["--preprocess-meta", preprocessing_meta, "--dual-pass"])
+        if ink_review is not None:
+            prediction_command.extend(["--ink-review", ink_review])
 
     # =================================================
     # 1. Neural network inference
@@ -280,11 +282,15 @@ def main():
     has_opening_answers = False
     has_partition_answers = False
     has_exterior_answers = False
+    ink_review = None
     if args.review_decisions:
         decisions_path = require_file(args.review_decisions, "Review decisions").resolve()
         args.review_decisions = decisions_path
         try:
-            answers = json.loads(decisions_path.read_text(encoding="utf-8")).get("answers")
+            review = json.loads(decisions_path.read_text(encoding="utf-8"))
+            answers = review.get("answers")
+            if review.get("reviewed_ink_layout"):
+                ink_review = decisions_path
             has_opening_answers = not isinstance(answers, list) or any(
                 not isinstance(answer, dict) or "opening_id" in answer for answer in answers)
             has_partition_answers = isinstance(answers, list) and any(
@@ -439,7 +445,8 @@ def main():
 
     total_started = time.time()
 
-    prediction_json, classified_json = recognize_graph_inputs(image, args.pipeline_v2, args.light_fill_cleanup)
+    prediction_json, classified_json = recognize_graph_inputs(image, args.pipeline_v2, args.light_fill_cleanup,
+                                                              ink_review)
 
     if has_opening_answers and not args.pipeline_v2:
         reviewed = OUTPUT / f"{stem}_reviewed_classified.json"

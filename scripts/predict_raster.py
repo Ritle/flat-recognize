@@ -163,6 +163,7 @@ def main():
     parser.add_argument("image", type=Path)
     parser.add_argument("--preprocess-meta", type=Path)
     parser.add_argument("--dual-pass", action="store_true")
+    parser.add_argument("--ink-review", type=Path)
     args = parser.parse_args()
     image_path = args.image
     preprocessing = None
@@ -272,7 +273,16 @@ def main():
     if args.dual_pass:
         raster_classes = source_mask(mask, rect, preprocessing, (orig_w, orig_h))
         with Image.open(image_path) as raster:
-            outlined = outlined_wall_layout(np.asarray(raster.convert("RGB")), raster_classes != FLOOR_ID)
+            rgb = np.asarray(raster.convert("RGB"))
+            if args.ink_review:
+                from reviewed_ink_layout import reviewed_ink_layout
+                from review_decisions import image_sha256
+                reviewed = json.loads(args.ink_review.read_text(encoding="utf-8"))
+                if reviewed.get("image_sha256") != image_sha256(image_path):
+                    parser.error("Reviewed ink layout belongs to another image")
+                outlined = reviewed_ink_layout(rgb, raster_classes != FLOOR_ID, reviewed["reviewed_ink_layout"])
+            else:
+                outlined = outlined_wall_layout(rgb, raster_classes != FLOOR_ID)
         if outlined is not None:
             walls, framed_openings, layout_info = outlined
             inference["outlined_wall_layout"] = layout_info

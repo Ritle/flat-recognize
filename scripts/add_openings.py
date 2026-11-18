@@ -97,6 +97,11 @@ def opening_export_geometry(opening, door=False):
                 "length_px": get_opening_length_px(opening),
                 "source": "segmentation"}
     if door:
+        if opening.get("source_class") == "surveyed_door" and "clear_span" in opening:
+            lo, hi = opening["clear_span"]
+            center = list(fallback["center"])
+            center[int(fallback["orientation"] == "vertical")] = (lo + hi) / 2
+            return dict(fallback, center=center, length_px=hi-lo, source="reviewed_clear_span")
         return fallback
     recovery = opening.get("recovery") or {}
     if (not isinstance(recovery, dict)
@@ -231,7 +236,7 @@ def door_width_cm(recognized_width, opening=None):
         swing = opening["raster_swing"]
         radius = math.dist(swing["hinge"], swing["tip"])
         return float(recognized_width) * min(1., radius / opening["length"])
-    if opening and opening.get("source_class") == "outlined_wall_frame":
+    if opening and opening.get("source_class") in ("outlined_wall_frame", "surveyed_door"):
         return float(recognized_width)
     if opening and opening.get("source_class") == "unmarked_interior_gap" and opening.get("classification", {}).get("user_confirmed"):
         # The two measured jambs already define the clear span.

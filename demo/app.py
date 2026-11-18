@@ -306,10 +306,12 @@ async def recognize(
     saved_answers = DEMO_DIR / "reviews" / f"{source_hash}.json"
     has_saved_answers = pipeline_v2 is not False and saved_answers.is_file()
     pipeline_options = {}
+    saved_ink = None
     if use_saved_review and has_saved_answers:
         saved_payload = json.loads(saved_answers.read_text(encoding="utf-8"))
         if saved_payload["image_sha256"] != source_hash:
             raise HTTPException(status_code=409, detail="Saved review belongs to another image")
+        saved_ink = saved_payload.get("reviewed_ink_layout")
         if decisions is None:
             decisions = json.dumps(saved_payload)
         if dimension := saved_payload.get("dimension"):
@@ -332,6 +334,9 @@ async def recognize(
                 or any(not valid_review_answer(answer, pipeline_v2 is not False) for answer in answers)):
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
         applied_decisions = answers
+        review_payload.pop("reviewed_ink_layout", None)
+        if saved_ink:
+            review_payload["reviewed_ink_layout"] = saved_ink
     profile = await asyncio.to_thread(saved_focus_profile, source_hash, data) if not applied_decisions else None
     has_opening_answers = any("opening_id" in answer for answer in applied_decisions)
     has_partition_answers = any("partition_id" in answer for answer in applied_decisions)
@@ -343,7 +348,7 @@ async def recognize(
         return await recognize_saved_plan(image_path, original_name, profile)
 
     decisions_path = None
-    if applied_decisions:
+    if applied_decisions or saved_ink:
         decisions_path = job_dir / "review_decisions.json"
         decisions_path.write_text(json.dumps(review_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -357,7 +362,7 @@ async def recognize(
     auto_simple = False
     selection = "explicit"
     if pipeline_v2 is None:
-        if not applied_decisions and light_fill_cleanup is None:
+        if not applied_decisions and not saved_ink and light_fill_cleanup is None:
             try:
                 auto_simple = await asyncio.to_thread(simple_plan_candidate, image_path)
             except (OSError, Image.DecompressionBombError) as exc:

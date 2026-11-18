@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "image_sha256": "9b131b7577cecc34f01f5f5ac0d79eb005412fc77f3d07113d0c78260348e639",
+  "dimension": {"span_px": [[221, 122], [867, 122]], "length_cm": 2000},
+  "reviewed_ink_layout": {
+    "empty_regions": [[566, 395, 572, 430]],
+    "openings": [
+      {"box": [754, 528, 844, 542]},
+      {"box": [320, 308, 370, 323]},
+      {"box": [257, 232, 270, 291], "swing": true},
+      {"box": [221, 440, 235, 499], "swing": true},
+      {"box": [393, 440, 400, 499], "swing": true},
+      {"box": [406, 509, 465, 514], "swing": true, "clear_span": [435, 463]},
+      {"box": [402, 579, 468, 592], "swing": true, "clear_span": [421, 450]},
+      {"box": [521, 478, 552, 482], "swing": true},
+      {"box": [569, 445, 574, 477], "swing": true, "clear_span": [448, 475]},
+      {"box": [598, 389, 628, 393], "swing": true},
+      {"box": [728, 391, 737, 421], "swing": true},
+      {"box": [729, 287, 737, 337], "swing": true, "clear_span": [309, 335]},
+      {"box": [680, 433, 711, 437], "swing": true},
+      {"box": [680, 528, 711, 542], "swing": true},
+      {"box": [635, 498, 642, 528], "swing": true}
+    ]
+  },
+  "answers": [
+    {"opening_id": 0, "fingerprint": "f2f5caae0879a6972a5e", "choice": "door"},
+    {"opening_id": 1, "fingerprint": "eaee4a422527962561de", "choice": "open_passage"}
+  ]
+}

@@ -148,6 +148,15 @@ def internal_lines(source, room_shapes, existing, half_wall, column_footprints=N
     wall_support = unary_union([Polygon(item["outer"], item.get("holes", [])).buffer(0)
                                for item in (source.get("walls", [])
                                             + source.get("reclassified_wall_support", []))])
+    reviewed_spans = []
+    for door in source.get("doors", []):
+        if door.get("source_class") != "surveyed_door":
+            continue
+        x, y, xx, yy = Polygon(door["outer"]).bounds
+        mx, my = (x+xx)/2, (y+yy)/2
+        ends = [(x, my), (xx, my)] if xx-x > yy-y else [(mx, y), (mx, yy)]
+        if all(wall_support.distance(Point(p)) <= 2 for p in ends):
+            reviewed_spans.append(LineString(ends))
     support = raw_support.buffer(step * 1.5)
     unknown = []
     for closure in source.get("diagnostics", {}).get("temporary_closures", []):
@@ -170,9 +179,16 @@ def internal_lines(source, room_shapes, existing, half_wall, column_footprints=N
                       if wall_support.covers(candidate.interpolate(t, normalized=True)) else 0
                       for t in np.linspace(.15, .85, 9)]
             if sum(w >= max(3, wall_width * .25) for w in widths) < 6:
-                report["rejected"].append({"points": [list(p) for p in candidate.coords],
-                                           "reason": "insufficient_wall_width"})
-                continue
+                # Inside a doorway the skeleton has zero solid-wall width.
+                # A surveyed span must run along this branch with wall ink on
+                # both flanks, and all remaining length must lie in the wall.
+                if not any(candidate.buffer(2).covers(span)
+                           and candidate.difference(wall_support.buffer(1).union(span.buffer(2))).length < step
+                           and candidate.intersection(wall_support).length >= step*6
+                           for span in reviewed_spans):
+                    report["rejected"].append({"points": [list(p) for p in candidate.coords],
+                                               "reason": "insufficient_wall_width"})
+                    continue
             direction = np.array(candidate.coords[-1]) - np.array(candidate.coords[0])
             direction_length = float(np.linalg.norm(direction))
             possible_leaf = False
