@@ -107,7 +107,8 @@ def main():
         )
         from shapely.errors import GEOSException
         from reviewed_room_axes import confirmed_interior_gaps
-        if args.geometry_mode == "polygon" or confirmed_interior_gaps(src) or requires_polygons(rooms):
+        if (args.geometry_mode == "polygon" or confirmed_interior_gaps(src)
+                or src.get("meta", {}).get("outlined_wall_layout") or requires_polygons(rooms)):
             try:
                 raster_gray = None
                 if args.source_image:

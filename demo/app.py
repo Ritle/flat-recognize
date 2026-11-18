@@ -315,6 +315,9 @@ async def recognize(
         if dimension := saved_payload.get("dimension"):
             scale = dimension["length_cm"] / math.dist(*dimension["span_px"])
             pipeline_options["scale_cm_per_px"] = scale
+        elif reference := saved_payload.get("area_reference"):
+            pipeline_options["scale_cm_per_px"] = math.sqrt(
+                10_000 * reference["area_m2"] / math.prod(reference["interior_size_px"]))
     if decisions is not None:
         if len(decisions) > 16_384:
             raise HTTPException(status_code=400, detail="Too many review decisions")

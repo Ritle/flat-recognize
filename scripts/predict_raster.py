@@ -16,6 +16,7 @@ from buildingcv.extract_polygons import PolygonExtractor, mask_to_polygons
 from buildingcv.labels import CLASS_COLORS, FLOOR_ID
 from dual_pass_inference import fuse_probabilities, inference_diagnostics
 from preprocess_v2 import model_point_to_source
+from outlined_wall_layout import outlined_wall_layout
 
 
 def prepare_pil_image(image, extractor):
@@ -267,6 +268,14 @@ def main():
 
         walls.append(wall)
 
+    outlined = None
+    if args.dual_pass:
+        raster_classes = source_mask(mask, rect, preprocessing, (orig_w, orig_h))
+        with Image.open(image_path) as raster:
+            outlined = outlined_wall_layout(np.asarray(raster.convert("RGB")), raster_classes != FLOOR_ID)
+        if outlined is not None:
+            walls, framed_openings, layout_info = outlined
+            inference["outlined_wall_layout"] = layout_info
     wall_shapes = []
 
     for wall in walls:
@@ -301,6 +310,8 @@ def main():
 
             candidates.append(opening)
 
+    if outlined is not None:
+        candidates = framed_openings
     valid_openings = []
     rejected_openings = []
 
@@ -431,6 +442,8 @@ def main():
 
     if inference:
         result["diagnostics"]["inference"] = inference
+    if outlined is not None:
+        result["meta"]["outlined_wall_layout"] = layout_info
 
     if preprocessing:
         result["meta"]["preprocessing"] = preprocessing

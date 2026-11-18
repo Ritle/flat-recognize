@@ -1003,7 +1003,8 @@ function renderReviewQuestions(data) {
             ? [['', 'Оставить решение системы'], ['room', 'Помещение'],
                ['ignore', 'Мебель / не помещение']]
             : [['', 'Оставить решение системы'], ['door', 'Дверь'],
-               ...(question.choices?.includes('open_passage') ? [['open_passage', 'Открытый проём без двери']] : [['window', 'Окно']]),
+               ...(!question.choices || question.choices.includes('window') ? [['window', 'Окно']] : []),
+               ...(question.choices?.includes('open_passage') ? [['open_passage', 'Открытый проём без двери']] : []),
                ['ignore', 'Не проём']];
         for (const [value, title] of options) {
             const option = document.createElement('option');

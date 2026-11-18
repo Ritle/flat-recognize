@@ -227,6 +227,8 @@ def binding_rejection_reasons(binding, required_width):
 
 
 def door_width_cm(recognized_width, opening=None):
+    if opening and opening.get("source_class") == "outlined_wall_frame":
+        return float(recognized_width)
     if opening and opening.get("source_class") == "unmarked_interior_gap" and opening.get("classification", {}).get("user_confirmed"):
         # The two measured jambs already define the clear span.
         return float(recognized_width)

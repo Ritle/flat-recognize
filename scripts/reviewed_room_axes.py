@@ -39,9 +39,21 @@ def confirmed_interior_gaps(source):
             and o.get("classification", {}).get("user_confirmed")]
 
 
+def band_axes(field, reach):
+    """Rank wall axes by the number of cross-sections that bisect a thin band."""
+    votes = Counter()
+    for row in field.T:
+        bands = np.flatnonzero(np.diff(np.r_[0, row, 0])).reshape(-1, 2)
+        for a, b in bands:
+            if 2 <= b-a <= reach*2:
+                votes[(int(a+b)-1) / 2] += 1
+    return [axis for axis, n in votes.most_common() if n >= 4]
+
+
 def reviewed_room_axes(source, shapes, gray, half_wall):
     interior = confirmed_interior_gaps(source)
-    if not interior or gray is None:
+    outlined = source.get("meta", {}).get("outlined_wall_layout")
+    if (not interior and not outlined) or gray is None:
         return None
     if any(not p.is_valid or p.area <= 0 or p.interiors for p in shapes):
         return None
@@ -59,9 +71,18 @@ def reviewed_room_axes(source, shapes, gray, half_wall):
                 openings.append((False, (x1 + x2) / 2, y1, y2))
     fitted = []
     reach = max(8, round(half_wall * 7))
+    if outlined:
+        # All these frames have measured jambs and continuous rails. Vote across
+        # the complete network so adjoining rooms pick the same carrier at a T.
+        network = walls.copy()
+        for item in (source.get("doors", []) + source.get("windows", []) + source.get("passages", [])):
+            cv2.fillPoly(network, [np.int32(item["outer"])], 255)
+        ink = cv2.morphologyEx(network, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)) > 0
+        reach = max(8, round(min(gray.shape) * .07))
+        directions = {True: band_axes(ink, reach), False: band_axes(ink.T, reach)}
     for shape in shapes:
         ring = np.asarray(shape.exterior.coords[:-1], dtype=np.float32)
-        ring = cv2.approxPolyDP(ring, max(2, half_wall * 2), True).reshape(-1, 2)
+        ring = cv2.approxPolyDP(ring, 2 if outlined else max(2, half_wall * 2), True).reshape(-1, 2)
         if len(ring) < 4:
             return None
         axes = []
@@ -78,7 +99,13 @@ def reviewed_room_axes(source, shapes, gray, half_wall):
             carriers = [center for orient, center, start, end in openings if orient == horizontal
                         and -1 <= (center - near) * direction <= reach
                         and min(hi, end) - max(lo, start) >= (hi - lo) * .5]
-            axis = measured_axis(ink if horizontal else ink.T, near, lo + 1, hi - 1, direction, reach, carriers)
+            field = ink if horizontal else ink.T
+            if outlined:
+                axis = next((pos for pos in directions[horizontal]
+                             if -1 <= (pos-near)*direction <= reach and hi > lo + 2
+                             and field[round(pos), lo+1:hi].mean() >= .78), None)
+            else:
+                axis = measured_axis(field, near, lo + 1, hi - 1, direction, reach, carriers)
             if axis is None:
                 if len(carriers) != 1:
                     return None

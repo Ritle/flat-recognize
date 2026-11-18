@@ -38,6 +38,15 @@ def opening_location(opening):
                   round((bbox[1] + bbox[3]) / 2, 2)]
 
 
+def opening_choices(opening):
+    source = opening.get("source_class")
+    if source in ("unmarked_exterior_gap", "unmarked_interior_gap"):
+        return ["door", "open_passage", "ignore"]
+    if source == "outlined_wall_frame":
+        return ["door", "window", "open_passage", "ignore"]
+    return ["door", "window", "ignore"]
+
+
 def make_review_questions(classified, quality, source_sha256):
     """Only create actionable questions; a question is never a quality approval."""
     reasons = {}
@@ -116,8 +125,7 @@ def make_review_questions(classified, quality, source_sha256):
             "reasons": sorted(reasons[uid]),
             "geometry": geometry.get(uid),
             "paired_with": paired_with.get(uid, []),
-            "choices": (["door", "open_passage", "ignore"] if opening.get("source_class") in ("unmarked_exterior_gap", "unmarked_interior_gap")
-                        else ["door", "window", "ignore"]),
+            "choices": opening_choices(opening),
             "severity": "error" if severity.get(uid) == 2 else "review",
         })
     questions.sort(key=lambda item: (item["severity"] != "error", item["opening_id"]))
@@ -151,8 +159,7 @@ def apply_review_decisions(classified, decisions, source_sha256):
         opening = by_id.get(uid)
         if opening is None or opening_fingerprint(opening) != answer.get("fingerprint"):
             raise ValueError("Review answer refers to a changed or missing opening")
-        unmarked = opening.get("source_class") in ("unmarked_exterior_gap", "unmarked_interior_gap")
-        if (choice == "open_passage" and not unmarked) or (unmarked and choice == "window"):
+        if choice not in opening_choices(opening):
             raise ValueError("Unsupported choice for this opening")
         selected[uid] = choice
     rejected = data.setdefault("rejected_openings", [])

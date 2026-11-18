@@ -6,7 +6,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, wall_jamb_support
+from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, perpendicular_leaf_and_arc, wall_jamb_support
 from PIL import Image, ImageDraw
 from shapely.geometry import Point, Polygon
 from shapely.ops import unary_union
@@ -273,6 +273,10 @@ def classify_opening(gray, opening):
 def classify_opening_with_leaf(gray, opening, walls):
     """Require a jamb-anchored leaf and matching swing arc for a door."""
     start, end, width = opening_axis(opening)
+    if opening.get("source_class") == "outlined_wall_frame":
+        swing = perpendicular_leaf_and_arc(gray, start, end, width)
+        if swing is not None:
+            return "door", swing
     evidence = leaf_and_arc(gray, start, end, width, walls)
     if evidence is not None:
         support = wall_jamb_support(start, end, width, walls)
@@ -372,7 +376,9 @@ def classify_openings(data, rgb):
             "method": ("source_door_two_jamb_diagonal_leaf" if fallback else
                        "door_arc_missing_jamb" if missing_jamb else "jamb_leaf_and_arc"),
             "confirmed": opening_type == "door" and evidence is not None,
-            "requires_review": fallback or missing_jamb,
+            "requires_review": fallback or missing_jamb or (
+                opening.get("source_class") == "outlined_wall_frame" and opening_type == "window"
+                and not opening.get("glazing_rail")),
             "evidence": evidence,
             "source_class": opening.get("source_class"),
         }

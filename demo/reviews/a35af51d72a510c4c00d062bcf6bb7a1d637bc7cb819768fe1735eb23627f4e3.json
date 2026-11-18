@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "image_sha256": "a35af51d72a510c4c00d062bcf6bb7a1d637bc7cb819768fe1735eb23627f4e3",
+  "area_reference": {"room": "санузел", "area_m2": 4.3, "interior_size_px": [85, 111]},
+  "answers": [
+    {"opening_id": 0, "fingerprint": "7c73d88982db7063a817", "choice": "open_passage"},
+    {"opening_id": 1, "fingerprint": "b2c4b2a5ed37368d25f5", "choice": "open_passage"},
+    {"opening_id": 6, "fingerprint": "2dacff6f9241132ebe02", "choice": "open_passage"},
+    {"opening_id": 7, "fingerprint": "379980954e90b287d755", "choice": "open_passage"}
+  ]
+}

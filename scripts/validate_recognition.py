@@ -391,7 +391,7 @@ def validate_recognition(rooms, project=None, bindings=None, scale=1.0, geometry
     doors = objects(rooms, "doors", "recognition")
     windows = objects(rooms, "windows", "recognition")
     passages = objects(rooms, "passages", "recognition") if 'passages' in rooms else []
-    if any(p.get("source_class") in ("unmarked_exterior_gap", "unmarked_interior_gap") for p in passages):
+    if any(p.get("source_class") in ("unmarked_exterior_gap", "unmarked_interior_gap", "outlined_wall_frame") for p in passages):
         issue("passage_template_height", "warning", "Высота открытого проёма взята из шаблона (180 см).")
     if not windows:
         issue("no_windows", "warning", "Окна не распознаны; проверьте проёмы на исходном изображении.")
