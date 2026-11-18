@@ -273,6 +273,10 @@ def classify_opening(gray, opening):
 def classify_opening_with_leaf(gray, opening, walls):
     """Require a jamb-anchored leaf and matching swing arc for a door."""
     start, end, width = opening_axis(opening)
+    if opening.get("source_class") == "measured_swing" and opening.get("raster_swing"):
+        return "door", opening["raster_swing"]
+    if opening.get("source_class") == "measured_glazing":
+        return "window", None
     if opening.get("source_class") == "outlined_wall_frame":
         swing = perpendicular_leaf_and_arc(gray, start, end, width)
         if swing is not None:
@@ -382,6 +386,11 @@ def classify_openings(data, rgb):
             "evidence": evidence,
             "source_class": opening.get("source_class"),
         }
+        if opening.get("source_class") == "measured_glazing":
+            opening["classification"].update(method="parallel_glazing_rails",
+                                             evidence={"glazing_rail": True})
+        elif opening.get("source_class") == "measured_swing" and evidence:
+            opening["classification"]["method"] = "colored_leaf_and_arc"
         rejection = (weak_window_on_detached_linework(opening, walls, wall_labels, detached)
                      if opening_type == "window" else None)
         if rejection:

@@ -3,6 +3,8 @@
 import cv2
 import numpy as np
 
+from measured_color_layout import measured_color_layout
+
 
 def pale_wall_mask(rgb):
     gray = rgb.min(axis=2)
@@ -93,24 +95,18 @@ def enclosed_areas(mask, minimum):
     return [int(stats[i, 4]) for i in range(1, n) if stats[i, 0] and stats[i, 1] and stats[i, 4] >= minimum]
 
 
-def outlined_wall_layout(rgb, predicted):
-    palette = pale_wall_mask(rgb)
-    if palette is None:
-        return None
-    mask, level = palette
-    gray = rgb.min(axis=2)
-    bays = framed_bays(mask, gray, False) + framed_bays(mask, gray, True)
+def validate_wall_network(mask, bays, predicted, level):
     if len(bays) < 2:
         return None
     network = mask.copy()
     for bay in bays:
         cv2.fillPoly(network, [np.int32(bay["outer"])], 1)
     joined = cv2.morphologyEx(network, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
-    minimum = max(100, round(gray.size * .005))
+    minimum = max(100, round(mask.size * .005))
     rooms = enclosed_areas(joined, minimum)
     # Only replace a leaky model mask when the ruled drawing supplies a single
     # connected network and independently encloses several substantial rooms.
-    if (len(rooms) < 2 or sum(rooms) < gray.size * .25 or cv2.connectedComponents(joined)[0] != 2
+    if (len(rooms) < 2 or sum(rooms) < mask.size * .25 or cv2.connectedComponents(joined)[0] != 2
             or sum(enclosed_areas(predicted, minimum)) >= sum(rooms) * .5):
         return None
     nearby = cv2.dilate(joined, np.ones((7, 7), np.uint8)) != 0
@@ -124,3 +120,22 @@ def outlined_wall_layout(rgb, predicted):
     walls = [dict(outer=rings[i], holes=[rings[j] for j, node in enumerate(hierarchy[0]) if node[3] == i])
              for i, node in enumerate(hierarchy[0]) if node[3] == -1]
     return walls, bays, dict(fill_level=level, enclosed_regions=len(rooms))
+
+
+def outlined_wall_layout(rgb, predicted):
+    palette = pale_wall_mask(rgb)
+    if palette is not None:
+        mask, level = palette
+        gray = rgb.min(axis=2)
+        bays = framed_bays(mask, gray, False) + framed_bays(mask, gray, True)
+        result = validate_wall_network(mask, bays, predicted, level)
+        if result is not None:
+            return result
+    measured = measured_color_layout(rgb)
+    if measured is not None:
+        mask, bays, level = measured
+        result = validate_wall_network(mask, bays, predicted, level)
+        if result is not None:
+            result[2]["colored_symbols"] = True
+        return result
+    return None

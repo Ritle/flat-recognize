@@ -227,6 +227,10 @@ def binding_rejection_reasons(binding, required_width):
 
 
 def door_width_cm(recognized_width, opening=None):
+    if opening and opening.get("source_class") == "measured_swing":
+        swing = opening["raster_swing"]
+        radius = math.dist(swing["hinge"], swing["tip"])
+        return float(recognized_width) * min(1., radius / opening["length"])
     if opening and opening.get("source_class") == "outlined_wall_frame":
         return float(recognized_width)
     if opening and opening.get("source_class") == "unmarked_interior_gap" and opening.get("classification", {}).get("user_confirmed"):

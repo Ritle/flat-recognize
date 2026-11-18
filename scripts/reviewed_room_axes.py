@@ -9,7 +9,7 @@ from shapely.geometry import LineString, Polygon
 from extract_rooms_v2 import wall_mask
 
 
-def measured_axis(field, near, lo, hi, direction, reach, carriers):
+def measured_axis(field, near, lo, hi, direction, reach, carriers, minimum_fraction=None):
     """Vote with wall-band midpoints along the outside of a room edge."""
     votes = Counter()
     for along in range(max(0, lo), min(hi + 1, field.shape[1])):
@@ -28,7 +28,8 @@ def measured_axis(field, near, lo, hi, direction, reach, carriers):
     if votes:
         axis, count = votes.most_common(1)[0]
         supported = any(abs(center - axis) <= 2 for center in carriers)
-        if count >= max(3, (hi - lo + 1) * (.2 if supported else .4)):
+        fraction = minimum_fraction if minimum_fraction is not None else (.2 if supported else .4)
+        if count >= max(3, (hi - lo + 1) * fraction):
             return axis
     return None
 
@@ -82,7 +83,10 @@ def reviewed_room_axes(source, shapes, gray, half_wall):
         directions = {True: band_axes(ink, reach), False: band_axes(ink.T, reach)}
     for shape in shapes:
         ring = np.asarray(shape.exterior.coords[:-1], dtype=np.float32)
-        ring = cv2.approxPolyDP(ring, 2 if outlined else max(2, half_wall * 2), True).reshape(-1, 2)
+        epsilon = max(2, half_wall * 2)
+        if outlined:
+            epsilon = max(2, min(gray.shape) * .005) if outlined.get("colored_symbols") else 2
+        ring = cv2.approxPolyDP(ring, epsilon, True).reshape(-1, 2)
         if len(ring) < 4:
             return None
         axes = []
@@ -101,9 +105,20 @@ def reviewed_room_axes(source, shapes, gray, half_wall):
                         and min(hi, end) - max(lo, start) >= (hi - lo) * .5]
             field = ink if horizontal else ink.T
             if outlined:
-                axis = next((pos for pos in directions[horizontal]
-                             if -1 <= (pos-near)*direction <= reach and hi > lo + 2
-                             and field[round(pos), lo+1:hi].mean() >= .78), None)
+                axis = None
+                if outlined.get("colored_symbols"):
+                    axis = measured_axis(field, near, lo+1, hi-1, direction, reach, carriers,
+                                         minimum_fraction=.18)
+                if axis is None:
+                    axis = next((pos for pos in directions[horizontal]
+                                 if -1 <= (pos-near)*direction <= reach and hi > lo + 2
+                                 and field[round(pos), lo+1:hi].mean() >= .78), None)
+                if axis is None and outlined.get("colored_symbols") and 5 < hi-lo <= reach:
+                    # A short step along the face of a solid pier can have no
+                    # transverse centreline. The adjacent long sides set its ends.
+                    axis = next((near + step * int(direction) for step in range(4)
+                                 if 0 <= near + step * int(direction) < len(field)
+                                 and field[near + step * int(direction), lo+2:hi-1].all()), None)
             else:
                 axis = measured_axis(field, near, lo + 1, hi - 1, direction, reach, carriers)
             if axis is None:
@@ -118,6 +133,8 @@ def reviewed_room_axes(source, shapes, gray, half_wall):
         corners = [(previous[1], axis) if horizontal else (axis, previous[1])
                    for previous, (horizontal, axis) in zip(axes[-1:] + axes[:-1], axes)]
         room = Polygon(corners)
+        if outlined and outlined.get("colored_symbols"):
+            room = room.simplify(0)
         if not room.is_valid or room.is_empty or not room.covers(shape.representative_point()):
             return None
         if shape.difference(room).area > shape.area * .02 or shape.boundary.hausdorff_distance(room.boundary) > reach * 1.5:

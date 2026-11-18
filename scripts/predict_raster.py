@@ -395,10 +395,14 @@ def main():
         if length < min_opening_length:
             reasons.append("too_short")
 
-        if thickness > max_opening_thickness:
+        measured_reveal = opening.get("source_class") in ("measured_glazing", "measured_swing")
+        thickness_limit = max_opening_thickness
+        if measured_reveal:
+            thickness_limit = max(thickness_limit, min_dimension * .08)
+        if thickness > thickness_limit:
             reasons.append("too_thick")
 
-        if aspect_ratio < 1.8:
+        if aspect_ratio < (1.4 if measured_reveal else 1.8):
             reasons.append("not_elongated")
 
         if reasons:
