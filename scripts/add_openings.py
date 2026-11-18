@@ -226,7 +226,10 @@ def binding_rejection_reasons(binding, required_width):
     return reasons
 
 
-def door_width_cm(recognized_width):
+def door_width_cm(recognized_width, opening=None):
+    if opening and opening.get("source_class") == "unmarked_interior_gap" and opening.get("classification", {}).get("user_confirmed"):
+        # The two measured jambs already define the clear span.
+        return float(recognized_width)
     return max(40.0, float(recognized_width) * 1.12)
 
 
@@ -567,7 +570,7 @@ def main():
                 ((scale_x + scale_y) / 2.0)
             )
 
-        required_width = door_width_cm(width_cm) if door else width_cm
+        required_width = door_width_cm(width_cm, opening) if door else width_cm
         best = choose_segment_binding(segment_geometry, wx, wy,
                                       required_width, orientation)
         if geometry_transform is not None:
@@ -643,7 +646,7 @@ def main():
             )
         )
 
-        width_cm = door_width_cm(binding["width_cm"])
+        width_cm = door_width_cm(binding["width_cm"], opening)
         adjustment = {}
         if binding["fit_to_wall"]:
             fitted = fit_opening_to_wall(width_cm, binding["position"], binding["length_cm"],

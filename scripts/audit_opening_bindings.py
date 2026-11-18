@@ -302,7 +302,7 @@ def audit_opening_bindings(classified, project, geometry, gray=None):
                 length = export_geometry["length_px"]
                 width = length * (sx if orientation == "horizontal" else
                                   sy if orientation == "vertical" else (sx + sy) / 2)
-                required = door_width_cm(width) if kind == "doors" else width
+                required = door_width_cm(width, opening) if kind == "doors" else width
                 if not all(math.isfinite(v) for v in (px, py, required)) or required <= 0:
                     raise ValueError("nonfinite or empty opening")
                 row.update(pixel_center=[round(px, 2), round(py, 2)],

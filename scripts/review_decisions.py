@@ -85,7 +85,7 @@ def make_review_questions(classified, quality, source_sha256):
         classification = opening.get("classification") or {}
         if classification.get("requires_review"):
             method = classification.get("method")
-            reason = (method if method in ("door_arc_missing_jamb", "unmarked_exterior_gap",
+            reason = (method if method in ("door_arc_missing_jamb", "unmarked_exterior_gap", "unmarked_interior_gap",
                                           "duplicate_parallel_window_layer",
                                           "one_sided_window_endcap",
                                           "one_sided_unconfirmed_window",
@@ -116,7 +116,7 @@ def make_review_questions(classified, quality, source_sha256):
             "reasons": sorted(reasons[uid]),
             "geometry": geometry.get(uid),
             "paired_with": paired_with.get(uid, []),
-            "choices": (["door", "open_passage", "ignore"] if opening.get("source_class") == "unmarked_exterior_gap"
+            "choices": (["door", "open_passage", "ignore"] if opening.get("source_class") in ("unmarked_exterior_gap", "unmarked_interior_gap")
                         else ["door", "window", "ignore"]),
             "severity": "error" if severity.get(uid) == 2 else "review",
         })
@@ -151,7 +151,7 @@ def apply_review_decisions(classified, decisions, source_sha256):
         opening = by_id.get(uid)
         if opening is None or opening_fingerprint(opening) != answer.get("fingerprint"):
             raise ValueError("Review answer refers to a changed or missing opening")
-        unmarked = opening.get("source_class") == "unmarked_exterior_gap"
+        unmarked = opening.get("source_class") in ("unmarked_exterior_gap", "unmarked_interior_gap")
         if (choice == "open_passage" and not unmarked) or (unmarked and choice == "window"):
             raise ValueError("Unsupported choice for this opening")
         selected[uid] = choice

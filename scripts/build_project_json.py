@@ -106,7 +106,8 @@ def main():
             UnsupportedRoomGeometry,
         )
         from shapely.errors import GEOSException
-        if args.geometry_mode == "polygon" or requires_polygons(rooms):
+        from reviewed_room_axes import confirmed_interior_gaps
+        if args.geometry_mode == "polygon" or confirmed_interior_gaps(src) or requires_polygons(rooms):
             try:
                 raster_gray = None
                 if args.source_image:

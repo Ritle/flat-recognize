@@ -32,6 +32,44 @@ def source(walls, leaf=False):
 
 
 class RoomsTests(unittest.TestCase):
+    def test_reviewed_interior_gap_separates_rooms_on_one_shared_axis(self):
+        from add_openings import door_width_cm
+        from recover_openings_v2 import recover_openings
+        from review_decisions import apply_review_decisions, make_review_questions
+        from reviewed_room_axes import reviewed_room_axes
+
+        walls = [rectangle(40, 40, 280, 47), rectangle(40, 47, 47, 170),
+                 rectangle(273, 47, 280, 170), rectangle(40, 165, 130, 172),
+                 rectangle(157, 165, 280, 172), rectangle(170, 47, 176, 88),
+                 rectangle(170, 119, 176, 170)]
+        data, rgb = source(walls)
+        rooms, _, _ = extract_rooms(data, rgb)
+        classified, _, _ = recover_openings(data, rooms, rgb)
+        self.assertEqual(classified["doors"], [])
+        exterior, interior = make_review_questions(classified, {}, "image")
+        self.assertEqual(interior["reasons"], ["unmarked_interior_gap"])
+        self.assertEqual(interior["center"], [173, 103.5])
+        answers = [dict(opening_id=q["opening_id"], fingerprint=q["fingerprint"], choice="door")
+                   for q in (exterior, interior)]
+        for choice in ("door", "open_passage", "ignore"):
+            answers[1]["choice"] = choice
+            reviewed = apply_review_decisions(classified, dict(version=1, image_sha256="image",
+                                                                answers=answers), "image")
+            rooms, _, _ = extract_rooms(reviewed, rgb)
+            shapes = [Polygon(r["polygon"]) for r in rooms["rooms"]]
+            axes = reviewed_room_axes(rooms, shapes, rgb[:, :, 0], 3)
+            if choice == "ignore":
+                self.assertEqual(len(shapes), 1)
+                self.assertIsNone(axes)
+                continue
+            self.assertEqual(len(axes), 2)
+            self.assertEqual(axes[0].boundary.intersection(axes[1].boundary).bounds,
+                             (173, 43.5, 173, 168.5))
+            if choice == "door":
+                self.assertEqual(door_width_cm(93, reviewed["doors"][-1]), 93)
+            else:
+                self.assertEqual(len(reviewed["passages"]), 1)
+
     def test_single_exterior_leak_requires_a_type_before_export(self):
         from recover_openings_v2 import recover_openings
         from review_decisions import apply_review_decisions, make_review_questions

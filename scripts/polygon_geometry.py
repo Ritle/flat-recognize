@@ -8,6 +8,7 @@ from itertools import pairwise
 import numpy as np
 from add_openings import choose_segment_binding, opening_export_geometry
 from recover_windows_topology_v2 import measured_window_axis
+from reviewed_room_axes import reviewed_room_axes
 from shapely import contains_xy, set_precision
 from shapely.geometry import GeometryCollection, LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
@@ -978,8 +979,13 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
             inferred_envelope = box(*envelope_bbox).boundary
     adjustments = []
     columns = []
-    shapes = [orient(p, sign=1.0) for p in partition_rooms(shapes, half_wall, adjustments, walls=walls,
-                                                            raster_gray=raster_gray, columns=columns)]
+    measured = reviewed_room_axes(source, shapes, raster_gray, half_wall)
+    if measured is None:
+        measured_shapes = partition_rooms(shapes, half_wall, adjustments, walls=walls,
+                                          raster_gray=raster_gray, columns=columns)
+    else:
+        measured_shapes = measured
+    shapes = [orient(p, sign=1.0) for p in measured_shapes]
     level_template = template["levels"][0]
     old = level_template.get("connectors", [])
     cx = (min(c["x"] for c in old) + max(c["x"] for c in old)) / 2 if old else 0
@@ -1140,6 +1146,7 @@ def build_polygon_project(source, template, scale=1, thickness=20, height=270,
                                  "pre_partition_unconfirmed",
                                  "offset_or_support_mismatch", "undetermined")},
               "aligned_window_boundaries": aligned_windows,
+              "reviewed_room_axes": measured is not None,
               "bridged_window_bays": bridged_windows,
               "extended_window_endcaps": extended_windows,
               "realigned_exterior_wall_axes": [],

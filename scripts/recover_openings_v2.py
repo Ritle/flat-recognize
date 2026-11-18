@@ -14,7 +14,9 @@ import json
 import math
 from pathlib import Path
 
+import cv2
 import numpy as np
+from extract_rooms_v2 import wall_mask
 from door_leaf_evidence import diagonal_leaf_with_jambs, leaf_and_arc, perpendicular_leaf_and_arc, wall_jamb_support
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point, Polygon
@@ -34,6 +36,39 @@ def structural_union(items):
 
 def gap_polygon(start, end, width):
     return LineString([start, end]).buffer(width / 2, cap_style=2)
+
+
+def interior_gap_spans(classified, room, gray, wall_width):
+    """Measure blank spans across several adjacent rows, within one recovered interior."""
+    footprint = np.zeros_like(gray)
+    cv2.fillPoly(footprint, [np.asarray(room["polygon"], np.int32)], 1)
+    supported = cv2.dilate(wall_mask(classified, *gray.shape), np.ones((3, 3), np.uint8))
+    ink = (gray < 140) & (supported > 0)
+    spans = []
+    for vertical in (False, True):
+        field = ink.T if vertical else ink
+        inside = footprint.T if vertical else footprint
+        bands = {}
+        offset = max(3, round(wall_width))
+        for row in range(offset, field.shape[0] - offset):
+            runs = np.flatnonzero(np.diff(np.r_[False, field[row], False])).reshape(-1, 2)
+            runs = [(left, right) for left, right in runs if right - left >= 3]
+            for (left, start), (end, right) in zip(runs, runs[1:]):
+                length = end - start
+                middle = (end + start) // 2
+                if (not 1.25 * wall_width <= length <= 6 * wall_width
+                        or max(start - left, right - end) < max(wall_width, length / 2)
+                        or not (inside[row-offset, middle] and inside[row+offset, middle])):
+                    continue
+                bands.setdefault((int(start - 1), int(end)), []).append(row)
+        for (start, end), rows in bands.items():
+            for band in np.split(rows, np.flatnonzero(np.diff(rows) != 1) + 1):
+                if not 2 <= len(band) <= (end - start) / 3:
+                    continue
+                axis = float((band[0] + band[-1]) / 2)
+                a, b = ([axis, start], [axis, end]) if vertical else ([start, axis], [end, axis])
+                spans.append(dict(start=a, end=b, width=len(band), length=end-start))
+    return sorted(spans, key=lambda span: (span["start"][1], span["start"][0]))
 
 
 def recover_openings(classified, rooms, rgb, prediction=None):
@@ -179,7 +214,20 @@ def recover_openings(classified, rooms, rgb, prediction=None):
                          holes=[], length=gap["length"], thickness=gap["width"],
                          source_class="unmarked_exterior_gap",
                          classification=dict(method="unmarked_exterior_gap", requires_review=True))
-        recovered_classified["unconfirmed_openings"] = [candidate]
+        proposals = [candidate]
+        if len(rooms["rooms"]) == 1:
+            known_shapes = structural_union(recovered_classified.get("doors", [])
+                                            + recovered_classified.get("windows", []))
+            for span in interior_gap_spans(classified, rooms["rooms"][0], gray, gap["width"]):
+                footprint = gap_polygon(span["start"], span["end"], span["width"])
+                if footprint.intersects(known_shapes) or footprint.intersects(shape):
+                    continue
+                proposals.append(dict(id=candidate["id"] + len(proposals), type="undecided",
+                                      outer=list(footprint.exterior.coords)[:-1], holes=[],
+                                      length=span["length"], thickness=span["width"],
+                                      source_class="unmarked_interior_gap",
+                                      classification=dict(method="unmarked_interior_gap", requires_review=True)))
+        recovered_classified["unconfirmed_openings"] = proposals
     report = {"version": 2, "method": "jamb_leaf_arc_or_reviewed_diagonal",
               "window_method": "rejected_polygon_raster_line_jambs", "recovered_doors": count,
               "candidates": decisions, "recovered_windows": window_count,

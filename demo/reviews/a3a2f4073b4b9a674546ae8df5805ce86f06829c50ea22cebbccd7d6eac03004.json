@@ -4,6 +4,14 @@
   "dimension": {"span_px": [[156,43],[420,43]], "length_cm": 1120},
   "answers": [
     {"opening_id": 5, "fingerprint": "9810ab6a1b66ecefcfca", "choice": "door"},
-    {"opening_id": 0, "fingerprint": "b4873e0ef7479ad88649", "choice": "ignore"}
+    {"opening_id": 0, "fingerprint": "b4873e0ef7479ad88649", "choice": "ignore"},
+    {"opening_id": 6, "fingerprint": "8c3bdaef3c2eb8c8dfb1", "choice": "door"},
+    {"opening_id": 8, "fingerprint": "77c00be5abe0e5559373", "choice": "door"},
+    {"opening_id": 9, "fingerprint": "b588a5f854bf0f21d88e", "choice": "door"},
+    {"opening_id": 12, "fingerprint": "9f05c932fdeca3dc4f22", "choice": "door"},
+    {"opening_id": 10, "fingerprint": "449090b7c11b48102baa", "choice": "door"},
+    {"opening_id": 13, "fingerprint": "0e02e9e798170d56b459", "choice": "door"},
+    {"opening_id": 14, "fingerprint": "283b434c825a1dfd63d3", "choice": "door"},
+    {"opening_id": 16, "fingerprint": "4b7a2e0b9023ae9e55ae", "choice": "door"}
   ]
 }
