@@ -142,8 +142,8 @@ class GraphServiceApiTest(unittest.IsolatedAsyncioTestCase):
                 for suffix in ('.json', '_classified.json'):
                     (root/(image.stem + suffix)).write_text('{}')
                 return subprocess.CompletedProcess([], 0)
-            async def build(parent, answers, scale, scope, *, saved_review, wall_thickness_cm):
-                self.assertTrue(saved_review)
+            async def build(parent, answers, scale, scope, *, saved_profile_sha256, wall_thickness_cm):
+                self.assertEqual(saved_profile_sha256, digest)
                 self.assertEqual(wall_thickness_cm, 20)
                 self.assertEqual(scale, 3.9)
                 self.assertTrue((root/parent/'classified.json').is_file())
@@ -151,7 +151,7 @@ class GraphServiceApiTest(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse((root/parent/'project.quality.json').exists())
                 job = str(uuid.uuid4())
                 (root/job).mkdir()
-                return dict(job_id=job, parent_job_id=parent, quality={'export_allowed':True})
+                return dict(job_id=job, parent_job_id=parent, image_sha256=digest, quality={'export_allowed':True})
             with patch.object(api, 'FOCUS_REVIEW', root), patch.object(api, 'JOBS_DIR', root), \
                     patch.object(api, 'OUTPUT_DIR', root), patch.object(api, 'run_pipeline', side_effect=segmentation), \
                     patch.object(api, 'build_graph_job', side_effect=build):
@@ -169,6 +169,43 @@ class GraphServiceApiTest(unittest.IsolatedAsyncioTestCase):
             (Path(directory)/'recognition-profile.json').write_text(json.dumps(profile), encoding='utf8')
             self.assertEqual(api.saved_focus_profile('a'*64), profile)
             self.assertIsNone(api.saved_focus_profile('b'*64))
+
+    def test_profile_matches_only_identical_opaque_png_geometry(self):
+        rgb = Image.new('RGB', (3, 2), 'red')
+        profile = dict(image_sha256='a'*64, image_size=[3, 2],
+                       opaque_rgb_sha256=hashlib.sha256(rgb.tobytes()).hexdigest())
+
+        def lookup(image, **options):
+            stream = io.BytesIO()
+            image.save(stream, format='PNG', **options)
+            data = stream.getvalue()
+            return api.saved_focus_profile(hashlib.sha256(data).hexdigest(), data)
+
+        with tempfile.TemporaryDirectory() as directory, patch.object(api, 'FOCUS_REVIEW', Path(directory)):
+            (Path(directory)/'recognition-profile.json').write_text(json.dumps(profile))
+            self.assertEqual(lookup(rgb), profile)
+            self.assertEqual(lookup(rgb.convert('RGBA')), profile)
+            self.assertIsNone(lookup(rgb, transparency=(255, 0, 0)))
+            alpha = rgb.convert('RGBA')
+            alpha.putpixel((1, 1), (255, 0, 0, 254))
+            self.assertIsNone(lookup(alpha))
+            self.assertIsNone(lookup(rgb.resize((2, 3))))
+            rotated = Image.Exif()
+            rotated[274] = 6
+            self.assertIsNone(lookup(rgb, exif=rotated))
+            rgb.putpixel((1, 1), (254, 0, 0))
+            self.assertIsNone(lookup(rgb))
+
+    def test_only_reviews_from_matching_profile_can_be_rebound(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(api, 'FOCUS_REVIEW', Path(directory)):
+            path = Path(directory)/'opening-answers.json'
+            original = dict(version=1, image_sha256='a'*64, answers=[])
+            path.write_text(json.dumps(original))
+            updated = api.saved_review_payload(path.name, 'a'*64, 'b'*64)
+            self.assertEqual(updated, {**original, 'image_sha256': 'b'*64})
+            self.assertEqual(json.loads(path.read_text()), original)
+            with self.assertRaises(HTTPException):
+                api.saved_review_payload(path.name, 'c'*64, 'b'*64)
 
     async def test_light_fill_requires_v2(self):
         with self.assertRaises(HTTPException) as error:

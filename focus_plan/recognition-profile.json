@@ -1,5 +1,7 @@
 {
   "image_sha256": "25ffe0b0b69cfa925c44251ae7ca8413d2f37a4dfef7e326a5ab495038dbf7b3",
+  "image_size": [800, 551],
+  "opaque_rgb_sha256": "78cc5d0e1ba9de6d9c988ed83ede276247b02253d607a2e5b3c70b2a989a58d7",
   "scale_cm_per_px": 3.9145,
   "wall_thickness_cm": 20,
   "scope": {

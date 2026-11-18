@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import io
 import json
 import math
 import os
@@ -33,12 +34,36 @@ OUTPUT_DIR = ROOT / "output"
 FOCUS_REVIEW = ROOT / "focus_plan"
 
 
-def saved_focus_profile(digest):
+def saved_focus_profile(digest, data=b""):
     path = FOCUS_REVIEW / "recognition-profile.json"
     if not path.is_file():
         return None
     profile = json.loads(path.read_text(encoding="utf-8"))
-    return profile if profile["image_sha256"] == digest else None
+    if profile["image_sha256"] == digest:
+        return profile
+    # Only lossless, single-frame PNGs with the same opaque pixels and axes
+    # can reuse measurements recorded in the original image coordinates.
+    if (not profile.get("opaque_rgb_sha256") or not data.startswith(b"\x89PNG\r\n\x1a\n")
+            or len(data) < 25 or data[24] > 8):
+        return None
+    try:
+        with Image.open(io.BytesIO(data)) as raster:
+            if list(raster.size) != profile["image_size"] or raster.is_animated:
+                return None
+            rgba = raster.convert("RGBA")
+            if rgba.getchannel("A").getextrema() != (255, 255) or raster.getexif().get(274, 1) != 1:
+                return None
+            pixels = hashlib.sha256(rgba.convert("RGB").tobytes()).hexdigest()
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError):
+        return None
+    return profile if pixels == profile["opaque_rgb_sha256"] else None
+
+
+def saved_review_payload(name, profile_digest, upload_digest):
+    review = json.loads((FOCUS_REVIEW / name).read_text(encoding="utf-8"))
+    if review.get("image_sha256") != profile_digest:
+        raise HTTPException(status_code=409, detail="Saved review does not match its recognition profile")
+    return {**review, "image_sha256": upload_digest}
 
 
 def valid_review_answer(answer, pipeline_v2):
@@ -289,7 +314,7 @@ async def recognize(
                 or any(not valid_review_answer(answer, pipeline_v2 is not False) for answer in answers)):
             raise HTTPException(status_code=400, detail="Review decisions do not match this image")
         applied_decisions = answers
-    profile = saved_focus_profile(source_hash) if not applied_decisions else None
+    profile = await asyncio.to_thread(saved_focus_profile, source_hash, data) if not applied_decisions else None
     has_opening_answers = any("opening_id" in answer for answer in applied_decisions)
     has_partition_answers = any("partition_id" in answer for answer in applied_decisions)
 
@@ -659,12 +684,13 @@ async def recognize_saved_plan(image, filename, profile):
             raise HTTPException(status_code=500, detail="Отсутствуют результаты распознавания для графа.")
         shutil.copy2(source, parent / name)
     graph = await build_graph_job(
-        image.stem, (FOCUS_REVIEW / "opening-answers.json").read_text(encoding="utf-8"),
-        profile["scale_cm_per_px"], json.dumps(profile["scope"]), saved_review=True,
+        image.stem, None, profile["scale_cm_per_px"], json.dumps(profile["scope"]),
+        saved_profile_sha256=profile["image_sha256"],
         wall_thickness_cm=profile.get("wall_thickness_cm"))
     graph.update(ok=graph["quality"]["export_allowed"], filename=filename,
                  seconds=round(time.monotonic() - started, 2), saved_review=True)
-    metadata = dict(pipeline="graph-inputs", filename=filename, image_sha256=profile["image_sha256"],
+    metadata = dict(pipeline="graph-inputs", filename=filename, image_sha256=graph["image_sha256"],
+                    saved_profile_sha256=profile["image_sha256"],
                     use_saved_review=True, graph_job_id=graph["job_id"])
     (parent / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
     (JOBS_DIR / graph["job_id"] / "metadata.json").write_text(
@@ -701,7 +727,7 @@ async def graph_review(job_id: str, decisions: str | None = Form(None), scale: f
     return await build_graph_job(job_id, decisions, scale, scope)
 
 
-async def build_graph_job(job_id, decisions, scale, scope, *, saved_review=False, wall_thickness_cm=None):
+async def build_graph_job(job_id, decisions, scale, scope, *, saved_profile_sha256=None, wall_thickness_cm=None):
     validate_job_id(job_id)
     if not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 0:
         raise HTTPException(status_code=400, detail="Scale must be a positive finite number")
@@ -731,15 +757,19 @@ async def build_graph_job(job_id, decisions, scale, scope, *, saved_review=False
     if not isinstance(decisions, str):
         decisions = None
     payload = None
-    if decisions is not None:
+    if saved_profile_sha256 is not None or decisions is not None:
+        digest = hashlib.sha256(originals[0].read_bytes()).hexdigest()
+    if saved_profile_sha256 is not None:
+        payload = saved_review_payload("opening-answers.json", saved_profile_sha256, digest)
+    elif decisions is not None:
         if len(decisions) > 16384:
             raise HTTPException(status_code=400, detail="Graph answers payload is too large")
         try:
             payload = json.loads(decisions)
         except json.JSONDecodeError as exc:
             raise HTTPException(status_code=400, detail="Invalid graph answers JSON") from exc
+    if decisions is not None or saved_profile_sha256 is not None:
         rows = payload.get("answers") if isinstance(payload, dict) else None
-        digest = hashlib.sha256(originals[0].read_bytes()).hexdigest()
         if (not isinstance(payload, dict) or payload.get("version") != 1
                 or payload.get("image_sha256") != digest or not isinstance(rows, list)
                 or len(rows) > MAX_ANSWERS or any(not isinstance(row, dict) for row in rows)):
@@ -763,11 +793,12 @@ async def build_graph_job(job_id, decisions, scale, scope, *, saved_review=False
     options = {}
     if wall_thickness_cm is not None:
         options["wall_thickness_cm"] = wall_thickness_cm
-    if saved_review:
-        shutil.copy2(FOCUS_REVIEW / "furniture-review.json", job / "furniture-review.json")
-        axes = FOCUS_REVIEW / "wall-axis-review.json"
-        if axes.is_file():
-            shutil.copy2(axes, job / axes.name)
+    if saved_profile_sha256 is not None:
+        for name in ("furniture-review.json", "wall-axis-review.json"):
+            if name == "wall-axis-review.json" and not (FOCUS_REVIEW / name).is_file():
+                continue
+            review = saved_review_payload(name, saved_profile_sha256, digest)
+            (job / name).write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
         options["saved_review"] = True
     result = await asyncio.to_thread(run_graph_pipeline, image, job / "classified.json",
                                      job / "prediction.json", job,
